@@ -295,7 +295,6 @@ extern "C" {
 #define ATTR_dfltqsubargs       "default_qsub_arguments"
 #define ATTR_rpp_retry		"rpp_retry"
 #define ATTR_rpp_highwater	"rpp_highwater"
-#define ATTR_license_location	"pbs_license_file_location"
 #define ATTR_pbs_license_info	"pbs_license_info"
 #define ATTR_license_min	"pbs_license_min"
 #define ATTR_license_max	"pbs_license_max"
@@ -378,6 +377,8 @@ extern "C" {
 #define ATTR_NODE_poweroff_eligible	"poweroff_eligible"
 #define ATTR_NODE_last_state_change_time	"last_state_change_time"
 #define ATTR_NODE_last_used_time	"last_used_time"
+
+#define ND_RESC_LicSignature "lic_signature"	/* custom resource used for licensing */
 
 /* Resource "attribute" names */
 #define ATTR_RESC_TYPE		"type"
@@ -467,6 +468,7 @@ enum mgr_obj {
 #define PBS_TERM_CCA		6	/* Interactive term cntl char array */
 #define PBS_RESV_ID_CHAR	'R'	/* Character in front of a resv ID */
 #define PBS_STDNG_RESV_ID_CHAR   'S'   /* Character in front of a resv ID */
+#define PBS_MNTNC_RESV_ID_CHAR   'M'   /* Character in front of a resv ID */
 #define PBS_AUTH_KEY_LEN    (129)
 
 enum batch_op {	SET, UNSET, INCR, DECR,
@@ -538,6 +540,7 @@ enum preempt_method
 	PREEMPT_METHOD_SUSPEND,
 	PREEMPT_METHOD_CHECKPOINT,
 	PREEMPT_METHOD_REQUEUE,
+	PREEMPT_METHOD_DELETE,
 	PREEMPT_METHOD_HIGH
 };
 
@@ -555,7 +558,7 @@ typedef int	pbs_resource_t;	/* resource reservation handle */
 enum resv_states { RESV_NONE, RESV_UNCONFIRMED, RESV_CONFIRMED, RESV_WAIT,
 	RESV_TIME_TO_RUN, RESV_RUNNING, RESV_FINISHED,
 	RESV_BEING_DELETED, RESV_DELETED, RESV_DELETING_JOBS, RESV_DEGRADED,
-	RESV_BEING_ALTERED };
+	RESV_BEING_ALTERED, RESV_IN_CONFLICT };
 
 #ifdef _USRDLL		/* This is only for building Windows DLLs
 			 * and not their static libraries

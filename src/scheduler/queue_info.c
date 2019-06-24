@@ -180,7 +180,7 @@ query_queues(status *policy, int pbs_sd, server_info *sinfo)
 		if ((qinfo = query_queue_info(policy, cur_queue, sinfo)) == NULL) {
 			free_schd_error(sch_err);
 			pbs_statfree(queues);
-			free_queues(qinfo_arr, 1);
+			free_queues(qinfo_arr);
 			return NULL;
 		}
 
@@ -327,7 +327,7 @@ query_queues(status *policy, int pbs_sd, server_info *sinfo)
 	free_schd_error(sch_err);
 	if (err) {
 		if (qinfo_arr != NULL)
-			free_queues(qinfo_arr, 1);
+			free_queues(qinfo_arr);
 
 		return NULL;
 	}
@@ -595,23 +595,20 @@ new_queue_info(int limallocflag)
  *		free_queues - free an array of queues
  *
  * @param[in,out]	qarr	-	qinfo array to delete
- * @param[in]	free_jobs_too	-	free the jobs in the queue also
  *
  * @return	nothing
  *
  */
 
 void
-free_queues(queue_info **qarr, char free_jobs_too  )
+free_queues(queue_info **qarr)
 {
 	int i;
 	if (qarr == NULL)
 		return;
 
 	for (i = 0; qarr[i] != NULL; i++) {
-		if (free_jobs_too)
-			free_resource_resv_array(qarr[i]->jobs);
-
+		free_resource_resv_array(qarr[i]->jobs);
 		free_queue_info(qarr[i]);
 	}
 
@@ -677,9 +674,8 @@ update_queue_on_run(queue_info *qinfo, resource_resv *resresv, char *job_state)
 
 		req = req->next;
 	}
-	free(qinfo->running_jobs);
-	qinfo->running_jobs = resource_resv_filter(qinfo->jobs, qinfo->sc.total,
-		check_run_job, NULL, 0);
+
+	qinfo->running_jobs = add_resresv_to_array(qinfo->running_jobs, resresv, NO_FLAGS);
 
 	if (qinfo->has_soft_limit || qinfo->has_hard_limit) {
 
@@ -890,7 +886,7 @@ dup_queues(queue_info **oqueues, server_info *nsinfo)
 
 	for (i = 0; oqueues[i] != NULL; i++) {
 		if ((new_queues[i] = dup_queue_info(oqueues[i], nsinfo)) == NULL) {
-			free_queues(new_queues, 1);
+			free_queues(new_queues);
 			return NULL;
 		}
 	}

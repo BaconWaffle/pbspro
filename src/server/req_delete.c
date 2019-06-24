@@ -368,6 +368,7 @@ req_deletejob(struct batch_request *preq)
 	int delhist = 0;
 	int maxindex = 0;
 	int count = 0;
+	int err = PBSE_NONE;
 
 	jid = preq->rq_ind.rq_delete.rq_objname;
 
@@ -383,9 +384,13 @@ req_deletejob(struct batch_request *preq)
 	else
 		qdel_mail = 1;
 
-	parent = chk_job_request(jid, preq, &jt);
-	if (parent == NULL)
+	parent = chk_job_request(jid, preq, &jt, &err);
+	if (parent == NULL) {
+		pjob = find_job(jid);
+		if (pjob != NULL && pjob->ji_pmt_preq != NULL)
+			reply_preempt_jobs_request(err, PREEMPT_METHOD_DELETE, pjob);
 		return; /* note, req_reject already called */
+	}
 
 	if (delhist) {
 		rc = check_deletehistoryjob(preq);
@@ -421,6 +426,10 @@ req_deletejob(struct batch_request *preq)
 		}
 
 		if ((i == JOB_STATE_EXITING) && (forcedel == 0)) {
+			if (parent->ji_pmt_preq != NULL) {
+				pjob = find_job(jid);
+				reply_preempt_jobs_request(PBSE_BADSTATE, PREEMPT_METHOD_DELETE, pjob);
+			}
 			req_reject(PBSE_BADSTATE, 0, preq);
 			return;
 		} else if (i == JOB_STATE_EXPIRED) {
@@ -663,7 +672,8 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 					return; /* all done for now */
 
 				} else {
-
+					if (pjob->ji_pmt_preq != NULL)
+						reply_preempt_jobs_request(PBSE_SYSTEM, PREEMPT_METHOD_DELETE, pjob);
 					req_reject(PBSE_SYSTEM, 0, preq);
 					return;
 				}
@@ -672,6 +682,9 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 		}
 		/* should never get here ...  */
 		log_err(-1, "req_delete", "Did not find work task for router");
+		if (pjob->ji_pmt_preq != NULL)
+			reply_preempt_jobs_request(PBSE_INTERNAL, PREEMPT_METHOD_DELETE, pjob);
+
 		req_reject(PBSE_INTERNAL, 0, preq);
 		return;
 
@@ -682,8 +695,11 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 
 		pwtnew = set_task(WORK_Timed, time_now + 1, post_delete_route,
 			preq);
-		if (pwtnew == 0)
+		if (pwtnew == 0) {
+			if (pjob->ji_pmt_preq != NULL)
+				reply_preempt_jobs_request(PBSE_SYSTEM, PREEMPT_METHOD_DELETE, pjob);
 			req_reject(PBSE_SYSTEM, 0, preq);
+		}
 
 		return;
 	}
@@ -697,14 +713,13 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 
 	if ((pjob->ji_qs.ji_state == JOB_STATE_RUNNING) ||
 		(pjob->ji_qs.ji_substate == JOB_SUBSTATE_TERM)) {
-
 		if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_RERUN) {
 			/* rerun just started, clear that substate and */
 			/* normal delete will happen when mom replies  */
 
 			pjob->ji_qs.ji_substate = JOB_SUBSTATE_RUNNING;
 			log_event(PBSEVENT_JOB, PBS_EVENTCLASS_JOB, LOG_INFO,
-				pjob->ji_qs.ji_jobid, "deleting instead of reruning");
+				  pjob->ji_qs.ji_jobid, "deleting instead of rerunning");
 			acct_del_write(pjob->ji_qs.ji_jobid, pjob, preq, 0);
 			reply_ack(preq);
 			return;
@@ -739,8 +754,11 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 				reply_ack(preq);
 				rel_resc(pjob);
 				(void) job_abt(pjob, NULL);
-			} else
+			} else {
+				if (pjob->ji_pmt_preq != NULL)
+					reply_preempt_jobs_request(PBSE_BADSTATE, PREEMPT_METHOD_DELETE, pjob);
 				req_reject(PBSE_BADSTATE, 0, preq);
+			}
 			return;
 		}
 
@@ -762,7 +780,7 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 		else
 			temp_preq = preq;
 
-		rc = issue_signal(pjob, sig, post_delete_mom1, temp_preq, NULL);
+		rc = issue_signal(pjob, sig, post_delete_mom1, temp_preq);
 
 		/*
 		 * If forcedel is set and request is from a manager,
@@ -780,6 +798,14 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 			log_event(PBSEVENT_JOB, PBS_EVENTCLASS_JOB, LOG_INFO,
 				pjob->ji_qs.ji_jobid, "Delete forced");
 			acct_del_write(pjob->ji_qs.ji_jobid, pjob, preq, 0);
+			/* 
+			 * If we are waiting for preemption to be complete and someone does a qdel -Wforce
+			 * we need to reply back to the scheduler.  We need to reply success so we don't
+			 * attempt another preemption method.  This leads to a minor race condition
+			 * where the moms might not be finished cleaning up when the high priority job runs.
+			 */
+			if (pjob->ji_pmt_preq != NULL)
+				reply_preempt_jobs_request(PBSE_NONE, PREEMPT_METHOD_DELETE, pjob);
 			reply_ack(preq);
 			discard_job(pjob, "Forced Delete", 1);
 			rel_resc(pjob);
@@ -798,6 +824,8 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 			return;
 		}
 		if (rc) {
+			if (pjob->ji_pmt_preq != NULL)
+				reply_preempt_jobs_request(rc, PREEMPT_METHOD_DELETE, pjob);
 			req_reject(rc, 0, preq); /* cant send to MOM */
 			(void) sprintf(log_buffer, "Delete failed %d", rc);
 			log_event(PBSEVENT_JOB, PBS_EVENTCLASS_JOB, LOG_NOTICE,
@@ -829,7 +857,7 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 	} else {
 
 		/*
-		 * the job is not transitting (though it may have been) and
+		 * the job is not transiting (though it may have been) and
 		 * is not running, so abort it.
 		 */
 
@@ -847,6 +875,8 @@ req_deletejob2(struct batch_request *preq, job *pjob)
 		if (pjob->ji_qs.ji_state == JOB_STATE_EXITING)
 			discard_job(pjob, "Forced Delete", 1);
 		rel_resc(pjob);
+		if (pjob->ji_pmt_preq != NULL)
+			reply_preempt_jobs_request(PBSE_NONE, PREEMPT_METHOD_DELETE, pjob);
 		(void) job_abt(pjob, NULL);
 	}
 
@@ -1090,6 +1120,12 @@ req_deleteReservation(struct batch_request *preq)
 
 			pnxj = (job *) GET_NEXT(pjob->ji_jobque);
 
+			/* skip all expired subjobs, expired subjobs are deleted when array parent is
+			 * issued delete request
+			 */
+			for (; pnxj != NULL && (pnxj->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) &&
+			     pnxj->ji_qs.ji_state == JOB_STATE_EXPIRED; pnxj = (job *) GET_NEXT(pnxj->ji_jobque))
+				;
 			/*
 			 * If a history job (job state is JOB_STATE_MOVED
 			 * or JOB_STATE_FINISHED, then no need to delete
@@ -1101,6 +1137,7 @@ req_deleteReservation(struct batch_request *preq)
 				pjob = pnxj;
 				continue;
 			}
+
 			newreq = alloc_br(PBS_BATCH_DeleteJob);
 			if (newreq != NULL) {
 
@@ -1270,7 +1307,7 @@ resend:
 				return;
 			}
 			/* 2nd try, use SIGTERM */
-			rc = issue_signal(pjob, sigt, post_delete_mom1, preq_clt, NULL);
+			rc = issue_signal(pjob, sigt, post_delete_mom1, preq_clt);
 			if (rc == 0)
 				return; /* will be back when replies */
 			goto resend;
@@ -1280,6 +1317,8 @@ resend:
 			 * server crash, when post_sendmom completes.
 			 */
 			if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_PRERUN) {
+				if (pjob->ji_pmt_preq != NULL)
+					reply_preempt_jobs_request(rc, PREEMPT_METHOD_DELETE, pjob);
 				req_reject(rc, 0, preq_clt);
 				return;
 			}
@@ -1292,6 +1331,8 @@ resend:
 			reply_ack(preq_clt);
 			svr_saveorpurge_finjobhist(pjob);
 		} else {
+			if (pjob->ji_pmt_preq != NULL)
+				reply_preempt_jobs_request(rc, PREEMPT_METHOD_DELETE, pjob);
 			req_reject(rc, 0, preq_clt);
 		}
 		return;

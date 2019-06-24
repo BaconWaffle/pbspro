@@ -516,7 +516,10 @@ struct job {
 	int		ji_momhandle;	/* open connection handle to MOM */
 	int		ji_mom_prot;	/* rpp or tcp */
 	struct batch_request *ji_rerun_preq;	/* outstanding rerun request */
-	int		ji_licneed;	/* # of cpu licenses needed by job */
+#ifndef PBS_MOM
+	struct batch_request *ji_pmt_preq;		/* outstanding preempt job request for deleting jobs */
+#endif /* PBS_MOM */
+	int ji_licneed;			/* # of cpu licenses needed by job */
 	int		ji_licalloc;	/* actual # of cpu licenses allocated */
 #ifdef	PBS_MOM				/* MOM ONLY */
 	struct batch_request *ji_preq;	/* outstanding request */
@@ -1159,7 +1162,7 @@ extern int   job_or_resv_save_db(void *, int, int);
 
 
 #ifdef	_BATCH_REQUEST_H
-extern job  *chk_job_request(char *, struct batch_request *, int *);
+extern job  *chk_job_request(char *, struct batch_request *, int *, int *);
 extern int   net_move(job *, struct batch_request *);
 extern int   svr_chk_owner(struct batch_request *, job *);
 extern int   svr_movejob(job *, char *, struct batch_request *);
@@ -1179,7 +1182,7 @@ extern int   site_acl_check(job *, pbs_queue *);
 #endif	/* _QUEUE_H */
 
 #ifdef	_WORK_TASK_H
-extern int   issue_signal(job *, char *, void(*)(struct work_task *), void *, struct batch_request *);
+extern int   issue_signal(job *, char *, void(*)(struct work_task *), void *);
 extern void   on_job_exit(struct work_task *);
 #endif	/* _WORK_TASK_H */
 

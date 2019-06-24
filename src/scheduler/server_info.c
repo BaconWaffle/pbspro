@@ -176,7 +176,7 @@ query_server(status *pol, int pbs_sd)
 	struct batch_status *server;	/* info about the server */
 	struct batch_status *all_sched;	/* info about all server's scheduler objects */
 	struct batch_status *sched;	/* info about the this scheduler object */
-	struct batch_status *bs_resvs = NULL;	/* batch status of the reservations */
+	struct batch_status *bs_resvs;	/* batch status of the reservations */
 	server_info *sinfo;		/* scheduler internal form of server info */
 	queue_info **qinfo;		/* array of queues on the server */
 	counts *cts;			/* used to count running per user/grp */
@@ -219,10 +219,10 @@ query_server(status *pol, int pbs_sd)
 	/* set the time to the current time */
 	sinfo->server_time = policy->current_time;
 
-	if( query_server_dyn_res(sinfo) == -1 ) {
+	if(query_server_dyn_res(sinfo) == -1) {
 		pbs_statfree(server);
 		sinfo -> fairshare = NULL;
-		free_server( sinfo, 0 );
+		free_server(sinfo);
 		return NULL;
 	}
 
@@ -239,7 +239,7 @@ query_server(status *pol, int pbs_sd)
 		pbs_statfree(server);
 		pbs_statfree(all_sched);
 		sinfo->fairshare = NULL;
-		free_server(sinfo, 0);
+		free_server(sinfo);
 		return NULL;
 	}
 	query_sched_obj(policy, sched, sinfo);
@@ -250,7 +250,7 @@ query_server(status *pol, int pbs_sd)
 		schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_SERVER, LOG_ERR, __func__, log_buffer);
 		pbs_statfree(server);
 		sinfo->fairshare = NULL;
-		free_server(sinfo, 0);
+		free_server(sinfo);
 		return NULL;
 	}
 
@@ -262,12 +262,15 @@ query_server(status *pol, int pbs_sd)
 	 */
 	if (dflt_sched)
 		bs_resvs = stat_resvs(pbs_sd);
+	else
+		bs_resvs = NULL;
 
 	/* get the nodes, if any - NOTE: will set sinfo -> num_nodes */
 	if ((sinfo->nodes = query_nodes(pbs_sd, sinfo)) == NULL) {
 		pbs_statfree(server);
 		sinfo->fairshare = NULL;
-		free_server(sinfo, 0);
+		free_server(sinfo);
+		pbs_statfree(bs_resvs);
 		return NULL;
 	}
 
@@ -280,7 +283,8 @@ query_server(status *pol, int pbs_sd)
 	if ((sinfo->queues = query_queues(policy, pbs_sd, sinfo)) == NULL) {
 		pbs_statfree(server);
 		sinfo->fairshare = NULL;
-		free_server(sinfo, 0);
+		free_server(sinfo);
+		pbs_statfree(bs_resvs);
 		return NULL;
 	}
 
@@ -321,24 +325,26 @@ query_server(status *pol, int pbs_sd)
 			ret_val = add_queue_to_list(&sinfo->queue_list, sinfo->queues[i]);
 			if (ret_val == 0) {
 				sinfo->fairshare = NULL;
-				free_server(sinfo, 1);
+				free_server(sinfo);
+				pbs_statfree(bs_resvs);
 				return NULL;
 			}
 		}
 	}
-	
+
 	/* get reservations, if any - NOTE: will set sinfo -> num_resvs */
 	sinfo->resvs = query_reservations(sinfo, bs_resvs);
+	pbs_statfree(bs_resvs);
 
 	if (create_server_arrays(sinfo) == 0) { /* bad stuff happened */
 		sinfo->fairshare = NULL;
-		free_server(sinfo, 1);
+		free_server(sinfo);
 		return NULL;
 	}
 #ifdef NAS /* localmod 050 */
 	/* Give site a chance to tweak values before jobs are sorted */
 	if (site_tidy_server(sinfo) == 0) {
-		free_server(sinfo, 1);
+		free_server(sinfo);
 		return NULL;
 	}
 #endif /* localmod 050 */
@@ -364,7 +370,7 @@ query_server(status *pol, int pbs_sd)
 		sinfo->sc.total, check_exit_job, NULL, 0);
 	if (sinfo->running_jobs == NULL || sinfo->exiting_jobs ==NULL) {
 		sinfo->fairshare = NULL;
-		free_server(sinfo, 1);
+		free_server(sinfo);
 		return NULL;
 	}
 
@@ -429,7 +435,7 @@ query_server(status *pol, int pbs_sd)
 	sinfo->unordered_nodes = malloc((sinfo->num_nodes+1) * sizeof(node_info*));
 	if(sinfo->unordered_nodes == NULL) {
 		sinfo->fairshare = NULL;
-		free_server(sinfo, 1);
+		free_server(sinfo);
 		return NULL;
 	}
 
@@ -889,6 +895,9 @@ query_sched_obj(status *policy, struct batch_status *sched, server_info *sinfo)
 									break;
 								case 'R':
 									conf.preempt_order[i].order[j] = PREEMPT_METHOD_REQUEUE;
+									break;
+								case 'D':
+									conf.preempt_order[i].order[j] = PREEMPT_METHOD_DELETE;
 									break;
 							}
 						}
@@ -1631,25 +1640,21 @@ add_resource_bool(schd_resource *r1, schd_resource *r2)
  * @brief
  * 		free_server - free a server_info and possibly its queues also
  *
- * @param[in]	sinfo 			- 	server_info list head
- * @param[in]	free_queues_too - 	flag to free the queues attached
- *									to server also
+ * @param[in]	sinfo -	server_info list head
  *
  * @return	void
  *
  * @par MT-Safe:	no
  */
 void
-free_server(server_info *sinfo, int free_objs_too)
+free_server(server_info *sinfo)
 {
 	if (sinfo == NULL)
 		return;
 
-	if (free_objs_too) {
-		free_queues(sinfo->queues, 1);
-		free_nodes(sinfo->nodes);
-		free_resource_resv_array(sinfo->resvs);
-	}
+	free_queues(sinfo->queues);
+	free_nodes(sinfo->nodes);
+	free_resource_resv_array(sinfo->resvs);
 
 #ifdef NAS /* localmod 053 */
 	site_restore_users();
@@ -1760,10 +1765,8 @@ update_server_on_run(status *policy, server_info *sinfo,
 		}
 
 
-		/* a new job has been run, recreate running jobs array */
-		free(sinfo->running_jobs);
-		sinfo->running_jobs = resource_resv_filter(
-			sinfo->jobs, sinfo->sc.total, check_run_job, NULL, 0);
+		/* a new job has been run, update running jobs array */
+		sinfo->running_jobs = add_resresv_to_array(sinfo->running_jobs, resresv, NO_FLAGS);
 	}
 
 	if (sinfo->has_soft_limit || sinfo->has_hard_limit) {
@@ -2238,7 +2241,7 @@ dup_server_info(server_info *osinfo)
 	if (osinfo->fairshare != NULL) {
 		nsinfo->fairshare = dup_fairshare_head(osinfo->fairshare);
 		if (nsinfo->fairshare == NULL) {
-			free_server(nsinfo, 1);
+			free_server(nsinfo);
 			return NULL;
 		}
 	}
@@ -2313,7 +2316,7 @@ dup_server_info(server_info *osinfo)
 	/* duplicate the queues */
 	nsinfo->num_queues = osinfo->num_queues;
 	if ((nsinfo->queues = dup_queues(osinfo->queues, nsinfo)) == NULL) {
-		free_server(nsinfo, 0);
+		free_server(nsinfo);
 		return NULL;
 	}
 
@@ -2324,7 +2327,7 @@ dup_server_info(server_info *osinfo)
 			ret_val = add_queue_to_list(&nsinfo->queue_list, nsinfo->queues[i]);
 			if (ret_val == 0) {
 				nsinfo->fairshare = NULL;
-				free_server(nsinfo, 1);
+				free_server(nsinfo);
 				return NULL;
 			}
 		}
@@ -2335,7 +2338,7 @@ dup_server_info(server_info *osinfo)
 	/* sets nsinfo -> jobs and nsinfo -> all_resresv */
 #ifdef NAS /* localmod 054 */
 	if (create_server_arrays(nsinfo) == 0) {
-		free_server(nsinfo, 1);
+		free_server(nsinfo);
 		return NULL;
 	}
 #else
@@ -2349,7 +2352,7 @@ dup_server_info(server_info *osinfo)
 	 * appropriately be freed in free_event_list */
 	nsinfo->calendar = dup_event_list(osinfo->calendar, nsinfo);
 	if (nsinfo->calendar == NULL) {
-		free_server(nsinfo, 1);
+		free_server(nsinfo);
 		return NULL;
 	}
 
@@ -2372,7 +2375,7 @@ dup_server_info(server_info *osinfo)
 
 #ifdef NAS /* localmod 034 */
 	if (!site_dup_shares(osinfo, nsinfo)) {
-		free_server(nsinfo, 1);
+		free_server(nsinfo);
 		return NULL;
 	}
 #endif /* localmod 034 */
@@ -2390,7 +2393,7 @@ dup_server_info(server_info *osinfo)
 	if (osinfo->nodepart != NULL) {
 		nsinfo->nodepart = dup_node_partition_array(osinfo->nodepart, nsinfo);
 		if (nsinfo->nodepart == NULL) {
-			free_server(nsinfo, 1);
+			free_server(nsinfo);
 			return NULL;
 		}
 	}
@@ -2399,7 +2402,7 @@ dup_server_info(server_info *osinfo)
 		int j, k;
 		nsinfo->hostsets = dup_node_partition_array(osinfo->hostsets, nsinfo);
 		if (nsinfo->hostsets == NULL) {
-			free_server(nsinfo, 1);
+			free_server(nsinfo);
 			return NULL;
 		}
 		/* reattach nodes to their host sets*/
@@ -3143,9 +3146,9 @@ set_resource(schd_resource *res, char *val, enum resource_fields field)
 			if (res->type.is_consumable != 0 || res->type.is_non_consumable !=0)
 				memset(&(res->type), 0, sizeof(struct resource_type));
 
-			/* if val is a string, avail will be set to SCHD_INFINITY */
+			/* if val is a string, avail will be set to SCHD_INFINITY_RES */
 			res->avail = res_to_num(val, &(res->type));
-			if (res->avail == SCHD_INFINITY) {
+			if (res->avail == SCHD_INFINITY_RES) {
 				/* Verify that this is a string type resource */
 				if (!res->def->type.is_string)
 					return 0;
@@ -3160,9 +3163,8 @@ set_resource(schd_resource *res, char *val, enum resource_fields field)
 			free(res->str_assigned);
 			res->str_assigned = NULL;
 		}
-		/* only set the type there is not type set */
-		if (res->type.is_non_consumable == 0 && res->type.is_consumable == 0)
-			res->assigned = res_to_num(val, &(res->type));
+		if (val[0] == '@') /* Indirect resources will be found elsewhere, assign 0 */
+			res->assigned = 0;
 		else
 			res->assigned = res_to_num(val, NULL);
 		res->str_assigned = string_dup(val);

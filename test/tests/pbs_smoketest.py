@@ -48,7 +48,7 @@ class SmokeTest(PBSTestSuite):
     # Class variables
     resc_types = [None, 'long', 'float', 'boolean', 'size', 'string',
                   'string_array']
-    resc_flags = [None, 'n', 'h', 'nh', 'q', 'f', 'fh']
+    resc_flags = [None, 'n', 'h', 'nh', 'q', 'f', 'fh', 'm', 'mh']
     resc_flags_ctl = [None, 'r', 'i']
     objs = [QUEUE, SERVER, NODE, JOB, RESV]
     resc_name = "ptl_custom_res"
@@ -77,16 +77,41 @@ class SmokeTest(PBSTestSuite):
         self.server.expect(JOB, {'job_state=R': 3}, count=True,
                            id=jid, extend='t')
 
+    @skipOnCpuSet
     def test_advance_reservation(self):
         """
-        Test to submit an advanced reservation
+        Test to submit an advanced reservation and submit jobs to that
+        reservation. Check if the reservation gets confimed and the jobs
+        inside the reservation starts running when the reservation runs.
         """
-        r = Reservation()
-        a = {'Resource_List.select': '1:ncpus=1'}
+        a = {'resources_available.ncpus': 4}
+        self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
+        r = Reservation(TEST_USER)
+        now = int(time.time())
+        a = {'Resource_List.select': '1:ncpus=4',
+             'reserve_start': now + 10,
+             'reserve_end': now + 110}
         r.set_attributes(a)
         rid = self.server.submit(r)
+        rid_q = rid.split('.')[0]
         a = {'reserve_state': (MATCH_RE, "RESV_CONFIRMED|2")}
         self.server.expect(RESV, a, id=rid)
+
+        # submit a normal job and an array job to the reservation
+        a = {'Resource_List.select': '1:ncpus=1',
+             ATTR_q: rid_q}
+        j1 = Job(TEST_USER, attrs=a)
+        jid1 = self.server.submit(j1)
+
+        a = {'Resource_List.select': '1:ncpus=1',
+             ATTR_q: rid_q, ATTR_J: '1-2'}
+        j2 = Job(TEST_USER, attrs=a)
+        jid2 = self.server.submit(j2)
+
+        a = {'reserve_state': (MATCH_RE, "RESV_RUNNING|5")}
+        self.server.expect(RESV, a, id=rid, interval=1)
+        self.server.expect(JOB, {'job_state': 'R'}, jid1)
+        self.server.expect(JOB, {'job_state': 'B'}, jid2)
 
     def test_standing_reservation(self):
         """
@@ -384,24 +409,28 @@ class SmokeTest(PBSTestSuite):
     @skipOnCpuSet
     def test_preemption_qrun(self):
         """
-        Test that qrun will preempt other jobs
+        Test that a job is preempted when a high priority job is run via qrun
         """
         self.server.manager(MGR_CMD_SET, NODE,
                             {'resources_available.ncpus': 1},
                             id=self.mom.shortname)
-        J1 = Job(TEST_USER)
-        jid1 = self.server.submit(J1)
 
-        J2 = Job(TEST_USER)
-        jid2 = self.server.submit(J2)
+        j = Job(TEST_USER)
+        jid1 = self.server.submit(j)
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid1)
 
-        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
-        self.server.expect(JOB, {ATTR_state: 'Q'}, id=jid2)
+        j2 = Job(TEST_USER)
+        jid2 = self.server.submit(j2)
 
-        self.server.runjob(jobid=jid2)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
 
-        self.server.expect(JOB, {ATTR_state: 'S'}, id=jid1)
-        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid2)
+        self.server.expect(JOB, {'job_state': 'Q'}, id=jid2)
+
+        self.server.runjob(jid2)
+        self.server.expect(JOB, {'job_state': 'S'}, id=jid1)
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid2)
+
+        self.scheduler.log_match(jid1 + ";Job preempted by suspension")
 
     @skipOnCpuSet
     def test_fairshare(self):
@@ -1363,14 +1392,10 @@ class SmokeTest(PBSTestSuite):
                      'resources_available.foo1': 5000}
         self.server.manager(MGR_CMD_SET, NODE, node_attr, self.mom.shortname)
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
-        job_attr = {'Resource_List.select': '1:ncpus=1:foo1=20',
-                    'Resource_List.walltime': 4}
+        job_attr = {'Resource_List.select': '1:ncpus=1:foo1=20'}
         J1 = Job(TEST_USER2, attrs=job_attr)
-        J1.set_sleep_time(4)
         J2 = Job(TEST_USER3, attrs=job_attr)
-        J2.set_sleep_time(4)
         J3 = Job(TEST_USER1, attrs=job_attr)
-        J3.set_sleep_time(4)
         j1id = self.server.submit(J1)
         j2id = self.server.submit(J2)
         j3id = self.server.submit(J3)
@@ -1381,21 +1406,26 @@ class SmokeTest(PBSTestSuite):
         self.server.expect(JOB, {'job_state': 'R'}, id=j3id)
         self.server.expect(JOB, {'job_state': 'Q'}, id=j2id)
         self.server.expect(JOB, {'job_state': 'Q'}, id=j1id)
+        # While nothing has changed, we must run another cycle for the
+        # scheduler to take note of the fairshare usage.
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
+        self.server.delete(j3id)
         msg = "Checking the job state of " + j2id + ", runs after "
-        msg += j3id + " completes"
+        msg += j3id + " is deleted"
         self.logger.info(msg)
         self.server.expect(JOB, {'job_state': 'R'}, id=j2id)
         self.server.expect(JOB, {'job_state': 'Q'}, id=j1id)
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
+        self.server.delete(j2id)
         msg = "Checking the job state of " + j1id + ", runs after "
-        msg += j2id + " completes"
+        msg += j2id + " is deleted"
         self.logger.info(msg)
         self.server.expect(JOB, {'job_state': 'R'}, id=j1id)
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
-        self.server.log_match(j1id + ";Exit_status")
+
+        self.server.delete(j1id)
 
         # query fairshare and check usage
         fs1 = self.scheduler.query_fairshare(name=str(TEST_USER1))
@@ -1414,16 +1444,12 @@ class SmokeTest(PBSTestSuite):
         # Check the scheduler usage file whether it's updating or not
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
         J1 = Job(TEST_USER4, attrs=job_attr)
-        J1.set_sleep_time(4)
         J2 = Job(TEST_USER2, attrs=job_attr)
-        J2.set_sleep_time(4)
         J3 = Job(TEST_USER1, attrs=job_attr)
-        J3.set_sleep_time(4)
         j1id = self.server.submit(J1)
         j2id = self.server.submit(J2)
         j3id = self.server.submit(J3)
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
-        rv = self.server.expect(SERVER, {'server_state': 'Scheduling'}, op=NE)
 
         self.logger.info("Checking the job state of " + j1id)
         self.server.expect(JOB, {'job_state': 'R'}, id=j1id)
@@ -1431,19 +1457,20 @@ class SmokeTest(PBSTestSuite):
         self.server.expect(JOB, {'job_state': 'Q'}, id=j3id)
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
+        self.server.delete(j1id)
         msg = "Checking the job state of " + j3id + ", runs after "
-        msg += j1id + " completes"
+        msg += j1id + " is deleted"
         self.logger.info(msg)
         self.server.expect(JOB, {'job_state': 'R'}, id=j3id)
         self.server.expect(JOB, {'job_state': 'Q'}, id=j2id)
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
+        self.server.delete(j3id)
         msg = "Checking the job state of " + j2id + ", runs after "
-        msg += j1id + " completes"
+        msg += j3id + " is deleted"
         self.logger.info(msg)
         self.server.expect(JOB, {'job_state': 'R'}, id=j2id)
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
-        self.server.log_match(j2id + ";Exit_status")
 
         # query fairshare and check usage
         fs1 = self.scheduler.query_fairshare(name=str(TEST_USER1))

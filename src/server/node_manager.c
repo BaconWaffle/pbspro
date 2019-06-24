@@ -223,7 +223,6 @@ extern void free_prov_vnode(struct pbsnode *);
 extern void fail_vnode_job(struct prov_vnode_info *, int);
 extern struct prov_tracking * get_prov_record_by_vnode(char *);
 extern int parse_prov_vnode(char *,exec_vnode_listtype *);
-extern void propagate_socket_licensing(mominfo_t *);
 extern vnpool_mom_t *vnode_pool_mom_list;
 
 static void check_and_set_multivnode(struct pbsnode *);
@@ -2715,6 +2714,13 @@ discard_job(job *pjob, char *txt, int noack)
 	int	 rc;
 	int	 rver;
 
+	/* We're about to discard the job, reply to a preemption. 
+	 * This serves as a catch all just incase the code doesn't reply on its own.
+	 */
+
+	if (pjob->ji_pmt_preq != NULL)
+		reply_preempt_jobs_request(PBSE_NONE, PREEMPT_METHOD_DELETE, pjob);
+
 	if ((pjob->ji_wattr[(int)JOB_ATR_exec_vnode].at_flags & ATR_VFLAG_SET) == 0) {
 		/*  no exec_vnode list from which to work */
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
@@ -3808,9 +3814,10 @@ update2_to_vnode(vnal_t *pvnal, int new, mominfo_t *pmom, int *madenew, int from
 			pnode->nd_attr[(int)ND_ATR_Sharing].at_flags =
 				(ATR_VFLAG_SET |ATR_VFLAG_DEFLT);
 		}
+		(void)release_node_lic(pnode);
 	}
 
-	/* set attributes/resources if not already non-default */
+	/* set attributes/resources if they are default */
 
 	pRA = &pnode->nd_attr[(int)ND_ATR_ResourceAvail];
 
@@ -4441,13 +4448,13 @@ mom_running_jobs(int stream)
 				if (substate == JOB_SUBSTATE_RUNNING) {
 
 					/* tell Mom to suspend job */
-					(void)issue_signal(pjob, "SIG_SUSPEND", release_req, 0, NULL);
+					(void)issue_signal(pjob, "SIG_SUSPEND", release_req, 0);
 				}
 			} else if (pjob->ji_qs.ji_substate ==JOB_SUBSTATE_RUNNING) {
 				if (substate == JOB_SUBSTATE_SUSPEND) {
 
 					/* tell Mom to resume job */
-					(void)issue_signal(pjob, "SIG_RESUME", release_req, 0, NULL);
+					(void)issue_signal(pjob, "SIG_RESUME", release_req, 0);
 				}
 
 			} else if ((pjob->ji_qs.ji_state != JOB_STATE_EXITING) &&
@@ -4985,7 +4992,7 @@ found:
 							}
 						}
 					}
-					propagate_socket_licensing(pmom);
+					propagate_socket_licensing(pmom, 1);
 				}
 				vnl_free(vnlp);
 				vnlp = NULL;
@@ -8379,6 +8386,7 @@ set_old_subUniverse(resc_resv	*presv)
 
 	if (presv->ri_qs.ri_state != RESV_CONFIRMED &&
 		presv->ri_qs.ri_substate != RESV_DEGRADED &&
+		presv->ri_qs.ri_substate != RESV_IN_CONFLICT &&
 		presv->ri_qs.ri_state != RESV_RUNNING)
 		return;
 
@@ -8430,7 +8438,7 @@ set_old_subUniverse(resc_resv	*presv)
 	 * In other words, we assume the reservation is confirmed again until
 	 * proven wrong.
 	 */
-	if (presv->ri_qs.ri_substate == RESV_DEGRADED &&
+	if ((presv->ri_qs.ri_substate == RESV_DEGRADED || presv->ri_qs.ri_substate == RESV_IN_CONFLICT) &&
 		presv->ri_qs.ri_state != RESV_RUNNING) {
 		(void) resv_setResvState(presv, RESV_CONFIRMED, RESV_CONFIRMED);
 

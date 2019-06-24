@@ -310,7 +310,7 @@ next_event(server_info *sinfo, int advance)
 	 * status.
 	 */
 	if (!calendar->eol) {
-		if (sinfo->policy->prime_status_end !=SCHD_INFINITY) {
+		if (sinfo->policy->prime_status_end != SCHD_INFINITY) {
 			if (te == NULL ||
 				(*calendar->current_time <= sinfo->policy->prime_status_end &&
 				sinfo->policy->prime_status_end < te->event_time)) {
@@ -480,6 +480,7 @@ set_timed_event_disabled(timed_event *te, int disabled)
  *		differentiate between similar events.
  *
  * @param[in]	te_list 	- timed_event list to search in
+ * @param[in] 	ignore_disabled - ignore disabled events
  * @param[in] 	name    	- name of timed_event to search or NULL to ignore
  * @param[in] 	event_type 	- event_type or TIMED_NOEVENT to ignore
  * @param[in] 	event_time 	- time or 0 to ignore
@@ -493,7 +494,7 @@ set_timed_event_disabled(timed_event *te, int disabled)
  *
  */
 timed_event *
-find_timed_event(timed_event *te_list, char *name,
+find_timed_event(timed_event *te_list, int ignore_disabled, char *name,
 	enum timed_event_types event_type, time_t event_time)
 {
 	timed_event *te;
@@ -505,6 +506,8 @@ find_timed_event(timed_event *te_list, char *name,
 		return NULL;
 
 	for (te = te_list; te != NULL; te = find_next_timed_event(te, 0, ALL_MASK)) {
+		if (ignore_disabled && te->disabled)
+			continue;
 		found_name = found_type = found_time = 0;
 		if (name == NULL || strcmp(te->name, name) == 0)
 			found_name = 1;
@@ -855,11 +858,21 @@ create_events(server_info *sinfo)
 	int		errflag = 0;
 	int		i = 0;
 	time_t 		end = 0;
+	resource_resv	**all_resresv_copy;
+	int		all_resresv_len;
 
-	/* all_resresv is sorted such that the timed events are in the front of
-	 * the array.  Once the first non-timed event is reached, we're done
+	/* create a temporary copy of all_resresv array which is sorted such that
+	 * the timed events are in the front of the array.
+	 * Once the first non-timed event is reached, we're done
 	 */
-	all = sinfo->all_resresv;
+	all_resresv_len = count_array((void **)sinfo->all_resresv);
+	all_resresv_copy = malloc((all_resresv_len + 1) * sizeof(resource_resv *));
+	if (all_resresv_copy == NULL)
+		return 0;
+	for (i = 0; sinfo->all_resresv[i] != NULL; i++)
+		all_resresv_copy[i] = sinfo->all_resresv[i];
+	all_resresv_copy[i] = NULL;
+	all = all_resresv_copy;
 
 	/* sort the all resersv list so all the timed events are in the front */
 	qsort(all, count_array((void **)all), sizeof(resource_resv *), cmp_events);
@@ -898,8 +911,10 @@ create_events(server_info *sinfo)
 		if (node->is_sleeping) {
 			te = create_event(TIMED_NODE_UP_EVENT, sinfo->server_time + PROVISION_DURATION,
 					(event_ptr_t *) node, (event_func_t) node_up_event, NULL);
-			if (te == NULL)
-				return 0;
+			if (te == NULL) {
+				errflag++;
+				break;
+			}
 			events = add_timed_event(events, te);
 		}
 	}
@@ -907,9 +922,11 @@ create_events(server_info *sinfo)
 	/* A malloc error was encountered, free all allocated memory and return */
 	if (errflag > 0) {
 		free_timed_event_list(events);
+		free(all_resresv_copy);
 		return 0;
 	}
 
+	free(all_resresv_copy);
 	return events;
 }
 
@@ -973,7 +990,7 @@ dup_event_list(event_list *oelist, server_info *nsinfo)
 	}
 
 	if (oelist->next_event != NULL) {
-		nelist->next_event = find_timed_event(nelist->events,
+		nelist->next_event = find_timed_event(nelist->events, 0,
 			oelist->next_event->name,
 			oelist->next_event->event_type,
 			oelist->next_event->event_time);
@@ -1132,7 +1149,7 @@ dup_te_list(te_list *ote, timed_event *new_timed_event_list)
 	if(nte == NULL)
 		return NULL;
 	
-	nte->event = find_timed_event(new_timed_event_list, ote->event->name, ote->event->event_type, ote->event->event_time);
+	nte->event = find_timed_event(new_timed_event_list, 0, ote->event->name, ote->event->event_type, ote->event->event_time);
 	
 	return nte;
 }
@@ -1267,9 +1284,16 @@ find_event_ptr(timed_event *ote, server_info *nsinfo)
 		case TIMED_RUN_EVENT:
 		case TIMED_END_EVENT:
 			oep = (resource_resv *) ote->event_ptr;
-			event_ptr =
-				find_resource_resv_by_time(nsinfo->all_resresv,
-				oep->name, oep->start);
+			if (oep->is_resv)
+				event_ptr =
+					find_resource_resv_by_time(nsinfo->all_resresv,
+					oep->name, oep->start);
+			else
+				/* In case of jobs there can be only one occurance of job in
+				 * all_resresv list, so no need to search using start time of job
+				 */
+				event_ptr = find_resource_resv_by_indrank(nsinfo->all_resresv, 
+					    oep->rank, oep->resresv_ind);
 
 			if (event_ptr == NULL) {
 				schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_SCHED, LOG_WARNING, ote->name,
@@ -1412,7 +1436,7 @@ add_event(event_list *calendar, timed_event *te)
 				calendar->next_event = te;
 			else if (te->event_time == calendar->next_event->event_time) {
 				calendar->next_event =
-					find_timed_event(calendar->events, NULL,
+					find_timed_event(calendar->events, 0, NULL,
 					TIMED_NOEVENT, te->event_time);
 			}
 		}

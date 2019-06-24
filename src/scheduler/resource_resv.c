@@ -114,6 +114,7 @@
 #include "check.h"
 #include "fifo.h"
 #include "range.h"
+#include "simulate.h"
 
 
 /**
@@ -1036,7 +1037,7 @@ set_resource_req(resource_req *req, char *val)
 {
 	resdef *rdef;
 
-	/* if val is a string, req -> amount will be set to SCHD_INFINITY */
+	/* if val is a string, req -> amount will be set to SCHD_INFINITY_RES */
 	req->amount = res_to_num(val, &(req->type));
 	req->res_str = string_dup(val);
 
@@ -1049,7 +1050,7 @@ set_resource_req(resource_req *req, char *val)
 	if (rdef != NULL)
 		req->type = rdef->type;
 
-	if (req->amount == SCHD_INFINITY) {
+	if (req->amount == SCHD_INFINITY_RES) {
 		/* Verify that this is actually a non-numeric resource */
 		if (!req->def->type.is_string)
 			return 0;
@@ -1270,6 +1271,9 @@ update_resresv_on_end(resource_resv *resresv, char *job_state)
 	int ret;
 	int i;
 
+	/* used for calendar correction */
+	timed_event *te;
+
 	if (resresv == NULL)
 		return;
 
@@ -1313,6 +1317,12 @@ update_resresv_on_end(resource_resv *resresv, char *job_state)
 			}
 			free_selspec(resresv->execselect);
 			resresv->execselect = NULL;
+		}
+		/* We need to correct our calendar */
+		if (resresv->server->calendar != NULL) {
+			te = find_timed_event(resresv->server->calendar->events, 0, resresv->name, TIMED_END_EVENT, 0);
+			if (te != NULL)
+				set_timed_event_disabled(te, 1);
 		}
 	}
 	else if (resresv->is_resv && resresv->resv !=NULL) {

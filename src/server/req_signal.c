@@ -84,7 +84,7 @@ int create_resreleased (job *pjob);
 
 extern char *msg_momreject;
 extern char *msg_signal_job;
-extern job  *chk_job_request(char *, struct batch_request *, int *);
+extern job  *chk_job_request(char *, struct batch_request *, int *, int *);
 
 
 /**
@@ -113,12 +113,17 @@ req_signaljob(struct batch_request *preq)
 	int		  resume = 0;
 	char		 *vrange;
 	int		  x, y, z;
+	int 		 err = PBSE_NONE;
 
 	jid = preq->rq_ind.rq_signal.rq_jid;
 
-	parent = chk_job_request(jid, preq, &jt);
-	if (parent == NULL)
-		return;		/* note, req_reject already called */
+	parent = chk_job_request(jid, preq, &jt, &err);
+	if (parent == NULL) {
+		pjob = find_job(jid);
+		if (pjob != NULL && pjob->ji_pmt_preq != NULL)
+			reply_preempt_jobs_request(err, PREEMPT_METHOD_SUSPEND, pjob);
+		return; /* note, req_reject already called */
+	}
 
 	if (strcmp(preq->rq_ind.rq_signal.rq_signame, SIG_RESUME) == 0 || strcmp(preq->rq_ind.rq_signal.rq_signame, SIG_ADMIN_RESUME) == 0)
 		resume = 1;
@@ -167,6 +172,7 @@ req_signaljob(struct batch_request *preq)
 			req_reject(PBSE_BADSTATE, 0, preq);
 			return;
 		}
+		return;
 
 	} else if (jt == IS_ARRAY_ArrayJob) {
 
@@ -401,7 +407,7 @@ req_signaljob2(struct batch_request *preq, job *pjob)
  */
 
 int
-issue_signal(job *pjob, char *signame, void (*func)(struct work_task *), void *extra, struct batch_request *nest)
+issue_signal(job *pjob, char *signame, void (*func)(struct work_task *), void *extra)
 {
 	struct batch_request *newreq;
 
@@ -411,8 +417,7 @@ issue_signal(job *pjob, char *signame, void (*func)(struct work_task *), void *e
 		return (PBSE_SYSTEM);
 
 	newreq->rq_extra = extra;
-	if (nest)
-		newreq->rq_nest = nest;
+
 	(void)strcpy(newreq->rq_ind.rq_signal.rq_jid, pjob->ji_qs.ji_jobid);
 	(void)strncpy(newreq->rq_ind.rq_signal.rq_signame, signame, PBS_SIGNAMESZ);
 	return (relay_to_mom(pjob, newreq, func));
@@ -465,17 +470,19 @@ post_signal_req(struct work_task *pwt)
 			rel_resc(pjob);
 		}
 
-		if (preq->rq_nest)
-			reply_preempt_jobs_request(rc, 1, preq);
-		else
-			req_reject(rc, 0, preq);
+		if (pjob == NULL)
+			pjob = find_job(preq->rq_ind.rq_signal.rq_jid);
+		if (pjob != NULL && pjob->ji_pmt_preq != NULL)
+			reply_preempt_jobs_request(rc, PREEMPT_METHOD_SUSPEND, pjob);
+
+		req_reject(rc, 0, preq);
 	} else {
 
 		/* everything went ok for signal request at Mom */
 
 		if (suspend && pjob && (pjob->ji_qs.ji_state == JOB_STATE_RUNNING)) {
 			if ((pjob->ji_qs.ji_svrflags & JOB_SVFLG_Suspend) == 0) {
-				if (preq->rq_fromsvr == 1 || preq->rq_nest)
+				if (preq->rq_fromsvr == 1 || pjob->ji_pmt_preq != NULL)
 					ss = JOB_SUBSTATE_SCHSUSP;
 				else
 					ss = JOB_SUBSTATE_SUSPEND;
@@ -516,10 +523,12 @@ post_signal_req(struct work_task *pwt)
 				form_attr_comment("Job run at %s", pjob->ji_wattr[(int) JOB_ATR_exec_vnode].at_val.at_str));
 		}
 
-		if (preq->rq_nest)
-			reply_preempt_jobs_request(PBSE_NONE, 1, preq);
-		else
-			reply_ack(preq);
+		if (pjob == NULL)
+			pjob = find_job(preq->rq_ind.rq_signal.rq_jid);
+		if (pjob != NULL && pjob->ji_pmt_preq != NULL)
+			reply_preempt_jobs_request(PBSE_NONE, PREEMPT_METHOD_SUSPEND, pjob);
+		
+		reply_ack(preq);
 	}
 }
 

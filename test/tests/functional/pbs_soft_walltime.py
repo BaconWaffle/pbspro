@@ -680,7 +680,7 @@ e.accept()
         to calculate percent done and also if the soft_walltime is exceeded,
         the percent done should remain at 100%
         """
-        self.server.manager(MGR_CMD_SET, SCHED, {'preempt_order': '"R 10 S"'},
+        self.server.manager(MGR_CMD_SET, SCHED, {'preempt_order': 'R 10 S'},
                             runas=ROOT_USER)
         a = {'resources_available.ncpus': 2}
         self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
@@ -1036,6 +1036,8 @@ e.accept()
         regular jobs
         """
 
+        a = {'resources_available.ncpus': 1}
+        self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
 
         J = Job(TEST_USER, attrs={ATTR_J: '1-5',

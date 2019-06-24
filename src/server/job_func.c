@@ -255,7 +255,7 @@ job_abt(job *pjob, char *text)
 	if ((old_state == JOB_STATE_RUNNING) && (old_substate != JOB_SUBSTATE_PROVISION)) {
 		(void)svr_setjobstate(pjob,
 			JOB_STATE_RUNNING, JOB_SUBSTATE_ABORT);
-		rc = issue_signal(pjob, "SIGKILL", release_req, 0, NULL);
+		rc = issue_signal(pjob, "SIGKILL", release_req, 0);
 		if (rc != 0) {
 			(void)sprintf(log_buffer, msg_abt_err,
 				pjob->ji_qs.ji_jobid, old_substate);
@@ -373,11 +373,13 @@ job_alloc(void)
 	pj->ji_setup = NULL;
 #else	/* SERVER */
 	pj->ji_prunreq = NULL;
+	pj->ji_pmt_preq = NULL;
 	CLEAR_HEAD(pj->ji_svrtask);
 	CLEAR_HEAD(pj->ji_rejectdest);
 	pj->ji_terminated = 0;
 	pj->ji_deletehistory = 0;
 	pj->ji_newjob = 0;
+	pj->ji_modified = 0;
 	pj->ji_script = NULL;
 #endif
 	pj->ji_qs.ji_jsversion = JSVERSION;
@@ -707,6 +709,13 @@ job_purge(job *pjob)
 		reply_text(pjob->ji_rerun_preq, PBSE_INTERNAL, "job rerun");
 		pjob->ji_rerun_preq = NULL;
 	}
+#ifndef PBS_MOM
+	if (pjob->ji_pmt_preq != NULL) {
+		log_joberr(PBSE_INTERNAL, __func__, "preempt request outstanding",
+			   pjob->ji_qs.ji_jobid);
+		reply_preempt_jobs_request(PBSE_INTERNAL, PREEMPT_METHOD_DELETE, pjob);
+	}
+#endif
 #ifdef	PBS_MOM
 	delete_link(&pjob->ji_jobque);
 	delete_link(&pjob->ji_alljobs);

@@ -211,7 +211,7 @@ if sleeptime > 0:
 #PBS -joe
 echo $PBS_JOBID
 cpuset_base=`grep cgroup /proc/mounts | grep cpuset | cut -d' ' -f2 | \
-             tr " " "\n" | sed -n '1p'`
+             sort | tail -1`
 if [ -z "$cpuset_base" ]; then
     echo "Cpuset subsystem not mounted."
     exit 1
@@ -267,8 +267,8 @@ else
 fi
 sleep 10
 """
-        self.check_dirs_script = """#!/bin/bash
-#PBS -joe
+        self.check_dirs_script = """
+PBS_JOBID=$(qstat | tail -1 | awk '{print $1}')
 
 check_file_diff() {
     for filename in $1/*.*; do
@@ -283,7 +283,8 @@ check_file_diff() {
 }
 
 jobnum=${PBS_JOBID%%.*}
-cpuset_base=`grep cgroup /proc/mounts | grep cpuset | cut -d' ' -f2`
+cpuset_base=`grep cgroup /proc/mounts | grep cpuset | cut -d' ' -f2 | \
+             sort | tail -1`
 if [ -d "$cpuset_base/propbs" ]; then
     cpuset_job="$cpuset_base/propbs/$PBS_JOBID"
 else
@@ -334,7 +335,6 @@ if [ -d $devices_job ]; then
 else
     echo "Devices directory should be populated"
 fi
-sleep 10
 """
         self.check_gpu_script = """#!/bin/bash
 #PBS -joe
@@ -844,9 +844,9 @@ if %s e.job.in_ms_mom():
                 script = fd.read()
         except IOError:
             self.assertTrue(False, 'Failed to open hook file %s' % filename)
-        events = '"execjob_begin,execjob_launch,execjob_attach,'
-        events += 'execjob_epilogue,execjob_end,exechost_startup,'
-        events += 'exechost_periodic,execjob_resize,execjob_abort"'
+        events = ['execjob_begin', 'execjob_launch', 'execjob_attach',
+                  'execjob_epilogue', 'execjob_end', 'exechost_startup',
+                  'exechost_periodic', 'execjob_resize', 'execjob_abort']
         a = {'enabled': 'True',
              'freq': '10',
              'alarm': 30,
@@ -856,7 +856,8 @@ if %s e.job.in_ms_mom():
         for _ in range(5):
             try:
                 self.server.create_import_hook(self.hook_name, a, script,
-                                               overwrite=True)
+                                               overwrite=True,
+                                               level=logging.DEBUG)
             except Exception:
                 time.sleep(2)
             else:
@@ -881,6 +882,32 @@ if %s e.job.in_ms_mom():
         self.moms_list[0].log_match('pbs_cgroups.CF;copy hook-related '
                                     'file request received',
                                     starttime=self.server.ctime)
+        pbs_home = self.server.pbs_conf['PBS_HOME']
+        svr_conf = os.path.join(
+            os.sep, pbs_home, 'server_priv', 'hooks', 'pbs_cgroups.CF')
+        pbs_home = self.mom.pbs_conf['PBS_HOME']
+        mom_conf = os.path.join(
+            os.sep, pbs_home, 'mom_priv', 'hooks', 'pbs_cgroups.CF')
+        # reload config if server and mom cfg differ up to count times
+        count = 5
+        while (count > 0):
+            r1 = self.du.run_cmd(cmd=['cat', svr_conf], sudo=True)
+            r2 = self.du.run_cmd(cmd=['cat', mom_conf], sudo=True)
+            if r1['out'] != r2['out']:
+                self.logger.info('server & mom pbs_cgroups.CF differ')
+                self.server.manager(MGR_CMD_IMPORT, HOOK, a, self.hook_name)
+                self.moms_list[0].log_match('pbs_cgroups.CF;copy hook-related '
+                                            'file request received',
+                                            starttime=self.server.ctime)
+            else:
+                self.logger.info('server & mom pbs_cgroups.CF match')
+                break
+            time.sleep(1)
+            count -= 1
+        # A HUP of each mom ensures update to hook config file is
+        # seen by the exechost_startup hook.
+        for mom in self.moms_list:
+            mom.signal('-HUP')
 
     def load_default_config(self):
         """
@@ -1313,28 +1340,24 @@ if %s e.job.in_ms_mom():
         self.load_config(self.cfg2)
         a = {'Resource_List.select': '1:ncpus=1:mem=300mb', ATTR_N: name}
         j = Job(TEST_USER, attrs=a)
-        j.create_script(self.check_dirs_script)
+        j.set_sleep_time(20)
         jid = self.server.submit(j)
         a = {'job_state': 'R'}
         self.server.expect(JOB, a, jid)
         self.server.status(JOB, [ATTR_o, 'exec_host'], jid)
-        filename = j.attributes[ATTR_o]
-        self.tempfile.append(filename)
-        ehost = j.attributes['exec_host']
-        tmp_file = filename.split(':')[1]
-        tmp_host = ehost.split('/')[0]
-        tmp_out = self.wait_and_read_file(filename=tmp_file, host=tmp_host)
+        scr = self.du.run_cmd(cmd=[self.check_dirs_script], as_script=True)
+        scr_out = scr['out']
         check_devices = ['b *:* rwm',
                          'c 5:1 rwm',
                          'c 4:* rwm',
                          'c 1:* rwm',
                          'c 10:* rwm']
         for device in check_devices:
-            self.assertTrue(device in tmp_out,
-                            '"%s" not found in: %s' % (device, tmp_out))
+            self.assertTrue(device in scr_out,
+                            '"%s" not found in: %s' % (device, scr_out))
         self.logger.info('device_list check passed')
         self.assertFalse('Disabled cgroup subsystems are populated '
-                         'with the job id' in tmp_out,
+                         'with the job id' in scr_out,
                          'Found disabled cgroup subsystems populated')
         self.logger.info('Disabled subsystems check passed')
 
@@ -1546,8 +1569,15 @@ if %s e.job.in_ms_mom():
         if ret['rc'] != 0:
             self.skipTest('pbs_cgroups_hook: Failed to copy '
                           'freezer state FROZEN')
-        self.server.expect(NODE, {'state': (MATCH_RE, 'offline')},
-                           id=self.nodes_list[0], offset=10, interval=3)
+        # Catch any exception so we can thaw the cgroup or the jobs
+        # will remain frozen and impact subsequent tests
+        passed = True
+        try:
+            self.server.expect(NODE, {'state': (MATCH_RE, 'offline')},
+                               id=self.nodes_list[0], offset=10, interval=3)
+        except Exception as exc:
+            passed = False
+            self.logger.info('Node never went offline')
         # Thaw the cgroup
         state = 'THAWED'
         fn = self.du.create_temp_file(hostname=self.hosts_list[0], body=state)
@@ -1571,6 +1601,7 @@ if %s e.job.in_ms_mom():
             self.server.manager(MGR_CMD_CREATE, NODE, id=host)
             self.server.expect(NODE, {'state': 'free'},
                                id=host, interval=3)
+        self.assertTrue(passed)
 
     def test_cgroup_cpuset_host_excluded(self):
         """
@@ -1875,8 +1906,8 @@ if %s e.job.in_ms_mom():
         self.load_config(self.cfg4 % (self.swapctl))
         # remove epilogue and periodic from the list of events
         attr = {'enabled': 'True',
-                'event': '"execjob_begin,execjob_launch,'
-                         'execjob_attach,execjob_end,exechost_startup"'}
+                'event': ['execjob_begin', 'execjob_launch',
+                          'execjob_attach', 'execjob_end', 'exechost_startup']}
         self.server.manager(MGR_CMD_SET, HOOK, attr, self.hook_name)
         self.server.expect(NODE, {'state': 'free'}, id=self.nodes_list[0])
         j = Job(TEST_USER)
@@ -2258,6 +2289,7 @@ if %s e.job.in_ms_mom():
 import pbs
 import os
 import re
+import time
 import traceback
 event = pbs.event()
 jid_to_prepend = '%s'
@@ -2300,12 +2332,11 @@ jobsfile = os.path.join(pbs_mom_home, 'mom_priv', 'hooks',
                         'hook_data', 'cgroup_jobs')
 try:
     with open(jobsfile, 'r+') as desc:
-        joblist = desc.readline().split()
-        jobset = set(joblist)
-        if jid_to_prepend not in jobset:
-            jobset.add(jid_to_prepend)
+        jobdict = eval(desc.read())
+        if jid_to_prepend not in jobdict:
+            jobdict[jid_to_prepend] = time.time()
             desc.seek(0)
-            desc.write(' '.join(jobset))
+            desc.write(str(jobdict))
             desc.truncate()
 except Exception as exc:
     pbs.logmsg(pbs.EVENT_DEBUG, 'Failed to modify ' + jobsfile)
@@ -2314,7 +2345,7 @@ except Exception as exc:
     event.reject()
 event.accept()
 """ % jid1
-        events = '"execjob_begin,exechost_periodic"'
+        events = ['execjob_begin', 'exechost_periodic']
         hookconf = {'enabled': 'True', 'freq': 2, 'alarm': 30, 'event': events}
         self.server.create_import_hook(hookname, hookconf, hookbody,
                                        overwrite=True)
@@ -2722,9 +2753,9 @@ event.accept()
             self.remove_vntype()
         for mom in self.moms_list:
             mom.delete_vnode_defs()
-        events = '"execjob_begin,execjob_launch,execjob_attach,'
-        events += 'execjob_epilogue,execjob_end,exechost_startup,'
-        events += 'exechost_periodic,execjob_resize,execjob_abort"'
+        events = ['execjob_begin', 'execjob_launch', 'execjob_attach',
+                  'execjob_epilogue', 'execjob_end', 'exechost_startup',
+                  'exechost_periodic', 'execjob_resize', 'execjob_abort']
         # Disable the cgroups hook
         conf = {'enabled': 'False', 'freq': 30, 'event': events}
         self.server.manager(MGR_CMD_SET, HOOK, conf, self.hook_name)

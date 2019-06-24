@@ -44,7 +44,8 @@ dist_unsupported_SCRIPTS = \
 	pbs_diag \
 	pbs_dtj \
 	pbs_loganalyzer \
-	pbs_stat
+	pbs_stat \
+	pbs_config
 
 
 # Marking all *.py files as data as these files are meant to be used as hooks and 
@@ -62,6 +63,7 @@ dist_unsupported_DATA = \
 	pbs_rescquery.3B \
 	run_pelog_shell.ini \
 	cray_readme \
+	ReliableJobStartup.py \
 	pbs_output.py
 
 pbs_rmget_CPPFLAGS = -I$(top_srcdir)/src/include \

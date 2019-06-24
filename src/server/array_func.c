@@ -219,7 +219,7 @@ numindex_to_offset(job *parent, int iindx)
 }
 /**
  * @brief
- * 		subjob_index_to_offset - return the offset into the table for an
+ * 		subjob_index_to_offset - return the offset into the table for an array
  *
  * @param[in]	parent - Pointer to to parent job structure.
  * @param[in]	index  - first number of range
@@ -440,7 +440,8 @@ chk_array_doneness(job *parent)
 	if (ptbl->tkm_flags & (TKMFLG_NO_DELETE | TKMFLG_CHK_ARRAY))
 		return;	/* delete of subjobs in progress, or re-entering, so return here */
 
-	if (ptbl->tkm_subjsct[JOB_STATE_QUEUED] + ptbl->tkm_subjsct[JOB_STATE_RUNNING] + ptbl->tkm_subjsct[JOB_STATE_EXITING] == 0) {
+	if (ptbl->tkm_subjsct[JOB_STATE_QUEUED] + ptbl->tkm_subjsct[JOB_STATE_RUNNING]
+			+ ptbl->tkm_subjsct[JOB_STATE_HELD] + ptbl->tkm_subjsct[JOB_STATE_EXITING] == 0) {
 
 		/* Array Job all done, do simple eoj processing */
 
@@ -856,6 +857,7 @@ create_subjob(job *parent, char *newjid, int *rc)
 		*rc = PBSE_SYSTEM;
 		return NULL;
 	}
+	subj->ji_newjob = 1; /* flag to indicate a new job is being added to the db */
 	subj->ji_qs = parent->ji_qs;	/* copy the fixed save area */
 	parent->ji_ajtrk->tkm_tbl[indx].trk_psubjob = subj;
 	subj->ji_qhdr     = parent->ji_qhdr;
@@ -904,8 +906,6 @@ create_subjob(job *parent, char *newjid, int *rc)
 
 	subj->ji_qs.ji_svrflags &= ~JOB_SVFLG_ArrayJob;
 	subj->ji_qs.ji_svrflags |=  JOB_SVFLG_SubJob;
-	subj->ji_modified = 0;  /* to avoid db save in svr_setjobstate()*/
-	subj->ji_newjob = 1;    /* Hack to use ji_newjob to mean SAVEJOB_NEW for subjobs */
 	subj->ji_qs.ji_substate = JOB_SUBSTATE_TRANSICM;
 	(void)svr_setjobstate(subj, JOB_STATE_QUEUED, JOB_SUBSTATE_QUEUED);
 	subj->ji_modified = 1;  /* to force a SAVEJOB_NEW db save in svr_setjobstate() for subjobs */

@@ -93,7 +93,7 @@ char *cnvt_est_start_time(char *start_time, int shortform);
 #define ALT_DISPLAY_Mw	0x200		/* -M option - show sizes in MW */
 #define ALT_DISPLAY_G		0x400		/* -G option - show sizes in GB */
 #define ALT_DISPLAY_1l	0x800		/* -n -s -f on line line */
-#define ALT_DISPLAY_w		0x1000		/* -[a|s|n]w - wide output */
+#define ALT_DISPLAY_w		0x1000		/* -w - wide output */
 #define ALT_DISPLAY_T		0x2000		/* -T option - estimated start times */
 #define ALT_DISPLAY_p		0x4000		/* -p option - percentage completed for the job */
 #define ALT_DISPLAY_INCR_WIDTH	0x8000	/* increases qstat header width */
@@ -101,6 +101,8 @@ char *cnvt_est_start_time(char *start_time, int shortform);
 #endif /* not PBS_NO_POSIX_VIOLATION */
 #define HPCBP_EXEC_TAG  "jsdl-hpcpa:Executable"
 #define CHAR_LINE_LIMIT 78 /* maximum number of characters which can be printed on a line */
+
+#define DISPLAY_TRUNC_CHAR '*'
 
 static struct attrl basic_attribs[] = {
 	{	&basic_attribs[1],
@@ -302,6 +304,8 @@ states(char *string, char *q, char *r, char *h, char *w, char *t, char *e, int l
 			*c = '\0';
 			if (strlen(s) > (size_t)len) {
 				f = s + len;
+				if (f > s)
+					*(f - 1) = DISPLAY_TRUNC_CHAR;
 				*f = '\0';
 			}
 			strcpy(d, s);
@@ -537,13 +541,50 @@ prt_attr(char *name, char *resource, char *value, int one_line) {
 #define LOCL    16  /* printf of jobs */
 #define SIZEL	6   /* length of "SIZE" fields in printf */
 
+
+/* format widths defined for display in normal format output */
+#define SIZEJOBID 15    /* length of JobId field in printf */
+#define SIZEJOBID_INCR 20 /*length of jobId field in printf with incr_width */
+#define SIZEJOBNAME 10  /* length of JobName field in printf */
+#define SIZEQUEUENAME 8 /* length of Queue field in printf */
+#define SIZESESSID 6    /* length of session id in printf */
+#define SIZENDS 3	/* length of nds in printf */
+#define SIZETSK 3	/* length of tsk in printf */
+#define SIZEUSER 8	/* length of user name in printf */
+
 /* format widths defined for display in wide format output */
-#define SIZEJOBID 30    /* length of JobId field in printf */
-#define SIZEJOBNAME 15  /* length of JobName field in printf when wide is true */
-#define SIZESESSID 8    /* length of session id in printf */
-#define SIZENDS 4	/* length of nds in printf */
-#define SIZETSK 5	/* length of tsk in printf */
-#define SIZEUSER 15	/* length of user name in printf */
+#define SIZEJOBID_W 30    /* length of JobId field in printf */
+#define SIZEJOBNAME_W 15  /* length of JobName field in printf */
+#define SIZESESSID_W 8    /* length of session id in printf */
+#define SIZENDS_W 4	/* length of nds in printf */
+#define SIZETSK_W 5	/* length of tsk in printf */
+#define SIZEUSER_W 15	/* length of user name in printf */
+
+
+/**
+ * @brief
+ *	Check if value is too long, truncate and append DISPLAY_TRUNC_CHAR if needed
+ *
+ * @param[in] value - value that may be truncated
+ * @param[in] len - non-wide length that must be met
+ * @param[in] wide_len - wide length that must be met
+ * @param[in] wide - whether or not wide format is used
+ *
+ */
+
+static void
+trunc_value(char *value, int len, int wide_len, int wide)
+{
+	if (wide) {
+		if (strlen(value) > wide_len && wide_len > 0) {
+			*(value + wide_len - 1) = DISPLAY_TRUNC_CHAR;
+		}
+	} else {
+		if (strlen(value) > len && len > 0) {
+			*(value + len - 1) = DISPLAY_TRUNC_CHAR;
+		}
+	}
+}
 
 /**
  * @brief
@@ -726,6 +767,7 @@ altdsp_statjob(struct batch_status *pstat, struct batch_status *prtheader, int a
 	static char  srfsfast[SIZEL];
 	static char *blank = " -- ";
 	char buf[COMMENT_BUF_SIZE] = {'\0'};
+	int id_len;
 
 	if (alt_opt & ALT_DISPLAY_T)
 		pstat = bs_isort(pstat, cmp_est_time);
@@ -744,46 +786,46 @@ altdsp_statjob(struct batch_status *pstat, struct batch_status *prtheader, int a
 			/* dynamic formatting to display spaces */
 			printf("\n");
 			if (alt_opt & ALT_DISPLAY_T) {
-				printf("%*.*s %*.*s %*.*s %*.*s %*.*s %*.*s %*.*s ", SIZEJOBID, SIZEJOBID, STR_SPACE,
-				SIZEUSER, SIZEUSER, STR_SPACE,
+				printf("%*.*s %*.*s %*.*s %*.*s %*.*s %*.*s %*.*s ", SIZEJOBID_W, SIZEJOBID_W, STR_SPACE,
+				SIZEUSER_W, SIZEUSER_W, STR_SPACE,
 				PBS_MAXQUEUENAME, PBS_MAXQUEUENAME, STR_SPACE,
-				SIZEJOBNAME, SIZEJOBNAME, STR_SPACE,
-				SIZESESSID, SIZESESSID, STR_SPACE,
-				SIZENDS, SIZENDS, STR_SPACE,
-				SIZETSK, SIZETSK, STR_SPACE);
+				SIZEJOBNAME_W, SIZEJOBNAME_W, STR_SPACE,
+				SIZESESSID_W, SIZESESSID_W, STR_SPACE,
+				SIZENDS_W, SIZENDS_W, STR_SPACE,
+				SIZETSK_W, SIZETSK_W, STR_SPACE);
 				printf("               Est\n");
 			}
 
-			printf("%*.*s %*.*s %*.*s %*.*s %*.*s %*.*s %*.*s ", SIZEJOBID, SIZEJOBID, STR_SPACE,
-				SIZEUSER, SIZEUSER, STR_SPACE,
+			printf("%*.*s %*.*s %*.*s %*.*s %*.*s %*.*s %*.*s ", SIZEJOBID_W, SIZEJOBID_W, STR_SPACE,
+				SIZEUSER_W, SIZEUSER_W, STR_SPACE,
 				PBS_MAXQUEUENAME, PBS_MAXQUEUENAME, STR_SPACE,
-				SIZEJOBNAME, SIZEJOBNAME, STR_SPACE,
-				SIZESESSID, SIZESESSID, STR_SPACE,
-				SIZENDS, SIZENDS, STR_SPACE,
-				SIZETSK, SIZETSK, STR_SPACE);
+				SIZEJOBNAME_W, SIZEJOBNAME_W, STR_SPACE,
+				SIZESESSID_W, SIZESESSID_W, STR_SPACE,
+				SIZENDS_W, SIZENDS_W, STR_SPACE,
+				SIZETSK_W, SIZETSK_W, STR_SPACE);
 			if (alt_opt & ALT_DISPLAY_T)
 				printf("Req'd  Req'd   Start\n");
 			else
 				printf("Req'd  Req'd   Elap\n");
 
 			/* dynamic formatting to display header */
-			printf("%-*.*s %-*.*s %-*.*s %-*.*s %-*.*s %-*.*s %-*.*s ", SIZEJOBID, SIZEJOBID, "Job ID",
-				SIZEUSER, SIZEUSER, "Username",
+			printf("%-*.*s %-*.*s %-*.*s %-*.*s %-*.*s %-*.*s %-*.*s ", SIZEJOBID_W, SIZEJOBID_W, "Job ID",
+				SIZEUSER_W, SIZEUSER_W, "Username",
 				PBS_MAXQUEUENAME, PBS_MAXQUEUENAME, "Queue",
-				SIZEJOBNAME, SIZEJOBNAME, "Jobname",
-				SIZESESSID, SIZESESSID, "SessID",
-				SIZENDS, SIZENDS, "NDS",
-				SIZETSK, SIZETSK, "TSK");
+				SIZEJOBNAME_W, SIZEJOBNAME_W, "Jobname",
+				SIZESESSID_W, SIZESESSID_W, "SessID",
+				SIZENDS_W, SIZENDS_W, "NDS",
+				SIZETSK_W, SIZETSK_W, "TSK");
 			printf("Memory Time  S Time\n");
 
 			/* dynamic formatting to display dashes */
-			printf("%-*.*s %-*.*s %-*.*s %-*.*s %-*.*s %-*.*s %-*.*s ", SIZEJOBID, SIZEJOBID, STR_DASH,
-				SIZEUSER, SIZEUSER, STR_DASH,
+			printf("%-*.*s %-*.*s %-*.*s %-*.*s %-*.*s %-*.*s %-*.*s ", SIZEJOBID_W, SIZEJOBID_W, STR_DASH,
+				SIZEUSER_W, SIZEUSER_W, STR_DASH,
 				PBS_MAXQUEUENAME, PBS_MAXQUEUENAME, STR_DASH,
-				SIZEJOBNAME, SIZEJOBNAME, STR_DASH,
-				SIZESESSID, SIZESESSID, STR_DASH,
-				SIZENDS, SIZENDS, STR_DASH,
-				SIZETSK, SIZETSK, STR_DASH);
+				SIZEJOBNAME_W, SIZEJOBNAME_W, STR_DASH,
+				SIZESESSID_W, SIZESESSID_W, STR_DASH,
+				SIZENDS_W, SIZENDS_W, STR_DASH,
+				SIZETSK_W, SIZETSK_W, STR_DASH);
 			printf("------ ----- - -----\n");
 		} else {
 			if (alt_opt & ALT_DISPLAY_T) {
@@ -836,25 +878,34 @@ altdsp_statjob(struct batch_status *pstat, struct batch_status *prtheader, int a
 		while (pat) {
 			if (strcmp(pat->name, ATTR_N) == 0) {
 				jobn = pat->value;
+				trunc_value(jobn, SIZEJOBNAME, SIZEJOBNAME_W, wide);
 			} else if (strcmp(pat->name, ATTR_owner) == 0) {
 				usern = pat->value;
 				if ((pc = strchr(usern, (int)'@')) != NULL)
 					*pc = '\0';
+				trunc_value(usern, SIZEUSER, SIZEUSER_W, wide);
 			} else if (strcmp(pat->name, ATTR_state) == 0) {
 				jstate = pat->value;
 			} else if (strcmp(pat->name, ATTR_queue) == 0) {
 				queuen = pat->value;
+				trunc_value(queuen, SIZEQUEUENAME, PBS_MAXQUEUENAME, wide);
 			} else if (strcmp(pat->name, ATTR_session) == 0) {
 				sess = pat->value;
+				trunc_value(sess, SIZESESSID, SIZESESSID_W, wide);
 			} else if (strcmp(pat->name, ATTR_l) == 0) {
 				if (strcmp(pat->resource, "nodect") == 0) {
 					nodect = pat->value;
+					trunc_value(nodect, SIZENDS, SIZENDS_W, wide);
 				} else if (strcmp(pat->resource, "ncpus") == 0) {
-					if (strcmp(pat->value, "0") != 0)
+					if (strcmp(pat->value, "0") != 0) {
 						tasks = pat->value;
+						trunc_value(tasks, SIZETSK, SIZETSK_W, wide);
+					}
 				} else if (strcmp(pat->resource, "mppe") == 0) {
-					if (strcmp(pat->value, "0") != 0)
+					if (strcmp(pat->value, "0") != 0) {
 						tasks = pat->value;
+						trunc_value(tasks, SIZETSK, SIZETSK_W, wide);
+					}
 				} else if (strcmp(pat->resource, "mem") == 0) {
 					(void)strncpy(rqmem,
 						cnv_size(pat->value, alt_opt), sizeof(rqmem) - 1);
@@ -917,39 +968,51 @@ altdsp_statjob(struct batch_status *pstat, struct batch_status *prtheader, int a
 		if (alt_opt & ALT_DISPLAY_T) {
 			pc = get_attr(pstat->attribs, ATTR_state, NULL);
 			if (pc != NULL && (*pc == 'Q' || *pc == 'S'))
-				timeval = cnvt_est_start_time(est_time, wide);
+				timeval = cnvt_est_start_time(est_time, 0);
 			else
 				timeval = "--";
 		}
 		else
 			timeval = usecput ? eltimecpu : eltimewal;
 
+		id_len = how_opt & ALT_DISPLAY_INCR_WIDTH ? SIZEJOBID_INCR : SIZEJOBID;
+		trunc_value(pstat->name, id_len, SIZEJOBID_W, wide);
 
 		if (wide) {
 			/* dynamic formatting of values as defined by constants */
-			printf("%-*.*s %-*.*s %-*.*s %-*.*s %*.*s %*.*s %*.*s ", SIZEJOBID, SIZEJOBID, pstat->name,
-				SIZEUSER, SIZEUSER, usern,
+			printf("%-*.*s %-*.*s %-*.*s %-*.*s %*.*s %*.*s %*.*s ", SIZEJOBID_W, SIZEJOBID_W, pstat->name,
+				SIZEUSER_W, SIZEUSER_W, usern,
 				PBS_MAXQUEUENAME, PBS_MAXQUEUENAME, queuen,
-				SIZEJOBNAME, SIZEJOBNAME, jobn,
-				SIZESESSID, SIZESESSID, sess,
-				SIZENDS, SIZENDS, nodect,
-				SIZETSK, SIZETSK, tasks);
+				SIZEJOBNAME_W, SIZEJOBNAME_W, jobn,
+				SIZESESSID_W, SIZESESSID_W, sess,
+				SIZENDS_W, SIZENDS_W, nodect,
+				SIZETSK_W, SIZETSK_W, tasks);
 			/* static formatting of fixed size values */
-			printf("%6.6s %5.5s %1s %s",
+			printf("%6.6s %5.5s %1s %5.5s",
 				rqmem,
 				usecput ? rqtimecpu : rqtimewal,
 				jstate,
 				timeval);
 		} else {
-			if(how_opt & ALT_DISPLAY_INCR_WIDTH) {
-				printf("%-20.20s %-8.8s %-8.8s ",
-						pstat->name, usern, queuen);
+			if (how_opt & ALT_DISPLAY_INCR_WIDTH) {
+				printf("%-*.*s %-*.*s %-*.*s ",
+					SIZEJOBID_INCR, SIZEJOBID_INCR, pstat->name,
+					SIZEUSER, SIZEUSER, usern,
+					SIZEQUEUENAME, SIZEQUEUENAME, queuen);
 			} else {
-				printf("%-15.15s %-8.8s %-8.8s ",
-						pstat->name, usern, queuen);
+				printf("%-*.*s %-*.*s %-*.*s ",
+					SIZEJOBID, SIZEJOBID, pstat->name,
+					SIZEUSER, SIZEUSER, usern,
+					SIZEQUEUENAME, SIZEQUEUENAME, queuen);
 			}
-			printf("%-10.10s %6.6s %3.3s %3.3s %6.6s %5.5s %1.1s %5.5s",
-				jobn, sess, nodect, tasks,
+			/* dynamic formatting of values as defined by constants */
+			printf("%-*.*s %*.*s %*.*s %*.*s ",
+				SIZEJOBNAME, SIZEJOBNAME, jobn,
+				SIZESESSID, SIZESESSID, sess,
+				SIZENDS, SIZENDS, nodect,
+				SIZETSK, SIZETSK, tasks);
+			/* static formatting of fixed size values */
+			printf("%6.6s %5.5s %1.1s %5.5s",
 				rqmem,
 				usecput ? rqtimecpu : rqtimewal,
 				jstate,
@@ -1194,7 +1257,7 @@ percent_cal(char *state, char *timeu, char *timer, char *wtimu, char *wtimr, cha
  */
 
 int
-display_statjob(struct batch_status *status, struct batch_status *prtheader, int full, int how_opt, int alt_opt)
+display_statjob(struct batch_status *status, struct batch_status *prtheader, int full, int how_opt, int alt_opt, int wide)
 {
 	struct batch_status *p;
 	struct attrl *a;
@@ -1211,11 +1274,14 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 	char *state;
 	char *location;
 	char format[80];
-	char long_name[SIZEJOBNAME + 1] = {'\0'};
+	char long_name[NAMEL + 1] = {'\0'};
 	char *cmdargs = NULL;
 	char *hpcbp_executable;
 
-	if (how_opt & ALT_DISPLAY_INCR_WIDTH) {
+	if (wide) {
+		sprintf(format, "%%-%ds %%-%ds %%-%ds  %%%ds %%%ds %%-%ds\n",
+			SIZEJOBID_W, SIZEJOBNAME_W, SIZEUSER_W, TIMEUL, STATEL, PBS_MAXQUEUENAME);
+	} else if (how_opt & ALT_DISPLAY_INCR_WIDTH) {
 		sprintf(format, "%%-%ds %%-%ds %%-%ds  %%%ds %%%ds %%-%ds\n",
 			PBS_MAXSEQNUM+10, NAMEL, OWNERL, TIMEUL, STATEL, LOCL);
 	} else {
@@ -1223,26 +1289,32 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 			PBS_MAXSEQNUM+5, NAMEL, OWNERL, TIMEUL, STATEL, LOCL);
 	}
 
-	if (! full && prtheader && output_format == FORMAT_DEFAULT) {
+	if (!full && prtheader && output_format == FORMAT_DEFAULT) {
 		c = get_attr(prtheader->attribs, ATTR_comment, NULL);
 		if (c)
 			printf("%s\n", show_nonprint_chars(c));
 		if (how_opt & ALT_DISPLAY_p) {
-				if (how_opt & ALT_DISPLAY_INCR_WIDTH) {
-					printf("Job id                 Name             User               %% done  S Queue\n");
-					printf("---------------------  ---------------- ----------------  -------- - -----\n");
-				} else {
-					printf("Job id            Name             User               %% done  S Queue\n");
-					printf("----------------  ---------------- ----------------  -------- - -----\n");
-				}
+			if (wide) {
+				printf("Job id                         Name            User              %% done  S Queue\n");
+				printf("-----------------------------  --------------- ---------------  -------- - ---------------\n");
+			} else if (how_opt & ALT_DISPLAY_INCR_WIDTH) {
+				printf("Job id                 Name             User               %% done  S Queue\n");
+				printf("---------------------  ---------------- ----------------  -------- - -----\n");
+			} else {
+				printf("Job id            Name             User               %% done  S Queue\n");
+				printf("----------------  ---------------- ----------------  -------- - -----\n");
+			}
 		} else {
-				if (how_opt & ALT_DISPLAY_INCR_WIDTH) {
-					printf("Job id                 Name             User              Time Use S Queue\n");
-					printf("---------------------  ---------------- ----------------  -------- - -----\n");
-				} else {
-					printf("Job id            Name             User              Time Use S Queue\n");
-					printf("----------------  ---------------- ----------------  -------- - -----\n");
-				}
+			if (wide) {
+				printf("Job id                         Name            User             Time Use S Queue\n");
+				printf("-----------------------------  --------------- ---------------  -------- - ---------------\n");
+			} else if (how_opt & ALT_DISPLAY_INCR_WIDTH) {
+				printf("Job id                 Name             User              Time Use S Queue\n");
+				printf("---------------------  ---------------- ----------------  -------- - -----\n");
+			} else {
+				printf("Job id            Name             User              Time Use S Queue\n");
+				printf("----------------  ---------------- ----------------  -------- - -----\n");
+			}
 		}
 	}
 
@@ -1350,15 +1422,23 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 				while (*c != '.' && *c != '\0') c++;
 				*c = '\0';
 				l = strlen(p->name);
-				if (how_opt & ALT_DISPLAY_INCR_WIDTH) {
-					if (l > (PBS_MAXSEQNUM+10)) {
+				if (wide) {
+					if (l > SIZEJOBID_W) {
+						c = p->name + SIZEJOBID_W;
+						*(c - 1) = DISPLAY_TRUNC_CHAR;
+						*c = '\0';
+					}
+				} else if (how_opt & ALT_DISPLAY_INCR_WIDTH) {
+					if (l > (PBS_MAXSEQNUM + 10)) {
 						c = p->name + PBS_MAXSEQNUM + 10;
+						*(c - 1) = DISPLAY_TRUNC_CHAR;
 						*c = '\0';
 					}
 				} else {
-					if (l > (PBS_MAXSEQNUM+5)) {
+					if (l > (PBS_MAXSEQNUM + 5)) {
 						c = p->name + PBS_MAXSEQNUM + 5;
-					        *c = '\0';
+						*(c - 1) = DISPLAY_TRUNC_CHAR;
+						*c = '\0';
 					}
 				}
 				jid = p->name;
@@ -1368,20 +1448,38 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 				if (a->name != NULL) {
 					if (strcmp(a->name, ATTR_name) == 0) {
 						l = strlen(a->value);
-						if (l >= NAMEL) {
-							strncpy(long_name, a->value, (NAMEL - 1));
-							c = long_name;
-						} else
-							c = a->value;
+						if (wide) {
+							if (l >= SIZEJOBNAME_W) {
+								snprintf(long_name, SIZEJOBNAME_W + 1, "%.*s%c", (SIZEJOBNAME_W - 1), a->value, DISPLAY_TRUNC_CHAR);
+								c = long_name;
+							} else {
+								c = a->value;
+							}
+						} else {
+							if (l >= NAMEL) {
+								snprintf(long_name, NAMEL + 1, "%.*s%c", (NAMEL - 1), a->value, DISPLAY_TRUNC_CHAR);
+								c = long_name;
+							} else
+								c = a->value;
+						}
 						name = c;
 					} else if (strcmp(a->name, ATTR_owner) == 0) {
 						c = a->value;
 						while (*c != '@' && *c != '\0') c++;
 						*c = '\0';
 						l = strlen(a->value);
-						if (l > OWNERL) {
-							c = a->value + OWNERL;
-							*c = '\0';
+						if (wide) {
+							if (l > SIZEUSER_W) {
+								c = a->value + SIZEUSER_W;
+								*(c - 1) = DISPLAY_TRUNC_CHAR;
+								*c = '\0';
+							}
+						} else {
+							if (l > OWNERL) {
+								c = a->value + OWNERL;
+								*(c - 1) = DISPLAY_TRUNC_CHAR;
+								*c = '\0';
+							}
 						}
 						owner = a->value;
 					} else if (strcmp(a->name, ATTR_used) == 0) {
@@ -1389,6 +1487,7 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 							l = strlen(a->value);
 							if (l > TIMEUL) {
 								c = a->value + TIMEUL;
+								*(c - 1) = DISPLAY_TRUNC_CHAR;
 								*c = '\0';
 							}
 							timeu = a->value;
@@ -1396,6 +1495,7 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 							l = strlen(a->value);
 							if (l > TIMEUL) {
 								c = a->value + TIMEUL;
+								*(c - 1) = DISPLAY_TRUNC_CHAR;
 								*c = '\0';
 							}
 							wtimu = a->value;
@@ -1405,6 +1505,7 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 							l = strlen(a->value);
 							if (l > TIMEUL) {
 								c = a->value + TIMEUL;
+								*(c - 1) = DISPLAY_TRUNC_CHAR;
 								*c = '\0';
 							}
 							timer = a->value;
@@ -1412,6 +1513,7 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 							l = strlen(a->value);
 							if (l > TIMEUL) {
 								c = a->value + TIMEUL;
+								*(c - 1) = DISPLAY_TRUNC_CHAR;
 								*c = '\0';
 							}
 							wtimr = a->value;
@@ -1420,6 +1522,7 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 						l = strlen(a->value);
 						if (l > STATEL) {
 							c = a->value + STATEL;
+							*(c - 1) = DISPLAY_TRUNC_CHAR;
 							*c = '\0';
 						}
 						state = a->value;
@@ -1428,9 +1531,18 @@ display_statjob(struct batch_status *status, struct batch_status *prtheader, int
 						while (*c != '@' && *c != '\0') c++;
 						*c = '\0';
 						l = strlen(a->value);
-						if (l > LOCL) {
-							c = a->value + LOCL;
-							*c = '\0';
+						if (wide) {
+							if (l > PBS_MAXQUEUENAME) {
+								c = a->value + PBS_MAXQUEUENAME;
+								*(c - 1) = DISPLAY_TRUNC_CHAR;
+								*c = '\0';
+							}
+						} else {
+							if (l > LOCL) {
+								c = a->value + LOCL;
+								*(c - 1) = DISPLAY_TRUNC_CHAR;
+								*c = '\0';
+							}
 						}
 						location = a->value;
 					} else if (strcmp(a->name, ATTR_array_state_count) == 0) {
@@ -1555,6 +1667,7 @@ display_statque(struct batch_status *status, int prtheader, int full, int alt_op
 				l = strlen(p->name);
 				if (l > NAMEL) {
 					c = p->name + NAMEL;
+					*(c - 1) = DISPLAY_TRUNC_CHAR;
 					*c = '\0';
 				}
 				name = p->name;
@@ -1566,6 +1679,7 @@ display_statque(struct batch_status *status, int prtheader, int full, int alt_op
 						l = strlen(a->value);
 						if (l > NUML) {
 							c = a->value + NUML;
+							*(c - 1) = DISPLAY_TRUNC_CHAR;
 							*c = '\0';
 						}
 						max = a->value;
@@ -1573,6 +1687,7 @@ display_statque(struct batch_status *status, int prtheader, int full, int alt_op
 						l = strlen(a->value);
 						if (l > NUML) {
 							c = a->value + NUML;
+							*(c - 1) = DISPLAY_TRUNC_CHAR;
 							*c = '\0';
 						}
 						tot = a->value;
@@ -1592,6 +1707,7 @@ display_statque(struct batch_status *status, int prtheader, int full, int alt_op
 						l = strlen(a->value);
 						if (l > TYPEL) {
 							c = a->value + TYPEL;
+							*(c - 1) = DISPLAY_TRUNC_CHAR;
 							*c = '\0';
 						}
 						type = a->value;
@@ -1701,6 +1817,7 @@ display_statserver(struct batch_status *status, int prtheader, int full, int alt
 				l = strlen(p->name);
 				if (l > NAMEL) {
 					c = p->name + NAMEL;
+					*(c - 1) = DISPLAY_TRUNC_CHAR;
 					*c = '\0';
 				}
 				name = p->name;
@@ -1712,6 +1829,7 @@ display_statserver(struct batch_status *status, int prtheader, int full, int alt
 						l = strlen(a->value);
 						if (l > NUML) {
 							c = a->value + NUML;
+							*(c - 1) = DISPLAY_TRUNC_CHAR;
 							*c = '\0';
 						}
 						max = a->value;
@@ -1719,6 +1837,7 @@ display_statserver(struct batch_status *status, int prtheader, int full, int alt
 						l = strlen(a->value);
 						if (l > NUML) {
 							c = a->value + NUML;
+							*(c - 1) = DISPLAY_TRUNC_CHAR;
 							*c = '\0';
 						}
 						tot = a->value;
@@ -1728,6 +1847,7 @@ display_statserver(struct batch_status *status, int prtheader, int full, int alt
 						l = strlen(a->value);
 						if (l > STATUSL) {
 							c = a->value + STATUSL;
+							*(c - 1) = DISPLAY_TRUNC_CHAR;
 							*c = '\0';
 						}
 						stats = a->value;
@@ -2571,9 +2691,8 @@ main(int argc, char **argv, char **envp) /* qstat */
 		errflg++;
 	}
 	if (wide) {
-		if (!((alt_opt & ALT_DISPLAY_a) || (alt_opt & ALT_DISPLAY_n) || (alt_opt & ALT_DISPLAY_s) ||
-			(alt_opt & ALT_DISPLAY_T) || f_opt == 1)) {
-			fprintf(stderr, "qstat: option w can be used only with option a, n, T, s or f\n");
+		if (output_format != FORMAT_DEFAULT) {
+			fprintf(stderr, "qstat: option w cannot be used with -F\n");
 			errflg++;
 		}
 	}
@@ -2582,7 +2701,7 @@ main(int argc, char **argv, char **envp) /* qstat */
 	if (errflg) {
 		static char usag2[]="qstat --version\n";
 		static char usage[]="usage: \n\
-qstat [-f] [-J] [-p] [-t] [-x] [-E] [-F format] [-D delim] [ job_identifier... | destination... ]\n\
+qstat [-f] [-J] [-p] [-t] [-x] [-E] [-F format | -w] [-D delim] [ job_identifier... | destination... ]\n\
 qstat [-a|-i|-r|-H|-T] [-J] [-t] [-u user] [-n] [-s] [-G|-M] [-1] [-w]\n\
 \t[ job_identifier... | destination... ]\n\
 qstat -Q [-f] [-F format] [-D delim] [ destination... ]\n\
@@ -2875,10 +2994,10 @@ job_no_args:
 					}
 #else
 
-					if (alt_opt != 0 && !(wide && f_opt)) {
+					if ((alt_opt & ~ALT_DISPLAY_w) != 0 && !(wide && f_opt)) {
 						altdsp_statjob(p_status, p_server, alt_opt, wide, how_opt);
 					} else if (f_opt == 0 || tcl_stat("job", p_status, f_opt))
-						if (display_statjob(p_status, p_server, f_opt, how_opt, alt_opt))
+						if (display_statjob(p_status, p_server, f_opt, how_opt, alt_opt, wide))
 							exit_qstat("out of memory");
 #endif /* localmod 071 */
 					p_header = FALSE;

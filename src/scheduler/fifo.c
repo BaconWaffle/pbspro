@@ -562,11 +562,7 @@ schedule(int cmd, int sd, char *runjobid)
 		case SCH_CONFIGURE:
 			schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_SCHED, LOG_INFO,
 				"reconfigure", "Scheduler is reconfiguring");
-			free_fairshare_head(conf.fairshare);
 			reset_global_resource_ptrs();
-			free(conf.prime_sort);
-			free(conf.non_prime_sort);
-
 			if(schedinit() != 0) {
 				return 0;
 			}
@@ -1040,7 +1036,7 @@ main_sched_loop(status *policy, int sd, server_info *sinfo, schd_error **rerr)
 					LOG_INFO, njob->name, log_msg);
 
 			/* If this job couldn't run, the mark the equiv class so the rest of the jobs are discarded quickly.*/
-			if(sinfo->equiv_classes != NULL && njob->ec_index != UNSPECIFIED ) {
+			if(sinfo->equiv_classes != NULL && njob->ec_index != UNSPECIFIED) {
 				resresv_set *ec = sinfo->equiv_classes[njob->ec_index];
 				if (rc != RUN_FAILURE &&  !ec->can_not_run) {
 					ec->can_not_run = 1;
@@ -1148,7 +1144,7 @@ end_cycle_tasks(server_info *sinfo)
 	 */
 	if (sinfo != NULL) {
 		sinfo->fairshare = NULL;
-		free_server(sinfo, 1);	/* free server and queues and jobs */
+		free_server(sinfo);	/* free server and queues and jobs */
 	}
 
 	/* close any open connections to peers */
@@ -1899,14 +1895,14 @@ add_job_to_calendar(int pbs_sd, status *policy, server_info *sinfo,
 		 * Note: We only ever look from now into the future
 		 */
 		nexte = get_next_event(sinfo->calendar);
-		if (find_timed_event(nexte, topjob->name, TIMED_NOEVENT, 0) != NULL)
+		if (find_timed_event(nexte, IGNORE_DISABLED_EVENTS, topjob->name, TIMED_NOEVENT, 0) != NULL)
 			return 1;
 	}
 	if ((nsinfo = dup_server_info(sinfo)) == NULL)
 		return 0;
 
 	if ((njob = find_resource_resv_by_indrank(nsinfo->jobs, topjob->rank, topjob->resresv_ind)) == NULL) {
-		free_server(nsinfo, 1);
+		free_server(nsinfo);
 		return 0;
 	}
 
@@ -1933,7 +1929,7 @@ add_job_to_calendar(int pbs_sd, status *policy, server_info *sinfo,
 		if (topjob->job->is_array) {
 			tjob = queue_subjob(topjob, sinfo, topjob->job->queue);
 			if (tjob == NULL) {
-				free_server(nsinfo, 1);
+				free_server(nsinfo);
 				return 0;
 			}
 
@@ -1942,7 +1938,7 @@ add_job_to_calendar(int pbs_sd, status *policy, server_info *sinfo,
 			if (njob == NULL) {
 				schdlog(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_DEBUG, __func__,
 					"Can't find new subjob in simulated universe");
-				free_server(nsinfo, 1);
+				free_server(nsinfo);
 				return 0;
 			}
 			/* The subjob is just for the calendar, not for running */
@@ -1975,15 +1971,16 @@ add_job_to_calendar(int pbs_sd, status *policy, server_info *sinfo,
 					create_node_array_from_nspec(bjob->nspec_arr);
 				selectspec = create_select_from_nspec(bjob->nspec_arr);
 				if (selectspec != NULL) {
+					free_selspec(bjob->execselect);
 					bjob->execselect = parse_selspec(selectspec);
 					free(selectspec);
 				}
 			} else {
-				free_server(nsinfo, 1);
+				free_server(nsinfo);
 				return 0;
 			}
 		} else {
-			free_server(nsinfo, 1);
+			free_server(nsinfo);
 			return 0;
 		}
 
@@ -1997,14 +1994,14 @@ add_job_to_calendar(int pbs_sd, status *policy, server_info *sinfo,
 
 		te_start = create_event(TIMED_RUN_EVENT, bjob->start, bjob, NULL, NULL);
 		if (te_start == NULL) {
-			free_server(nsinfo, 1);
+			free_server(nsinfo);
 			return 0;
 		}
 		add_event(sinfo->calendar, te_start);
 
 		te_end = create_event(TIMED_END_EVENT, bjob->end, bjob, NULL, NULL);
 		if (te_end == NULL) {
-			free_server(nsinfo, 1);
+			free_server(nsinfo);
 			return 0;
 		}
 		add_event(sinfo->calendar, te_end);
@@ -2054,16 +2051,12 @@ add_job_to_calendar(int pbs_sd, status *policy, server_info *sinfo,
 		schdlog(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_DEBUG,
 			bjob->name, log_buf);
 	} else if (start_time == 0) {
-		/* In the case where start_time = 0, we don't want mark the job as
-		 * can_never_run because there are transient cases (like node state)
-		 * that we don't handle in our simulation that can fix themselves in
-		 * real life.  Reconsider this decision once the simulation is more
-		 * robust
-		 */
 		schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_JOB, LOG_WARNING, topjob->name,
 			"Error in calculation of start time of top job");
+		free_server(nsinfo);
+		return 0;
 	}
-	free_server(nsinfo, 1);
+	free_server(nsinfo);
 	
 	return 1;
 }

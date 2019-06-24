@@ -796,8 +796,12 @@ query_jobs(status *policy, int pbs_sd, queue_info *qinfo, resource_resv **pjobs,
 						convert_duration_to_str(duration, timebuf, 128);
 						update_job_attr(pbs_sd, resresv, ATTR_estimated, "soft_walltime", timebuf, NULL, UPDATE_NOW);
 					}
-				} else /* Job has exceeded its walltime.  It'll soon be killed and be put into the exiting state */
-					duration += EXITING_TIME;
+				} else 
+					/* Job has exceeded its walltime.  It'll soon be killed and be put into the exiting state.
+					 * Change the duration of the job to match the current situation and assume it will end in
+					 * now + EXITING_TIME
+					 */
+					duration =  server_time - start + EXITING_TIME;
 				end = start + duration;
 			}
 			resresv->start = start;
@@ -2862,7 +2866,6 @@ find_and_preempt_jobs(status *policy, int pbs_sd, resource_resv *hjob, server_in
 
 		if ((preempt_jobs_reply = pbs_preempt_jobs(pbs_sd, preempt_jobs_list)) == NULL) {
 			free_string_array(preempt_jobs_list);
-			free(preempt_jobs_list);
 			free(preempted_list);
 			free(fail_list);
 			return -1;
@@ -2870,9 +2873,19 @@ find_and_preempt_jobs(status *policy, int pbs_sd, resource_resv *hjob, server_in
 
 		for (i = 0; i < no_of_jobs; i++) {
 			job = find_resource_resv(sinfo->running_jobs, preempt_jobs_reply[i].job_id);
-			if (preempt_jobs_reply[i].order[0] == '0')
+			if (job == NULL) {
+				snprintf(log_buffer, sizeof(log_buffer), "Server replied to preemption request with job which does not exist.");
+				schdlog(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_DEBUG, preempt_jobs_reply[i].job_id, log_buffer);
+				continue;
+			}
+
+			if (preempt_jobs_reply[i].order[0] == '0') {
+				done = 0;
 				fail_list[fail_count++] = job->rank;
+				schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_JOB, LOG_INFO, job->name, "Job failed to be deleted");
+			}
 			else {
+				int update_accrue_type = 1;
 				preempted_list[preempted_count++] = job->rank;
 				if (preempt_jobs_reply[i].order[0] == 'S') {
 					/* Set resources_released and execselect on the job */
@@ -2882,17 +2895,26 @@ find_and_preempt_jobs(status *policy, int pbs_sd, resource_resv *hjob, server_in
 					job->job->is_susp_sched = 1;
 					schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_JOB, LOG_INFO,
 						job->name, "Job preempted by suspension");
+					job->can_not_run = 1;
 				} else if (preempt_jobs_reply[i].order[0] == 'C') {
 					job->job->is_checkpointed = 1;
 					update_universe_on_end(policy, job, "Q", NO_FLAGS);
 					schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_JOB, LOG_INFO,
 						job->name, "Job preempted by checkpointing");
-				} else {
+					job->can_not_run = 1;
+				} else if (preempt_jobs_reply[i].order[0] == 'Q') {
 					update_universe_on_end(policy, job, "Q", NO_FLAGS);
 					schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_JOB, LOG_INFO,
 						job->name, "Job preempted by requeuing");
+				} else {
+					update_universe_on_end(policy, job, "X", NO_FLAGS);
+					schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_JOB, LOG_INFO,
+						job->name, "Job preempted by deletion");
+					job->can_not_run = 1;
+					update_accrue_type = 0;
 				}
-				update_accruetype(pbs_sd, sinfo, ACCRUE_MAKE_ELIGIBLE, SUCCESS, job);
+				if (update_accrue_type)
+					update_accruetype(pbs_sd, sinfo, ACCRUE_MAKE_ELIGIBLE, SUCCESS, job);
 				job->job->is_preempted = 1;
 				job->job->time_preempted = sinfo->server_time;
 				sinfo->num_preempted++;
@@ -3157,7 +3179,7 @@ find_jobs_to_preempt(status *policy, resource_resv *hjob, server_info *sinfo, in
 			sprintf(log_buf, "Limited running jobs used for preemption from %d to 0: No jobs to preempt",
 				nsinfo->sc.running);
 			schdlog(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, nhjob->name, log_buf);
-			free_server(nsinfo, 1);
+			free_server(nsinfo);
 			free_schd_error_list(full_err);
 			free(pjobs);
 			free(prjobs);
@@ -3188,7 +3210,7 @@ find_jobs_to_preempt(status *policy, resource_resv *hjob, server_info *sinfo, in
 	err = dup_schd_error(full_err);	/* only first element */
 	if(err == NULL) {
 		free_schd_error_list(full_err);
-		free_server(nsinfo, 1);
+		free_server(nsinfo);
 		free(pjobs);
 		free(prjobs);
 		log_err(errno, __func__, MEM_ERR_MSG);
@@ -3199,7 +3221,7 @@ find_jobs_to_preempt(status *policy, resource_resv *hjob, server_info *sinfo, in
 	if (rjobs_subset == NULL) {
 		schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_JOB, LOG_INFO, nhjob->name, "Found no preemptable candidates");
 		free_schd_error_list(full_err);
-		free_server(nsinfo, 1);
+		free_server(nsinfo);
 		free(pjobs);
 		free(prjobs);
 		return NULL;
@@ -3211,7 +3233,7 @@ find_jobs_to_preempt(status *policy, resource_resv *hjob, server_info *sinfo, in
 
 		if (indexfound == ERR_IN_SELECT) {
 			/* System error occurred, no need to proceed */
-			free_server(nsinfo, 1);
+			free_server(nsinfo);
 			free(pjobs);
 			free(prjobs);
 			free_schd_error_list(full_err);
@@ -3234,7 +3256,7 @@ find_jobs_to_preempt(status *policy, resource_resv *hjob, server_info *sinfo, in
 		update_universe_on_end(npolicy, pjob,  "S", NO_ALLPART);
 		rjobs_count--;
 		if ( nsinfo->calendar != NULL ) {
-			te = find_timed_event(nsinfo->calendar->events, pjob->name, TIMED_END_EVENT, 0);
+			te = find_timed_event(nsinfo->calendar->events, 0, pjob->name, TIMED_END_EVENT, 0);
 			if (te != NULL) {
 				if (delete_event(nsinfo, te, DE_NO_FLAGS) == 0)
 					schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_JOB, LOG_INFO, pjob->name, "Failed to delete end event for job.");
@@ -3265,7 +3287,7 @@ find_jobs_to_preempt(status *policy, resource_resv *hjob, server_info *sinfo, in
 				nj = queue_subjob(nhjob, nsinfo, nhjob->job->queue);
 
 				if (nj == NULL) {
-					free_server(nsinfo, 1);
+					free_server(nsinfo);
 					free(pjobs);
 					free(prjobs);
 					free_schd_error_list(full_err);
@@ -3305,7 +3327,7 @@ find_jobs_to_preempt(status *policy, resource_resv *hjob, server_info *sinfo, in
 			if (rjobs_subset == NULL) {
 				schdlog(PBSEVENT_SCHED, PBS_EVENTCLASS_JOB, LOG_INFO, nhjob->name, "Found no preemptable candidates");
 				free_schd_error_list(full_err);
-				free_server(nsinfo, 1);
+				free_server(nsinfo);
 				free(pjobs);
 				free(prjobs);
 				free_schd_error(err);
@@ -3349,7 +3371,7 @@ find_jobs_to_preempt(status *policy, resource_resv *hjob, server_info *sinfo, in
 
 	if (rc > 0) {
 		if ((pjobs_list = calloc((j + 1), sizeof(int))) == NULL) {
-			free_server(nsinfo, 1);
+			free_server(nsinfo);
 			free(pjobs);
 			free(prjobs);
 			free_schd_error_list(full_err);
@@ -3390,7 +3412,7 @@ find_jobs_to_preempt(status *policy, resource_resv *hjob, server_info *sinfo, in
 			*no_of_jobs = i;
 	}
 
-	free_server(nsinfo, 1);
+	free_server(nsinfo);
 	free(pjobs);
 	free(prjobs);
 	free_schd_error_list(full_err);
@@ -3494,6 +3516,8 @@ select_index_to_preempt(status *policy, resource_resv *hjob,
 				if (po->order[j] == PREEMPT_METHOD_REQUEUE &&
 					rjobs[i]->job->can_requeue)
 					break; /* choose if requeue is allowed */
+				if (po->order[j] == PREEMPT_METHOD_DELETE)
+					break;
 			}
 			if (j == PREEMPT_METHOD_HIGH) /* no preemption method good */
 				good = 0;
@@ -4758,7 +4782,7 @@ preemption_similarity(resource_resv *hjob, resource_resv *pjob, schd_error *full
 			case INSUFFICIENT_QUEUE_RESOURCE:
 				if (hjob->job->queue == pjob->job->queue) {
 					for (res = hjob->job->queue->qres; res != NULL; res = res->next) {
-						if (res->avail != SCHD_INFINITY)
+						if (res->avail != SCHD_INFINITY_RES)
 							if (find_resource_req(pjob->resreq, res->def) != NULL)
 								match = 1;
 					}
@@ -4766,7 +4790,7 @@ preemption_similarity(resource_resv *hjob, resource_resv *pjob, schd_error *full
 				break;
 			case INSUFFICIENT_SERVER_RESOURCE:
 				for (res = hjob->server->res; res != NULL; res = res->next) {
-					if (res->avail != SCHD_INFINITY)
+					if (res->avail != SCHD_INFINITY_RES)
 						if (find_resource_req(pjob->resreq, res->def) != NULL)
 							match = 1;
 				}
@@ -4800,6 +4824,7 @@ void create_res_released(status *policy, resource_resv *pjob)
 		pjob->job->resreq_rel = create_resreq_rel_list(policy, pjob);
 	}
 	selectspec = create_select_from_nspec(pjob->job->resreleased);
+	free_selspec(pjob->execselect);
 	pjob->execselect = parse_selspec(selectspec);
 	free(selectspec);
 	return;
@@ -5049,14 +5074,35 @@ static int cull_preemptible_jobs(resource_resv *job, void *arg)
 			}
 			break;
 		case INSUFFICIENT_RESOURCE:
-			for (index = 0; job->select->chunks[index] != NULL; index++)
-			{
-				for (req_scan = job->select->chunks[index]->req; req_scan != NULL; req_scan = req_scan->next)
+			/* special check for vnode and host resource because those resources
+			 * do not get into chunk level resources. So in such a case we 
+			 * compare the resource name with the chunk name
+			 */
+			if (inp->err->rdef == getallres(RES_VNODE)) {
+				resource_req *hreq = find_resource_req(inp->job->resreq, inp->err->rdef);
+				if (hreq == NULL)
+					return 0;
+				for (index = 0; job->execselect->chunks[index] != NULL; index++)
 				{
-					if (req_scan->def == inp->err->rdef) {
-						if (req_scan->type.is_non_consumable ||
-						    req_scan->amount > 0) {
+					resource_req *lreq = find_resource_req(job->execselect->chunks[index]->req, inp->err->rdef);
+					if (lreq != NULL)
+						if (strcmp(hreq->res_str, lreq->res_str) == 0)
 							return 1;
+				}
+			} else if (inp->err->rdef == getallres(RES_HOST)) {
+				resource_req *hreq = find_resource_req(inp->job->resreq, inp->err->rdef);
+				if (find_node_by_host(job->ninfo_arr, hreq->res_str) != NULL)
+					return 1;
+			} else {
+				for (index = 0; job->select->chunks[index] != NULL; index++)
+				{
+					for (req_scan = job->select->chunks[index]->req; req_scan != NULL; req_scan = req_scan->next)
+					{
+						if (req_scan->def == inp->err->rdef) {
+							if (req_scan->type.is_non_consumable ||
+							    req_scan->amount > 0) {
+									return 1;
+							}
 						}
 					}
 				}

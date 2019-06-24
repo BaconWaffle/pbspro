@@ -713,14 +713,10 @@ svr_setjobstate(job *pjob, int newstate, int newsubstate)
 		}
 	}
 
-	if (pjob->ji_modified) {
-		if (pjob->ji_newjob)	/* Hack to use ji_newjob to mean SAVEJOB_NEW for subjobs */
-			return (job_save(pjob, SAVEJOB_NEW));
-		else
-			return (job_save(pjob, SAVEJOB_FULL));
-	} else if (changed)
+	if (pjob->ji_modified)
+		return (job_save(pjob, SAVEJOB_FULL));
+	else if(changed)
 		return (job_save(pjob, SAVEJOB_QUICK));
-
 	return (0);
 }
 
@@ -4129,6 +4125,10 @@ change_enableORstart(resc_resv *presv, int which, char *value)
 	 *a queue especially created for them
 	 */
 	if (presv->ri_qs.ri_type != RESC_RESV_OBJECT)
+		return (0);
+
+	if (which == Q_CHNG_START && strcmp(value, ATR_TRUE) == 0 &&
+		! presv->ri_wattr[RESV_ATR_resv_nodes].at_flags & ATR_VFLAG_SET)
 		return (0);
 
 	newreq = alloc_br(PBS_BATCH_Manager);

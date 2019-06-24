@@ -1063,8 +1063,11 @@ on_job_exit(struct work_task *ptask)
 
 				if ((pjob->ji_qs.ji_svrflags & JOB_SVFLG_HERE) == 0)
 					issue_track(pjob);
+				
+				if (pjob->ji_pmt_preq != NULL)
+					reply_preempt_jobs_request(PBSE_NONE, PREEMPT_METHOD_DELETE, pjob);
 				/*
-				 * Check if the history of the finished job can be saved or it needs to be purged .
+				 * Check if the history of the finished job can be saved or it needs to be purged.
 				 */
 				svr_saveorpurge_finjobhist(pjob);
 			}
@@ -1426,6 +1429,9 @@ on_job_rerun(struct work_task *ptask)
 				if (handle != -1 && pjob->ji_mom_prot == PROT_TCP)
 					svr_disconnect(handle);
 
+				if (pjob->ji_pmt_preq != NULL)
+					reply_preempt_jobs_request(PBSE_SISCOMM, PREEMPT_METHOD_DELETE, pjob);
+				
 				discard_job(pjob, "A sister Mom failed to delete job", 0);
 				return;
 			} else if ((preq->rq_reply.brp_code == DIS_EOF) ||
@@ -1467,14 +1473,6 @@ on_job_rerun(struct work_task *ptask)
 				unset_extra_attributes(pjob);
 
 
-				/* Now  if not a Sub Job, then re-queue the job */
-
-				if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) {
-					/* for a sub job, just purge it */
-					/* note: substate already JOB_SUBSTATE_RERUN3 */
-					job_purge(pjob);
-					return;
-				}
 				if ((pjob->ji_qs.ji_svrflags & JOB_SVFLG_HOTSTART) == 0) {
 					/* in case of server shutdown, don't clear exec_vnode */
 					/* will use it on hotstart when next comes up	      */
@@ -2107,6 +2105,23 @@ RetryJob:
 						&pjob->ji_wattr[(int)JOB_ATR_Comment],
 						NULL, NULL,
 						"job held, too many failed attempts to run");
+
+					if (pjob->ji_parentaj) {
+						char comment_buf[100 + PBS_MAXSVRJOBID];
+						svr_setjobstate(pjob->ji_parentaj, JOB_STATE_HELD, JOB_SUBSTATE_HELD);
+						pjob->ji_parentaj->ji_wattr[(int)JOB_ATR_hold].\
+						      at_val.at_long |= HOLD_s;
+						pjob->ji_parentaj->ji_wattr[(int)JOB_ATR_hold].\
+							at_flags |=
+							ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
+						sprintf(comment_buf, "Job Array Held, too many failed attempts to run subjob %s",
+								pjob->ji_qs.ji_jobid);
+						job_attr_def[(int)JOB_ATR_Comment].\
+						at_decode(\
+							&pjob->ji_parentaj->ji_wattr[(int)JOB_ATR_Comment],
+							NULL, NULL,
+							comment_buf);
+					}
 				}
 				break;
 

@@ -62,6 +62,8 @@ PBSTestSuite offers the following:
     - conn_timeout: set a timeout in seconds after which a pbs_connect IFL call is refreshed (i.e., disconnected)
     - skip-setup: Bypasses setUp of PBSTestSuite (not custom ones)
     - skip-teardown: Bypasses tearDown of PBSTestSuite (not custom ones)
+    - repeat-count: Number of tests repetition
+    - repeat-delay: delay between two repetition
     - procinfo: Enables process monitoring thread, logged into ptl_proc_info test metrics.
     - procmon: Colon-separated process name to monitor. For example to monitor server, sched, and mom use procmon=pbs_server:pbs_sched:pbs_mom
     - procmon-freq: Sets a polling frequency for the process monitoring tool. Defaults to 10 seconds.
@@ -82,6 +84,7 @@ PBSTestSuite offers the following:
     - mgr-users: colon-separated list of manager users.
     - root-users: colon-separated list of root users.
     - build-users: colon-separated list of build users.
+    - daemon-users: colon-seperating list of daemon users.
 
   - Check required users are available or not
   - Creates servers, moms, schedulers and comms object
@@ -96,9 +99,17 @@ PBSTestSuite offers the following:
   - If no nodes are defined in the system, a single 8 cpu node is defined.
   - start process monitoring thread if process monitoring enabled
 
+.. topic:: setUpClass:
+
+  - If setUpClass is overridden, use super() instead of the class you are overriding to call setUpClass of the parent.
+
 .. topic:: tearDown:
 
   - If process monitoring is enabled the stop process monitoring thread and collect process metrics
+
+.. topic:: tearDownClass:
+
+  - If tearDownClass is overridden, use super() instead of the class you are overriding to call tearDownClass of the parent.
 
 .. topic:: analyze_logs:
 
@@ -109,17 +120,15 @@ their functionality by overriding the setUp and/or tearDown methods in your
 own class, for example
 
 ::
-   
+
       class TestMyFix(PBSTestSuite):
 
             def setUp(self):
                 PBSTestSuite.setUp(self)
                 # create custom nodes, server/sched config, etc...
 
-For detailed test directory structure one can refer to below link:
+For detailed test directory structure please check document.
 
-https://pbspro.atlassian.net/wiki/display/DG/PTL+Directory+Structure+and+Naming+Conventions
- 
 Writing a test suite
 --------------------
 
@@ -153,6 +162,11 @@ it needs to be skipped.
 
   Tests that inherit from PBSTestSuite inherit a method called ``skipOnCray`` that
   is used to skip tests on Cray platform.
+
+.. topic:: skipOnShasta:
+
+  Tests that inherit from PBSTestSuite inherit a method called ``skipOnShasta`` that
+  is used to skip tests on Cray Shasta platform.
 
 How to add a new attribute to the library
 -----------------------------------------

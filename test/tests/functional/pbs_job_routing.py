@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 
@@ -45,17 +48,9 @@ class TestJobRouting(TestFunctional):
 
     def setUp(self):
         TestFunctional.setUp(self)
-        self.momA = self.moms.values()[0]
-        self.momA.delete_vnode_defs()
-
-        self.hostA = self.momA.shortname
-
-        self.server.manager(MGR_CMD_DELETE, NODE, None, "")
-
-        self.server.manager(MGR_CMD_CREATE, NODE, id=self.hostA)
 
         a = {'resources_available.ncpus': 3}
-        self.server.manager(MGR_CMD_SET, NODE, a, id=self.hostA)
+        self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'false'})
 
@@ -184,3 +179,28 @@ class TestJobRouting(TestFunctional):
                            id=jid, extend='t')
         self.server.expect(JOB, {ATTR_state + '=X': 2}, count=True,
                            id=jid, extend='t')
+
+    def test_route_resource_with_cr(self):
+        """
+        test submitting and routing job with select
+        containing nasty CR chars from Windows
+        """
+
+        dflt_q = self.server.default_queue
+        # Create a route queue with destination to default queue
+        queue_attrib = {ATTR_qtype: 'route',
+                        ATTR_routedest: dflt_q,
+                        ATTR_enable: 'True'}
+        self.server.manager(MGR_CMD_CREATE, QUEUE, queue_attrib, id='routeq')
+
+        select = "select=ncpus=1\r:mem=1gb\r:arch=linux"
+        job = Job(TEST_USER, attrs={ATTR_queue: 'routeq',
+                                    ATTR_l: select})
+        try:
+            jid = self.server.submit(job)
+        except PbsSubmitError as e:
+            error_msg = "qsub: Illegal attribute or " \
+                        "resource value Resource_List.:mem"
+            self.assertEquals(e.msg[0], error_msg)
+        else:
+            self.fail("Job submit did not fail as expected.")

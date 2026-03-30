@@ -1,43 +1,45 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
-#ifndef	_HOOK_FUNC_H
-#define	_HOOK_FUNC_H
-#ifdef	__cplusplus
+
+#ifndef _HOOK_FUNC_H
+#define _HOOK_FUNC_H
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -55,25 +57,26 @@ extern "C" {
  *	"pbs_ifl.h"
  */
 
-#define	MOM_HOOK_ACTION_NONE		0
-#define MOM_HOOK_ACTION_SEND_ATTRS	0x01
-#define	MOM_HOOK_ACTION_SEND_SCRIPT	0x02
-#define	MOM_HOOK_ACTION_DELETE		0x04
-#define	MOM_HOOK_ACTION_SEND_RESCDEF	0x08
-#define	MOM_HOOK_ACTION_DELETE_RESCDEF	0x10
-#define	MOM_HOOK_ACTION_SEND_CONFIG	0x20
+#define MOM_HOOK_ACTION_NONE 0
+#define MOM_HOOK_ACTION_SEND_ATTRS 0x01
+#define MOM_HOOK_ACTION_SEND_SCRIPT 0x02
+#define MOM_HOOK_ACTION_DELETE 0x04
+#define MOM_HOOK_ACTION_SEND_RESCDEF 0x08
+#define MOM_HOOK_ACTION_DELETE_RESCDEF 0x10
+#define MOM_HOOK_ACTION_SEND_CONFIG 0x20
 
 /* MOM_HOOK_ACTION_SEND_RESCDEF is really not part of this */
 #define MOM_HOOK_SEND_ACTIONS (MOM_HOOK_ACTION_SEND_ATTRS | MOM_HOOK_ACTION_SEND_SCRIPT | MOM_HOOK_ACTION_SEND_CONFIG)
 
 struct mom_hook_action {
-	char            hookname[PBS_HOOK_NAME_SIZE];
-	unsigned int	action;
-	int		do_delete_action_first; /* force order between delete and send actions */
-	long long int	tid;	/* transaction id to group actions under */
+	char hookname[PBS_HOOK_NAME_SIZE];
+	unsigned int action;
+	unsigned int reply_expected; /* reply expected from mom for sent out actions */
+	int do_delete_action_first;  /* force order between delete and send actions */
+	long long int tid;	     /* transaction id to group actions under */
 };
 
-/* Return values to sync_mom_hookfiles() function */
+/* Return values to sync_mom_hookfilesTPP() function */
 enum sync_hookfiles_result {
 	SYNC_HOOKFILES_NONE,
 	SYNC_HOOKFILES_SUCCESS_ALL,
@@ -81,16 +84,16 @@ enum sync_hookfiles_result {
 	SYNC_HOOKFILES_FAIL
 };
 
-typedef	struct mom_hook_action mom_hook_action_t;
+typedef struct mom_hook_action mom_hook_action_t;
 
-extern	int add_mom_hook_action(mom_hook_action_t ***,
-	int *, char *, unsigned int, int, long long int);
+extern int add_mom_hook_action(mom_hook_action_t ***,
+			       int *, char *, unsigned int, int, long long int);
 
 extern int delete_mom_hook_action(mom_hook_action_t **, int,
-	char *, unsigned int);
+				  char *, unsigned int);
 
 extern mom_hook_action_t *find_mom_hook_action(mom_hook_action_t **,
-	int, char *);
+					       int, char *);
 
 extern void add_pending_mom_hook_action(void *minfo, char *, unsigned int);
 
@@ -102,9 +105,8 @@ extern int has_pending_mom_action_delete(char *);
 
 extern void hook_track_save(void *, int);
 extern void hook_track_recov(void);
-extern int bg_sync_mom_hookfiles(void);
-extern int bg_delete_mom_hooks(void *);
-extern enum sync_hookfiles_result sync_mom_hookfiles(void *);
+extern int mc_sync_mom_hookfiles(void);
+extern void uc_delete_mom_hooks(void *);
 extern int sync_mom_hookfiles_count(void *);
 extern void next_sync_mom_hookfiles(void);
 extern void send_rescdef(int);
@@ -116,7 +118,7 @@ extern long long int hook_action_tid_get(void);
 extern void set_srv_pwr_prov_attribute(void);
 extern void fprint_svrattrl_list(FILE *, char *, pbs_list_head *);
 
-#ifdef	_BATCH_REQUEST_H
+#ifdef _BATCH_REQUEST_H
 extern int status_hook(hook *, struct batch_request *, pbs_list_head *, char *, size_t);
 extern void mgr_hook_import(struct batch_request *);
 extern void mgr_hook_export(struct batch_request *);
@@ -135,13 +137,13 @@ extern int process_hooks(struct batch_request *, char *, size_t, void (*)(void))
 extern int recreate_request(struct batch_request *);
 
 /* Server periodic hook call-back */
-extern void run_periodic_hook (struct work_task *ptask);
+extern void run_periodic_hook(struct work_task *ptask);
 
 extern int get_server_hook_results(char *input_file, int *accept_flag, int *reject_flag,
-	char *reject_msg, int reject_msg_size, job *pjob, hook *phook, hook_output_param_t *hook_output);
+				   char *reject_msg, int reject_msg_size, job *pjob, hook *phook, hook_output_param_t *hook_output);
 #endif
 
-#ifdef	__cplusplus
+#ifdef __cplusplus
 }
 #endif
-#endif	/* _HOOK_FUNC_H */
+#endif /* _HOOK_FUNC_H */

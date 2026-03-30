@@ -1,38 +1,41 @@
 #
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 #
 
 # making aptl installation in case it is enabled with configure
@@ -43,9 +46,13 @@ ptlpkg_bindir = ${ptl_prefix}/bin
 
 dist_ptlpkg_bin_SCRIPTS = $(wildcard $(srcdir)/bin/*)
 
+ptlpkg_fwdir = ${ptl_prefix}/fw
+
+dist_ptlpkg_fw_DATA =  $(srcdir)/requirements.txt
+
 ptlpkg_pylib_topdir = ${ptl_prefix}/lib/python$(PYTHON_VERSION)/site-packages/ptl
 
-dist_ptlpkg_pylib_top_PYTHON = $(wildcard $(srcdir)/ptl/*.py)
+dist_ptlpkg_pylib_top_PYTHON = $(wildcard $(builddir)/ptl/*.py)
 
 ptlpkg_pylib_libdir = $(ptlpkg_pylib_topdir)/lib
 
@@ -73,7 +80,8 @@ dist_ptlbin_SCRIPTS = \
 	bin/pbs_stat \
 	bin/pbs_loganalyzer \
 	bin/pbs_snapshot \
-	bin/pbs_config
+	bin/pbs_config \
+	bin/pbs_compare_results
 
 dist_ptlmodule_PYTHON = ptl/__init__.py
 
@@ -83,7 +91,23 @@ dist_ptlmodulelib_PYTHON = \
 	ptl/lib/pbs_api_to_cli.py \
 	ptl/lib/pbs_ifl_mock.py \
 	ptl/lib/pbs_testlib.py \
-	ptl/lib/__init__.py
+	ptl/lib/__init__.py \
+	ptl/lib/ptl_config.py \
+	ptl/lib/ptl_error.py \
+	ptl/lib/ptl_types.py \
+	ptl/lib/ptl_batchutils.py \
+	ptl/lib/ptl_constants.py \
+	ptl/lib/ptl_expect_action.py \
+	ptl/lib/ptl_object.py \
+	ptl/lib/ptl_mom.py \          
+	ptl/lib/ptl_sched.py \
+	ptl/lib/ptl_server.py \
+	ptl/lib/ptl_comm.py \
+	ptl/lib/ptl_entities.py \
+	ptl/lib/ptl_fairshare.py \
+	ptl/lib/ptl_resourceresv.py \
+	ptl/lib/ptl_service.py \
+	ptl/lib/ptl_wrappers.py
 
 ptlmoduleutilsdir = $(ptlmoduledir)/utils
 
@@ -94,9 +118,9 @@ dist_ptlmoduleutils_PYTHON = \
 	ptl/utils/pbs_cliutils.py \
 	ptl/utils/pbs_logutils.py \
 	ptl/utils/pbs_testsuite.py \
-	ptl/utils/pbs_fileutils.py \
 	ptl/utils/pbs_anonutils.py \
 	ptl/utils/pbs_snaputils.py \
+	ptl/utils/pbs_testusers.py \
 	ptl/utils/__init__.py
 
 ptlmoduleutilspluginsdir = $(ptlmoduleutilsdir)/plugins

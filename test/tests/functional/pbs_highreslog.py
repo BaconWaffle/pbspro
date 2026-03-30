@@ -1,38 +1,41 @@
 # coding: utf-8
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 
@@ -80,15 +83,30 @@ class TestHighResLogging(TestFunctional):
             ': High resolution time stamp found in log'
         self.logger.info(_msg)
 
+    def switch_microsecondlogging(self, hostname=None, highrestimestamp=1):
+        """
+        Set microsecond logging in pbs.conf
+        """
+        if hostname is None:
+            hostname = self.server.hostname
+        a = {'PBS_LOG_HIGHRES_TIMESTAMP': highrestimestamp}
+        self.du.set_pbs_config(hostname=hostname, confs=a, append=True)
+        PBSInitServices().restart()
+        self.assertTrue(self.server.isUp(), 'Failed to restart PBS Daemons')
+
     def test_disabled(self):
         """
-        Default High resolution should be disabled (logfile version)
+        Disable High res logging, and test that high res timestamp is not
+        there in the server logs lines
         """
+        self.switch_microsecondlogging(highrestimestamp=0)
+        now = time.time()
+
         j = Job(TEST_USER)
         jid = self.server.submit(j)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
         lines = self.server.log_lines(logtype=self.server,
-                                      starttime=self.server.ctime)
+                                      starttime=now)
 
         _msg = 'Found high resolution time stamp in log,' \
                ' it shouldn\'t be there'
@@ -103,8 +121,11 @@ class TestHighResLogging(TestFunctional):
 
     def test_disabled_tracejob(self):
         """
-        Default High resolution should be disabled (tracejob version)
+        Disable High res logging, and test that high res timestamp is not
+        there in the tracejob output
         """
+        self.switch_microsecondlogging(highrestimestamp=0)
+
         j = Job(TEST_USER)
         jid = self.server.submit(j)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
@@ -130,10 +151,6 @@ class TestHighResLogging(TestFunctional):
         Enable High resolution logging, restart server
         and look for high resolution time stamp in server log
         """
-        a = {'PBS_LOG_HIGHRES_TIMESTAMP': 1}
-        self.du.set_pbs_config(confs=a, append=True)
-        _msg = 'Failed to restart server: %s' % (self.server.shortname)
-        self.assertTrue(self.server.restart(), _msg)
         j = Job(TEST_USER)
         jid = self.server.submit(j)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
@@ -145,11 +162,6 @@ class TestHighResLogging(TestFunctional):
         Enable High resolution logging, restart PBS Daemons
         and look for high resolution time stamp in tracejob output
         """
-        a = {'PBS_LOG_HIGHRES_TIMESTAMP': 1}
-        self.du.set_pbs_config(confs=a, append=True)
-        PBSInitServices().restart()
-        self.assertTrue(self.server.isUp(), 'Failed to restart PBS Daemons')
-
         j = Job(TEST_USER)
         jid = self.server.submit(j)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
@@ -164,18 +176,11 @@ class TestHighResLogging(TestFunctional):
         conf_path = self.du.parse_pbs_config()
         pbs_init = os.path.join(os.sep, conf_path['PBS_EXEC'],
                                 'libexec', 'pbs_init.d')
-        cmd = ['sudo', 'PBS_LOG_HIGHRES_TIMESTAMP=1', pbs_init, 'restart']
+        cmd = copy.copy(self.du.sudo_cmd)
+        cmd += ['PBS_LOG_HIGHRES_TIMESTAMP = 1', pbs_init, 'restart']
         self.du.run_cmd(cmd=cmd, as_script=True, wait_on_script=True)
         j = Job(TEST_USER)
         jid = self.server.submit(j)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
         self.validate_server_log_lines()
         self.validate_trace_job_lines(jid=jid)
-
-    def tearDown(self):
-        confs = self.du.parse_pbs_config()
-        if 'PBS_LOG_HIGHRES_TIMESTAMP' in confs:
-            del confs['PBS_LOG_HIGHRES_TIMESTAMP']
-            self.du.set_pbs_config(confs=confs, append=False)
-            PBSInitServices().restart()
-        PBSTestSuite.tearDown(self)

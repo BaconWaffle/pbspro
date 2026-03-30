@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.interfaces import *
 
@@ -47,8 +50,7 @@ class TestSchedulerInterface(TestInterfaces):
     def setUp(self):
         TestInterfaces.setUp(self)
         a = {'partition': 'P1',
-             'sched_host': self.server.hostname,
-             'sched_port': '15051'}
+             'sched_host': self.server.hostname}
         self.server.manager(MGR_CMD_CREATE,
                             SCHED, a,
                             id="TestCommonSched")
@@ -62,28 +64,12 @@ class TestSchedulerInterface(TestInterfaces):
         try:
             self.server.manager(MGR_CMD_CREATE,
                                 SCHED,
-                                {'sched_port': '15052'},
+                                {'sched_host': self.server.hostname},
                                 id="TestCommonSched")
         except PbsManagerError as e:
             if self.server.get_op_mode() == PTL_CLI:
                 self.assertTrue(
                     'qmgr: Error (15211) returned from server' in e.msg[1])
-
-    def test_invalid_sched_port(self):
-        """
-        Test setting invalid port.
-        """
-        try:
-            self.server.manager(MGR_CMD_SET, SCHED,
-                                {'sched_port': 'asdf'},
-                                id="TestCommonSched",
-                                runas=ROOT_USER)
-        except PbsManagerError as e:
-            err_msg = "Illegal attribute or resource value"
-            self.assertTrue(err_msg in e.msg[0],
-                            "Error message is not expected")
-        a = {'sched_port': 15051}
-        self.server.expect(SCHED, a, id='TestCommonSched', max_attempts=10)
 
     def test_permission_on_scheduler(self):
         """
@@ -93,7 +79,7 @@ class TestSchedulerInterface(TestInterfaces):
         try:
             self.server.manager(MGR_CMD_CREATE,
                                 SCHED,
-                                {'sched_port': '15052'},
+                                {'sched_host': self.server.hostname},
                                 id="testCreateSched",
                                 runas=OPER_USER)
         except PbsManagerError as e:
@@ -103,14 +89,14 @@ class TestSchedulerInterface(TestInterfaces):
 
         self.server.manager(MGR_CMD_CREATE,
                             SCHED,
-                            {'sched_port': '15052'},
+                            {'sched_host': self.server.hostname},
                             id="testCreateSched",
                             runas=ROOT_USER)
 
         # Check for delete permission
         self.server.manager(MGR_CMD_CREATE,
                             SCHED,
-                            {'sched_port': '15052'},
+                            {'sched_host': self.server.hostname},
                             id="testDeleteSched")
         try:
             self.server.manager(MGR_CMD_DELETE,
@@ -180,8 +166,7 @@ class TestSchedulerInterface(TestInterfaces):
             self.server.pbs_conf['PBS_HOME'], 'sched_priv')
         sched_logs = os.path.join(
             self.server.pbs_conf['PBS_HOME'], 'sched_logs')
-        a = {'sched_port': 15004,
-             'sched_host': self.server.hostname,
+        a = {'sched_host': self.server.hostname,
              'sched_priv': sched_priv,
              'sched_log': sched_logs,
              'scheduling': 'True',
@@ -289,3 +274,32 @@ class TestSchedulerInterface(TestInterfaces):
                             runas=ROOT_USER)
         self.server.expect(SCHED, {'scheduler_iteration': 500},
                            id='default', max_attempts=10)
+
+    def test_scheduling_iteration(self):
+        """
+        Test scheduler_itration attribute after it is unset. It should go
+        to its default value which is 600. If this happens Server will not
+        kickoff infinite scheduling cycles. Also make sure that all other
+        scheduler attributes are set to its correct default values after
+        this change.
+        """
+        self.server.manager(MGR_CMD_SET, SCHED,
+                            {ATTR_schedit: 500},
+                            runas=ROOT_USER, id='TestCommonSched')
+        self.server.expect(SCHED, {ATTR_schedit: '500'},
+                           id='TestCommonSched', max_attempts=5)
+
+        self.server.manager(MGR_CMD_UNSET, SCHED, ATTR_schedit,
+                            id='TestCommonSched')
+
+        sched_priv = os.path.join(
+            self.server.pbs_conf['PBS_HOME'], 'sched_priv_TestCommonSched')
+        sched_logs = os.path.join(
+            self.server.pbs_conf['PBS_HOME'], 'sched_logs_TestCommonSched')
+        a = {'sched_host': self.server.hostname,
+             'sched_priv': sched_priv,
+             'sched_log': sched_logs,
+             'scheduling': 'False',
+             'scheduler_iteration': 600,
+             'sched_cycle_length': '00:20:00'}
+        self.server.expect(SCHED, a, id='TestCommonSched', max_attempts=10)

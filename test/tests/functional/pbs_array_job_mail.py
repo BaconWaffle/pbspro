@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 import os
@@ -51,9 +54,6 @@ class Test_array_job_email(TestFunctional):
 
         self.server.manager(MGR_CMD_SET, SERVER,
                             {'job_history_enable': 'true'})
-        self.server.manager(MGR_CMD_SET, NODE,
-                            {'resources_available.ncpus': 2},
-                            id=self.mom.shortname)
 
         mailfile = os.path.join("/var/mail", str(TEST_USER))
         if not os.path.isfile(mailfile):
@@ -76,18 +76,19 @@ class Test_array_job_email(TestFunctional):
                   ("PBS Job Id: " + subjob_jid, "Begun execution"),
                   ("PBS Job Id: " + subjob_jid, "Execution terminated")]
 
-        self.logger.info("Wait 10s for saving the e-mails")
-        time.sleep(10)
-
-        ret = self.du.cat(filename=mailfile, sudo=True)
-        maillog = [x.strip() for x in ret['out'][-600:]]
-
         for (jobid, msg) in emails:
             emailpass = 0
-            for i in range(0, len(maillog)-2):
-                if jobid == maillog[i] and msg == maillog[i+2]:
-                    emailpass = 1
-
+            for j in range(5):
+                time.sleep(5)
+                ret = self.du.tail(filename=mailfile, sudo=True,
+                                   option="-n 600")
+                maillog = [x.strip() for x in ret['out']]
+                for i in range(0, len(maillog) - 2):
+                    if jobid == maillog[i] and msg == maillog[i + 2]:
+                        emailpass = 1
+                        break
+                if emailpass:
+                    break
             self.assertTrue(emailpass, "Message '" + jobid + " " + msg +
                             "' not found in " + mailfile)
 
@@ -111,3 +112,66 @@ class Test_array_job_email(TestFunctional):
             self.server.submit(J)
         except PbsSubmitError as e:
             self.assertTrue(error_msg in e.msg[0])
+
+    def test_email_non_existent_user(self):
+        """
+        Verify when a job array is submitted with a valid and invalid
+        mail recipients and all file stageout attempts fails then
+        email should get delivered to valid recipient and no email
+        would be sent to invalid recipient.
+        """
+        non_existent_user = PbsAttribute.random_str(length=5)
+        non_existent_mailfile = os.path.join(os.sep, "var", "mail",
+                                             non_existent_user)
+        pbsuser_mailfile = os.path.join(os.sep, "var", "mail",
+                                        str(TEST_USER))
+
+        # Check mail file should exist for existent user
+        if not os.path.isfile(pbsuser_mailfile):
+            msg = "Skipping this test as Mail file '%s' " % pbsuser_mailfile
+            msg += "does not exist or mail is not setup."
+            self.skip_test(msg)
+
+        # Check non existent user mail file should not exist
+        self.assertFalse(os.path.isfile(non_existent_mailfile))
+
+        src_file = PbsAttribute.random_str(length=5)
+        stageout_path = os.path.join(os.sep, '1', src_file)
+        dest_file = stageout_path + '1'
+        if not os.path.isdir(stageout_path) and os.path.exists(src_file):
+            os.remove(src_file)
+
+        # Submit job with invalid stageout path
+        usermail_list = str(TEST_USER) + "," + non_existent_user
+        set_attrib = {ATTR_stageout: stageout_path + '@' +
+                      self.mom.shortname + ':' + dest_file,
+                      ATTR_M: usermail_list, ATTR_J: '1-2',
+                      ATTR_S: '/bin/bash'}
+        j = Job()
+        j.set_attributes(set_attrib)
+        j.set_sleep_time(1)
+        jid = self.server.submit(j)
+        subjid = j.create_subjob_id(jid, 1)
+
+        self.server.expect(JOB, 'queue', op=UNSET, id=jid)
+
+        # Check stageout file should not be present
+        self.assertFalse(os.path.exists(dest_file))
+
+        exp_msg = "PBS Job Id: " + subjid
+        err_msg = "%s msg not found in pbsuser's mail log" % exp_msg
+
+        email_pass = 0
+        for i in range(5):
+            time.sleep(5)
+            # Check if mail is deliverd to valid user mail file
+            ret = self.du.tail(filename=pbsuser_mailfile, runas=TEST_USER,
+                               option="-n 50")
+            maillog = [x.strip() for x in ret['out']]
+            if exp_msg in maillog:
+                email_pass = 1
+                break
+        self.assertTrue(email_pass, err_msg)
+
+        # Verify there should not be any email for invalid user
+        self.assertFalse(os.path.isfile(non_existent_mailfile))

@@ -1,56 +1,61 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
-import os
-import ptl
-import sys
-import pwd
-import logging
-import platform
-import traceback
-import time
+
 import datetime
 import json
+import copy
+import logging
+import os
+import platform
+import pwd
+import sys
+import time
+import traceback
+
+import ptl
 import ptl.utils.pbs_logutils as lu
 from ptl.lib.pbs_testlib import PbsTypeDuration
-from ptl.utils.plugins.ptl_test_tags import TAGKEY
 from ptl.utils.pbs_dshutils import DshUtils
-from ptl.utils.plugins.ptl_report_json import PTLJsonData
 from ptl.utils.pbs_testsuite import default_requirements
+from ptl.utils.plugins.ptl_report_json import PTLJsonData
+from ptl.utils.plugins.ptl_test_tags import TAGKEY
 
 # Following dance require because PTLTestDb().process_output() from this file
 # is used in pbs_loganalyzer script which is shipped with PBS package
@@ -185,15 +190,15 @@ class PostgreSQLDb(DBType):
             raise PTLDbError(rc=1, rv=False, msg=_msg)
         try:
             import psycopg2
-        except:
+        except ImportError:
             _msg = 'psycopg2 require for %s type database!' % (self.dbtype)
             raise PTLDbError(rc=1, rv=False, msg=_msg)
         try:
             f = open(self.dbaccess)
-            creds = ' '.join(map(lambda n: n.strip(), f.readlines()))
+            creds = ' '.join([n.strip() for n in f.readlines()])
             f.close()
             self.__dbobj = psycopg2.connect(creds)
-        except Exception, e:
+        except Exception as e:
             _msg = 'Failed to connect to database:\n%s\n' % (str(e))
             raise PTLDbError(rc=1, rv=False, msg=_msg)
         self.__username = pwd.getpwuid(os.getuid())[0]
@@ -241,7 +246,7 @@ class PostgreSQLDb(DBType):
             stmt = ['CREATE TABLE %s (' % (_DBVER_TN)]
             stmt += ['version TEXT);']
             c.execute(''.join(stmt))
-        except:
+        except BaseException:
             stmt = 'SELECT version from %s;' % (_DBVER_TN)
             version = c.execute(stmt).fetchone()[0]
             self.__upgrade_db(version)
@@ -472,7 +477,7 @@ class PostgreSQLDb(DBType):
                 if lu.EJ in v:
                     for j in v[lu.EJ]:
                         if lu.EST in j:
-                            dt = map(lambda s: str(s), j[lu.Eat])
+                            dt = [str(s) for s in j[lu.Eat]]
                             j[lu.Eat] = ','.join(dt)
                         self.__write_estsum_data(j, logfile)
                 continue
@@ -583,16 +588,13 @@ class SQLiteDb(DBType):
             raise PTLDbError(rc=1, rv=False, msg=_msg)
         try:
             import sqlite3 as db
-        except:
-            try:
-                from pysqlite2 import dbapi2 as db
-            except:
-                _msg = 'Either sqlite3 or pysqlite2 module require'
-                _msg += ' for %s type database!' % (self.dbtype)
-                raise PTLDbError(rc=1, rv=False, msg=_msg)
+        except BaseException:
+            _msg = 'sqlite3 module is required'
+            _msg += ' for %s type database!' % (self.dbtype)
+            raise PTLDbError(rc=1, rv=False, msg=_msg)
         try:
             self.__dbobj = db.connect(self.dbpath)
-        except Exception, e:
+        except Exception as e:
             _msg = 'Failed to connect to database:\n%s\n' % (str(e))
             raise PTLDbError(rc=1, rv=False, msg=_msg)
         self.__username = pwd.getpwuid(os.getuid())[0]
@@ -640,7 +642,7 @@ class SQLiteDb(DBType):
             stmt = ['CREATE TABLE %s (' % (_DBVER_TN)]
             stmt += ['version TEXT);']
             c.execute(''.join(stmt))
-        except:
+        except BaseException:
             stmt = 'SELECT version from %s;' % (_DBVER_TN)
             version = c.execute(stmt).fetchone()[0]
             self.__upgrade_db(version)
@@ -871,7 +873,7 @@ class SQLiteDb(DBType):
                 if lu.EJ in v:
                     for j in v[lu.EJ]:
                         if lu.EST in j:
-                            dt = map(lambda s: str(s), j[lu.Eat])
+                            dt = [str(s) for s in j[lu.Eat]]
                             j[lu.Eat] = ','.join(dt)
                         self.__write_estsum_data(j, logfile)
                 continue
@@ -1021,7 +1023,7 @@ class FileDb(DBType):
                 if lu.EJ in v:
                     for j in v[lu.EJ]:
                         if lu.EST in j:
-                            dt = map(lambda s: str(s), j[lu.Eat])
+                            dt = [str(s) for s in j[lu.Eat]]
                             j[lu.Eat] = ','.join(dt)
                         self.__write_estsum_data(j, logfile)
                 continue
@@ -1564,7 +1566,9 @@ class HTMLDb(DBType):
         d['status'] = data['status']
         d['status_data'] = data['status_data']
         d['duration'] = str(data['duration'])
-        self.__dbobj[_TESTRESULT_TN].seek(-27, os.SEEK_END)
+        self.__dbobj[_TESTRESULT_TN].seek(0, os.SEEK_END)
+        self.__dbobj[_TESTRESULT_TN].seek(
+            self.__dbobj[_TESTRESULT_TN].tell() - 27, os.SEEK_SET)
         t = self.__dbobj[_TESTRESULT_TN].readline().strip()
         line = ''
         if t != '[':
@@ -1572,7 +1576,9 @@ class HTMLDb(DBType):
         else:
             line += '\n'
         line += str(d) + '\n];</script></body></html>'
-        self.__dbobj[_TESTRESULT_TN].seek(-26, os.SEEK_END)
+        self.__dbobj[_TESTRESULT_TN].seek(0, os.SEEK_END)
+        self.__dbobj[_TESTRESULT_TN].seek(
+            self.__dbobj[_TESTRESULT_TN].tell() - 26, os.SEEK_SET)
         self.__dbobj[_TESTRESULT_TN].write(line)
         self.__dbobj[_TESTRESULT_TN].flush()
         self.__index += 1
@@ -1606,22 +1612,18 @@ class JSONDb(DBType):
             raise PTLDbError(rc=1, rv=False, msg=_msg)
         elif not self.dbpath.endswith('.json'):
             self.dbpath = self.dbpath.rstrip('.db') + '.json'
-        self.__dbobj = {}
+        self.jdata = {}
         self.__cmd = [os.path.basename(sys.argv[0])]
         self.__cmd += sys.argv[1:]
         self.__cmd = ' '.join(self.__cmd)
         self.res_data = PTLJsonData(command=self.__cmd)
 
     def __write_test_data(self, data):
-        jdata = None
-        if _TESTRESULT_TN not in self.__dbobj.keys():
-            self.__dbobj[_TESTRESULT_TN] = open(self.dbpath, 'w+')
-        else:
-            self.__dbobj[_TESTRESULT_TN].seek(0)
-            jdata = json.load(self.__dbobj[_TESTRESULT_TN])
-        jsondata = self.res_data.get_json(data=data, prev_data=jdata)
-        self.__dbobj[_TESTRESULT_TN].seek(0)
-        json.dump(jsondata, self.__dbobj[_TESTRESULT_TN], indent=2)
+        prev_data = copy.deepcopy(self.jdata)
+        self.jdata = self.res_data.get_json(data=data, prev_data=prev_data)
+        with open(self.dbpath, 'w') as fd:
+            json.dump(self.jdata, fd, indent=2)
+            fd.write("\n")
 
     def write(self, data, logfile=None):
         if len(data) == 0:
@@ -1630,17 +1632,14 @@ class JSONDb(DBType):
             self.__write_test_data(data['testdata'])
 
     def close(self, result=None):
-        if result is not None:
-            self.__dbobj[_TESTRESULT_TN].seek(0)
-            df = json.load(self.__dbobj[_TESTRESULT_TN])
+        if result is not None and self.jdata:
             dur = str(result.stop - result.start)
-            df['test_summary']['test_duration'] = dur
-            self.__dbobj[_TESTRESULT_TN].seek(0)
-            json.dump(df, self.__dbobj[_TESTRESULT_TN], indent=2)
-        for v in self.__dbobj.values():
-            v.write('\n')
-            v.flush()
-            v.close()
+            self.jdata['result']['start'] = str(result.start)
+            self.jdata['result']["end"] = str(result.stop)
+            self.jdata['result']['duration'] = dur
+            with open(self.dbpath, 'w') as fd:
+                json.dump(self.jdata, fd, indent=2)
+                fd.write("\n")
 
 
 class PTLTestDb(Plugin):
@@ -1649,13 +1648,13 @@ class PTLTestDb(Plugin):
     PTL Test Database Plugin
     """
     name = 'PTLTestDb'
-    score = sys.maxint - 5
+    score = sys.maxsize - 5
     logger = logging.getLogger(__name__)
 
     def __init__(self):
         Plugin.__init__(self)
         self.__dbconn = None
-        self.__dbtype = 'JSONDb'
+        self.__dbtype = None
         self.__dbpath = None
         self.__dbaccess = None
         self.__dbmapping = {'file': FileDb,
@@ -1696,7 +1695,7 @@ class PTLTestDb(Plugin):
             self.__dbconn = self.__dbmapping[self.__dbtype](self.__dbtype,
                                                             self.__dbpath,
                                                             self.__dbaccess)
-        except PTLDbError, e:
+        except PTLDbError as e:
             self.logger.error(str(e) + '\n')
             sys.exit(1)
         self.enabled = True
@@ -1787,15 +1786,16 @@ class PTLTestDb(Plugin):
                 mlist = getattr(test, name).values()
             if mlist:
                 for mc in mlist:
-                    mpinfo[name].append(mc.hostname)
+                    mpinfo[name].append(mc)
         machines = {}
         for k, v in mpinfo.items():
-            for hst in v:
+            for _v in v:
+                hst = _v.hostname
                 if hst not in machines:
                     machines[hst] = {}
                     mshort = machines[hst]
-                    mshort['platform'] = self.__du.get_uname(hostname=hst)
-                    mshort['os_info'] = self.__du.get_os_info(hostname=hst)
+                    mshort['platform'] = _v.get_uname(hostname=hst)
+                    mshort['os_info'] = _v.get_os_info(hostname=hst)
                 machines[hst]['pbs_install_type'] = minstall_type[k]
                 if ((k == 'moms' or k == 'comms') and
                         hst in mpinfo['servers']):
@@ -1842,8 +1842,8 @@ class PTLTestDb(Plugin):
                 data = {'metrics_data': {logtype: info}}
                 self.__dbconn.write(data, os.path.basename(name))
                 self.finalize(None)
-            except Exception, e:
-                traceback.print_exc()
+            except Exception as e:
+                sys.stderr.write(str(traceback.print_exc()))
                 sys.stderr.write('Error processing output ' + str(e))
             return
 
@@ -1856,18 +1856,18 @@ class PTLTestDb(Plugin):
 
         if 'matches' in info:
             for m in info['matches']:
-                print m,
+                print(m, end=' ')
             del info['matches']
 
         if freq_info is not None:
             for ((l, m), n) in freq_info:
                 b = time.strftime("%m/%d/%y %H:%M:%S", time.localtime(l))
                 e = time.strftime("%m/%d/%y %H:%M:%S", time.localtime(m))
-                print(b + ' -'),
+                print(b + ' -', end=' ')
                 if b[:8] != e[:8]:
-                    print(e),
+                    print(e, end=' ')
                 else:
-                    print(e[9:]),
+                    print(e[9:], end=' ')
                 print(': ' + str(n))
             return
 
@@ -1903,19 +1903,19 @@ class PTLTestDb(Plugin):
                     else:
                         m.append('\t' + k + ': ' + str(v))
 
-            print "\n".join(m)
+            print("\n".join(m))
             return
 
         sorted_info = sorted(info.items())
         for (k, v) in sorted_info:
             if summary and k != 'summary':
                 continue
-            print str(k) + ": ",
+            print(str(k) + ": ", end=' ')
             if isinstance(v, dict):
                 sorted_v = sorted(v.items())
                 for (k, val) in sorted_v:
-                    print str(k) + '=' + str(val) + ' '
-                print
+                    print(str(k) + '=' + str(val) + ' ')
+                print()
             else:
-                print str(v)
-        print ''
+                print(str(v))
+        print('')

@@ -1,46 +1,49 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
-import time
-import os
+
 import json
+import os
+import time
 
-from tests.functional import *
 from ptl.utils.pbs_snaputils import *
+from tests.functional import *
 
 
 class TestPBSSnapshot(TestFunctional):
@@ -54,11 +57,6 @@ class TestPBSSnapshot(TestFunctional):
 
     def setUp(self):
         TestFunctional.setUp(self)
-
-        # Create a custom resource called 'ngpus'
-        # This will help us test parts of PBSSnapUtils which handle resources
-        attr = {"type": "long", "flag": "nh"}
-        self.server.manager(MGR_CMD_CREATE, RSC, attr, id="ngpus", sudo=True)
 
         # Check whether pbs_snapshot is accessible
         try:
@@ -93,12 +91,9 @@ class TestPBSSnapshot(TestFunctional):
         :type sched_priv: str
         :param sched_log: 'sched_log' (full path) for the scheduler
         :type sched_log: str
-        :param log_filter: log filter value for the scheduler
-        :type log_filter: int
         """
         a = {'partition': partition,
-             'sched_host': self.server.hostname,
-             'sched_port': port}
+             'sched_host': self.server.hostname}
         if sched_priv is not None:
             a['sched_priv'] = sched_priv
         if sched_log is not None:
@@ -130,8 +125,7 @@ class TestPBSSnapshot(TestFunctional):
                "started": "True",
                "enabled": "True"}
         a_n = {"resources_available.ncpus": 2}
-        self.server.create_vnodes("vnode", a_n, (num_partitions + 1),
-                                  self.mom)
+        self.mom.create_vnodes(a_n, (num_partitions + 1), vname='vnode')
         for i in range(num_partitions):
             partition_id = "P" + str(i + 1)
 
@@ -151,7 +145,7 @@ class TestPBSSnapshot(TestFunctional):
 
     def take_snapshot(self, acct_logs=None, daemon_logs=None,
                       obfuscate=None, with_sudo=True, hosts=None,
-                      primary_host=None):
+                      primary_host=None, basic=None, obf_snap=None):
         """
         Take a snapshot using pbs_snapshot command
 
@@ -167,38 +161,44 @@ class TestPBSSnapshot(TestFunctional):
         :type list
         :param primary_host: hostname of the primary host to capture (-H)
         :type primary_host: str
+        :param basic: use --basic option
+        :type bool
+        :param obf_snap: path to existing snapshot to obfuscate
+        :type str
         :return a tuple of name of tarball and snapshot directory captured:
             (tarfile, snapdir)
         """
         if self.pbs_snapshot_path is None:
             self.skip_test("pbs_snapshot not found")
 
-        snap_cmd = [self.pbs_snapshot_path, "-o", self.parent_dir]
-        if acct_logs is not None:
-            snap_cmd.append("--accounting-logs=" + str(acct_logs))
-
-        if daemon_logs is not None:
-            snap_cmd.append("--daemon-logs=" + str(daemon_logs))
-
-        if obfuscate:
-            snap_cmd.append("--obfuscate")
+        if obf_snap:
+            snap_cmd = [self.pbs_snapshot_path, "--obf-snap", obf_snap]
+        else:
+            snap_cmd = [self.pbs_snapshot_path, "-o", self.parent_dir]
+            if acct_logs is not None:
+                snap_cmd.append("--accounting-logs=" + str(acct_logs))
+            if daemon_logs is not None:
+                snap_cmd.append("--daemon-logs=" + str(daemon_logs))
+            if obfuscate:
+                snap_cmd.append("--obfuscate")
+            if hosts is not None:
+                hosts_str = ",".join(hosts)
+                snap_cmd.append("--additional-hosts=" + hosts_str)
+            if primary_host is not None:
+                snap_cmd.append("-H " + primary_host)
+            if basic is not None:
+                snap_cmd.append("--basic")
 
         if with_sudo:
             snap_cmd.append("--with-sudo")
 
-        if hosts is not None:
-            hosts_str = ",".join(hosts)
-            snap_cmd.append("--additional-hosts=" + hosts_str)
-        if primary_host is not None:
-            snap_cmd.append("-H " + primary_host)
-
         ret = self.du.run_cmd(cmd=snap_cmd, logerr=False, as_script=True)
-        self.assertEquals(ret['rc'], 0)
+        self.assertEqual(ret['rc'], 0)
 
         # Get the name of the tarball that was created
         # pbs_snapshot prints to stdout only the following:
         #     "Snapshot available at: <path to tarball>"
-        self.assertTrue(len(ret['out']) > 0)
+        self.assertTrue(len(ret['out']) > 0, str(ret))
         snap_out = ret['out'][0]
         output_tar = snap_out.split(":")[1]
         output_tar = output_tar.strip()
@@ -222,6 +222,34 @@ class TestPBSSnapshot(TestFunctional):
         self.snaptars.append(output_tar)
 
         return (output_tar, snap_dir)
+
+    def check_snap_obfuscated(self, snap_dir, real_values):
+        """
+        Check that a snapshot doesn't contain any sensitive values
+
+        :param snap_dir: path to the snapshot dir
+        :type str
+        :param real_values: map of {attribute name: sensitive value}
+        :type dict
+        """
+        values = real_values.values()
+        for val_list in values:
+            for val in val_list:
+                # Just do a grep for the value in the snapshot
+                cmd = ["grep", "-wR", "\'" + str(val) + "\'", snap_dir]
+                ret = self.du.run_cmd(cmd=cmd, level=logging.DEBUG)
+                # grep returns 2 if an error occurred
+                self.assertNotEqual(ret["rc"], 2, "grep failed!")
+                self.assertIn(ret["out"], ["", None, []], str(val) +
+                              " was not obfuscated. Real values:\n" +
+                              str(real_values))
+                # Also make sure that no filenames contain the sensitive val
+                cmd = ["find", snap_dir, "-name", "\'*" + str(val) + "*\'"]
+                ret = self.du.run_cmd(cmd=cmd, level=logging.DEBUG)
+                self.assertEqual(ret["rc"], 0, "find command failed!")
+                self.assertIn(ret["out"], ["", None, []], str(val) +
+                              " was not obfuscated. Real values:\n" +
+                              str(real_values))
 
     def test_capture_server(self):
         """
@@ -254,7 +282,16 @@ class TestPBSSnapshot(TestFunctional):
                     # Find the common paths between 'server' & the file
                     common_path = os.path.commonprefix([file_fullpath,
                                                         svr_fullpath])
-                    self.assertEquals(os.path.basename(common_path), "server")
+                    try:
+                        self.assertEqual(os.path.basename(common_path),
+                                         "server")
+                    except AssertionError:
+                        # Check if this was a server core file, which would
+                        # explain why it was captured
+                        svrcorepath = os.path.join(CORE_DIR, "server_priv")
+                        if svrcorepath in file_fullpath:
+                            continue
+                        raise
             # Check 3: qstat_Bf.out exists
             qstat_bf_out = os.path.join(snap_obj.snapdir, QSTAT_BF_PATH)
             self.assertTrue(os.path.isfile(qstat_bf_out))
@@ -266,7 +303,7 @@ class TestPBSSnapshot(TestFunctional):
                         line = "".join(line.split())
                         # Split it up by '='
                         key_val = line.split("=")
-                        self.assertEquals(key_val[1], job_hist_duration)
+                        self.assertEqual(key_val[1], job_hist_duration)
 
         # Cleanup
         if os.path.isdir(snap_dir):
@@ -314,7 +351,7 @@ class TestPBSSnapshot(TestFunctional):
                 skip_list.extend([ETC_HOSTS, ETC_NSSWITCH_CONF, LSOF_PBS_OUT,
                                   VMSTAT_OUT, DF_H_OUT, DMESG_OUT])
             for item_info in all_info:
-                for key, info in item_info.iteritems():
+                for key, info in item_info.items():
                     info_path = info[0]
                     if info_path is None:
                         continue
@@ -358,7 +395,7 @@ class TestPBSSnapshot(TestFunctional):
 
         if not (server_up or mom_up or comm_up or sched_up):
             # Skip the test
-            self.skipTest("No PBSPro daemons found on the system," +
+            self.skipTest("No PBS daemons found on the system," +
                           " skipping the test")
 
         with PBSSnapUtils(out_dir=self.parent_dir, acct_logs=num_acct_logs,
@@ -443,7 +480,7 @@ class TestPBSSnapshot(TestFunctional):
         # Let's submit a reservation with Authorized_Users and
         # Authorized_Groups set
         attribs = {ATTR_auth_u: TEST_USER1, ATTR_auth_g: TSTGRP0,
-                   ATTR_l + ".ncpus": 2, 'reserve_start': now + 25,
+                   ATTR_l + ".ncpus": 1, 'reserve_start': now + 25,
                    'reserve_end': now + 45}
         resv_obj = Reservation(attrs=attribs)
         resv_id = self.server.submit(resv_obj)
@@ -704,12 +741,14 @@ pbs.logmsg(pbs.EVENT_DEBUG,"%s")
                         "%s snapshot didn't capture all expected"
                         " information" % (host2))
 
+    @requirements(num_moms=2)
     def test_multi_mom_basic(self):
         """
         Test running pbs_snapshot on a multi-mom setup
         """
         self.snapshot_multi_mom_basic()
 
+    @requirements(num_moms=2)
     def test_multi_mom_basic_obfuscate(self):
         """
         Test running pbs_snapshot on a multi-mom setup with obfuscation
@@ -743,6 +782,7 @@ pbs.logmsg(pbs.EVENT_DEBUG,"%s")
         with open(jsonpath, "r") as fd:
             json.load(fd)
 
+    @requirements(no_mom_on_server=True)
     def test_remote_primary_mom(self):
         """
         Test that pbs_snapshot -H works correctly to capture a remote primary
@@ -762,6 +802,7 @@ pbs.logmsg(pbs.EVENT_DEBUG,"%s")
         momprivpath = os.path.join(snap_dir, "mom_priv")
         self.assertTrue(os.path.isdir(momprivpath))
 
+    @requirements(num_moms=2)
     def test_remote_primary_multinode(self):
         """
         Test that pbs_snapshot -H works with --additional-hosts to capture
@@ -798,6 +839,7 @@ pbs.logmsg(pbs.EVENT_DEBUG,"%s")
         except KeyError:
             self.fail("mom_priv/config not found in %s's snapshot" % host2)
 
+    @skipOnShasta
     def test_snapshot_obf_stress(self):
         """
         A stress test to make sure that snapshot --obufscate really obfuscates
@@ -825,6 +867,19 @@ pbs.logmsg(pbs.EVENT_DEBUG,"%s")
         self.server.manager(MGR_CMD_CREATE, QUEUE, a, id='workq2')
         real_values[ATTR_aclgroup] = [TSTGRP0]
         real_values[ATTR_acluser] = [TEST_USER]
+
+        # Create a custom resource
+        attr = {"type": "long", "flag": "nh"}
+        rsc_id = "myres"
+        self.server.manager(MGR_CMD_CREATE, RSC, attr, id=rsc_id,
+                            logerr=False)
+
+        # Make it schedulable
+        self.scheduler.add_resource("myres")
+
+        # Set myres on the vnode
+        attr = {"resources_available.myres": 1}
+        self.server.manager(MGR_CMD_SET, NODE, attr, id=self.mom.shortname)
 
         # Set acls on server
         self.server.manager(MGR_CMD_SET, SERVER,
@@ -860,7 +915,8 @@ pbs.logmsg(pbs.EVENT_DEBUG,"%s")
         # Submit a job with sensitive attributes set
         a = {ATTR_project: 'p1', ATTR_A: 'a1', ATTR_g: TSTGRP0,
              ATTR_M: TEST_USER, ATTR_u: TEST_USER,
-             ATTR_l + ".walltime": "00:01:00", ATTR_S: "/bin/bash"}
+             ATTR_l + ".walltime": "00:01:00",
+             ATTR_l + ".myres": 1, ATTR_S: "/bin/bash"}
         j = Job(TEST_USER, attrs=a)
         j.set_sleep_time(1000)
         self.server.submit(j)
@@ -877,36 +933,110 @@ pbs.logmsg(pbs.EVENT_DEBUG,"%s")
         real_values[ATTR_owner] = [TEST_USER, self.server.hostname]
         real_values[ATTR_exechost] = [self.server.hostname]
         real_values[ATTR_S] = ["/bin/bash"]
+        real_values[ATTR_l] = ["myres"]
 
         # Take a snapshot with --obfuscate
         (_, snap_dir) = self.take_snapshot(obfuscate=True)
 
         # Make sure that none of the sensitive values were captured
-        values = real_values.values()
-        for val_list in values:
-            for val in val_list:
-                # Just do a grep for the value in the snapshot
-                cmd = ["grep", "-wR", "\'" + str(val) + "\'", snap_dir]
-                ret = self.du.run_cmd(cmd=cmd, level=logging.DEBUG)
-                # grep returns 2 if an error occurred
-                self.assertNotEqual(ret["rc"], 2, "grep failed!")
-                self.assertIn(ret["out"], ["", None, []], str(val) +
-                              " was not obfuscated. Real values:\n" +
-                              str(real_values))
-                # Also make sure that no filenames contain the sensitive val
-                cmd = ["find", snap_dir, "-name",  "\'*" + str(val) + "*\'"]
-                ret = self.du.run_cmd(cmd=cmd, level=logging.DEBUG)
-                self.assertEquals(ret["rc"], 0, "find command failed!")
-                self.assertIn(ret["out"], ["", None, []], str(val) +
-                              " was not obfuscated. Real values:\n" +
-                              str(real_values))
+        self.check_snap_obfuscated(snap_dir, real_values)
 
-    @classmethod
-    def tearDownClass(self):
+    def test_basic_option(self):
+        """
+        Test pbs_snapshot --basic
+        """
+        if self.pbs_snapshot_path is None:
+            self.skip_test("pbs_snapshot not found")
+
+        _, snap_dir = self.take_snapshot(basic=True)
+
+        # Check that the output tarball was created
+        self.assertTrue(os.path.isdir(snap_dir))
+
+        # Check that only the following was captured:
+        target_files = ["server/qstat_Bf.out", "server/qstat_Qf.out",
+                        "scheduler/qmgr_lsched.out", "node/pbsnodes_va.out",
+                        "reservation/pbs_rstat_f.out", "job/qstat_f.out",
+                        "hook/qmgr_lpbshook.out", "server_priv/resourcedef",
+                        "pbs.conf", "pbs_snapshot.log", "ctime",
+                        "job/qstat_tf.out"]
+        target_files = [os.path.join(snap_dir, f) for f in target_files]
+        sched_priv_dir = os.path.join(snap_dir, "sched_priv")
+        for (root, dirs, files) in os.walk(snap_dir):
+            for fname in files:
+                fpath = os.path.join(root, fname)
+                if fpath not in target_files:
+                    if not fpath.startswith(sched_priv_dir):
+                        self.fail("Unexpected file " + fpath + " captured")
+
+    def test_snapshot_mom_obf(self):
+        """
+        Test capturing a snapshot of a system that's only running pbs_mom
+        """
+        # Kill all daemons and start only pbs_mom
+        self.server.pi.initd(op="stop", daemon="all")
+        self.mom.pi.start_mom()
+        self.assertTrue(self.mom.isUp())
+        self.assertFalse(self.server.isUp())
+
+        # Take & verify a snapshot with obfuscate
+        self.take_snapshot(obfuscate=True, with_sudo=True, acct_logs=10)
+
+        # Bring the rest of daemons up otherwise tearDown will error out
+        self.server.pi.initd(op="start", daemon="all")
+
+    def test_obfuscate_existing(self):
+        """
+        Test the --obf-snap option which obfuscates an existing snapshot
+        """
+        if self.pbs_snapshot_path is None:
+            self.skip_test("pbs_snapshot not found")
+
+        now = int(time.time())
+
+        # Submit a job with sensitive attributes set
+        a = {ATTR_project: 'p1', ATTR_A: 'a1', ATTR_g: TSTGRP0,
+             ATTR_M: TEST_USER, ATTR_u: TEST_USER,
+             ATTR_l + ".walltime": "00:01:00", ATTR_S: "/bin/bash"}
+        j = Job(TEST_USER, attrs=a)
+        j.set_sleep_time(1000)
+        self.server.submit(j)
+
+        # Add job's attributes to the list
+        # TEST_USER belongs to group TESTGRP0
+        real_values = {}
+        real_values[ATTR_euser] = [TEST_USER]
+        real_values[ATTR_egroup] = [TSTGRP0]
+        real_values[ATTR_project] = ['p1']
+        real_values[ATTR_A] = ['a1']
+        real_values[ATTR_g] = [TSTGRP0]
+        real_values[ATTR_M] = [TEST_USER]
+        real_values[ATTR_u] = [TEST_USER]
+        real_values[ATTR_owner] = [TEST_USER, self.server.hostname]
+        real_values[ATTR_exechost] = [self.server.hostname]
+        real_values[ATTR_S] = ["/bin/bash"]
+
+        # Take a normal snapshot
+        (snap_tar, snap_dir) = self.take_snapshot(0, 0, with_sudo=True)
+
+        # Now, obfuscate the snapshot that we just took
+        (snap_obf_tar, snap_obf) = self.take_snapshot(obf_snap=snap_dir)
+
+        # Make sure that none of the sensitive values were captured
+        self.check_snap_obfuscated(snap_obf, real_values)
+        self.du.rm(path=snap_obf, force=True, recursive=True)
+        self.du.rm(path=snap_dir, force=True, recursive=True)
+
+        # Now, obfuscate using the tar directly instead of the snapshot dir
+        self.du.rm(path=snap_obf_tar, force=True)
+        (_, snap_obf) = self.take_snapshot(obf_snap=snap_tar)
+        self.check_snap_obfuscated(snap_obf, real_values)
+
+    def tearDown(self):
         # Delete the snapshot directories and tarballs created
         for snap_dir in self.snapdirs:
             self.du.rm(path=snap_dir, recursive=True, force=True)
         for snap_tar in self.snaptars:
             self.du.rm(path=snap_tar, sudo=True, force=True)
 
-        TestFunctional.tearDownClass()
+        TestFunctional.tearDown(self)

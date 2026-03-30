@@ -1,41 +1,41 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
-
 
 /**
  * @file	alps.c
@@ -68,7 +68,7 @@
 
 #include "pbs_config.h"
 
-#if	MOM_ALPS /* Defined when --enable-alps is passed to configure. */
+#if MOM_ALPS /* Defined when --enable-alps is passed to configure. */
 
 #include <stdio.h>
 #include <string.h>
@@ -84,9 +84,9 @@
 #include <pwd.h>
 #include <assert.h>
 
-#ifndef	_XOPEN_SOURCE
+#ifndef _XOPEN_SOURCE
 extern pid_t getsid(pid_t);
-#endif	/* _XOPEN_SOURCE */
+#endif /* _XOPEN_SOURCE */
 
 #include "pbs_error.h"
 #include "list_link.h"
@@ -107,15 +107,15 @@ extern pid_t getsid(pid_t);
  * Remember the PBScrayhost (mpphost) reported by ALPS.
  * Utilized during Inventory query procession for Compute nodes.
  */
-char	mpphost[BASIL_STRING_LONG];
+char mpphost[BASIL_STRING_LONG];
 
 /*
  * Data types to support interaction with the Cray ALPS implementation.
  */
 
-extern char  *alps_client;
-extern int    vnode_per_numa_node;
-extern char  *ret_string;
+extern char *alps_client;
+extern int vnode_per_numa_node;
+extern char *ret_string;
 extern vnl_t *vnlp;
 
 /**
@@ -174,7 +174,6 @@ typedef struct element_counts_sys {
 	int system;
 } element_counts_sys_t;
 
-
 /**
  * Pointers for node data used when parsing inventory.
  * These provide a place to hang lists of any possible result from an
@@ -191,24 +190,24 @@ typedef struct inventory_data {
 	basil_label_t *label;
 	basil_rsvn_t *reservation;
 	basil_node_computeunit_t *cu;
-	int	role_int;
-	int	role_batch;
-	int	role_unknown;
-	int	state_up;
-	int	state_down;
-	int	state_unavail;
-	int	state_routing;
-	int	state_suspect;
-	int	state_admin;
-	int	state_unknown;
+	int role_int;
+	int role_batch;
+	int role_unknown;
+	int state_up;
+	int state_down;
+	int state_unavail;
+	int state_routing;
+	int state_suspect;
+	int state_admin;
+	int state_unknown;
 	basil_node_accelerator_t *accelerator;
 	basil_accelerator_allocation_t *accelerator_allocation;
-	int	accel_type_gpu;
-	int	accel_type_unknown;
-	int	accel_state_up;
-	int	accel_state_down;
-	int	accel_state_unknown;
-	int	socket_count;
+	int accel_type_gpu;
+	int accel_type_unknown;
+	int accel_state_up;
+	int accel_state_down;
+	int accel_state_unknown;
+	int socket_count;
 } inventory_data_t;
 
 /**
@@ -271,31 +270,31 @@ static char expatBuffer[(EXPAT_BUFFER_LEN * sizeof(char))];
 static char *basil_inventory;
 static char *alps_client_out;
 
-static char	*requestBuffer;
-static char	*requestBuffer_knl;
-static size_t	requestSize_knl;
-static size_t	requestCurr = 0;
-static size_t	requestSize = 0;
+static char *requestBuffer;
+static char *requestBuffer_knl;
+static size_t requestSize_knl;
+static size_t requestCurr = 0;
+static size_t requestSize = 0;
 
 #define UTIL_BUFFER_LEN (4096)
 static char utilBuffer[(UTIL_BUFFER_LEN * sizeof(char))];
 
-#define VNODE_NAME_LEN	255
+#define VNODE_NAME_LEN 255
 
 #define BASIL_ERR_ID "BASIL"
 
 /**
  * Flag set to true when talking to Basil 1.1 original.
  */
-static	int	basil11orig	= 0;
+static int basil11orig = 0;
 
 /**
  * Variables that keep track of which basil version to speak.
  * The Inventory Query speaks BASIL 1.4 (stored in basilversion_inventory) and
  * the System Query speaks BASIL 1.7 (stored in basilversion_system).
  */
-static char	basilversion_inventory[BASIL_STRING_SHORT];
-static char	basilversion_system[BASIL_STRING_SHORT];
+static char basilversion_inventory[BASIL_STRING_SHORT];
+static char basilversion_system[BASIL_STRING_SHORT];
 
 /**
  * Flag to indicate BASIL 1.7 support.
@@ -321,8 +320,7 @@ static const char *pbs_supported_basil_versions[] __attribute__((unused)) = {
 	BASIL_VAL_VERSION_1_3,
 	BASIL_VAL_VERSION_1_2,
 	BASIL_VAL_VERSION_1_1,
-	NULL
-};
+	NULL};
 
 static int first_compute_node = 1;
 
@@ -330,7 +328,7 @@ static int first_compute_node = 1;
  * String to use for mpp_host in vnode names when basil11orig
  * is true.
  */
-#define	FAKE_MPP_HOST	"default"
+#define FAKE_MPP_HOST "default"
 
 /**
  * Prototype declarations for System Query (KNL) related functions.
@@ -338,7 +336,7 @@ static int first_compute_node = 1;
 static int init_KNL_alps_req_buf(void);
 static void create_vnodes_KNL(basil_response_query_system_t *);
 static int exclude_from_KNL_processing(basil_system_element_t *,
- short int check_state);
+				       short int check_state);
 static long *process_nodelist_KNL(char *, int *);
 static void store_nids(int, char *, long **, int *);
 static void free_basil_elements_KNL(basil_system_element_t *);
@@ -397,9 +395,9 @@ init_KNL_alps_req_buf(void)
 {
 	if (requestBuffer_knl == NULL) {
 		requestSize_knl = UTIL_BUFFER_LEN;
-		if ((requestBuffer_knl = (char*)malloc(UTIL_BUFFER_LEN)) == NULL) {
+		if ((requestBuffer_knl = (char *) malloc(UTIL_BUFFER_LEN)) == NULL) {
 			log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_ERR, __func__,
-				"Memory allocation for XML request buffer failed.");
+				  "Memory allocation for XML request buffer failed.");
 			return 1;
 		}
 	}
@@ -421,11 +419,11 @@ init_KNL_alps_req_buf(void)
 static void
 add_alps_req(char *new)
 {
-	size_t	len = strlen(new);
+	size_t len = strlen(new);
 
 	if (requestCurr + len >= requestSize) {
-		size_t	num = (UTIL_BUFFER_LEN + len)/UTIL_BUFFER_LEN;
-		requestSize += num*UTIL_BUFFER_LEN;
+		size_t num = (UTIL_BUFFER_LEN + len) / UTIL_BUFFER_LEN;
+		requestSize += num * UTIL_BUFFER_LEN;
 		requestBuffer = realloc(requestBuffer, requestSize);
 		assert(requestBuffer != NULL);
 	}
@@ -506,7 +504,7 @@ parse_err_illegal_start(ud_t *d)
 	char *el = handler[d->stack[d->depth]].element;
 
 	snprintf(d->message, sizeof(d->message),
-		"Illegal element: %s", el);
+		 "Illegal element: %s", el);
 	sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 	sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 	return;
@@ -530,7 +528,7 @@ parse_err_multiple_elements(ud_t *d)
 	char *el = handler[d->stack[d->depth]].element;
 
 	snprintf(d->message, sizeof(d->message),
-		"Multiple instances of element: %s", el);
+		 "Multiple instances of element: %s", el);
 	sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 	sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 	return;
@@ -552,7 +550,7 @@ static void
 parse_err_version_mismatch(ud_t *d, const char *remote, const char *local)
 {
 	snprintf(d->message, sizeof(d->message),
-		"BASIL version mismatch: us=%s, them=%s", local, remote);
+		 "BASIL version mismatch: us=%s, them=%s", local, remote);
 	sprintf(d->error_source, "%s", BASIL_VAL_BACKEND);
 	sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 	return;
@@ -573,7 +571,7 @@ static void
 parse_err_unspecified_attr(ud_t *d, const char *attr)
 {
 	snprintf(d->message, sizeof(d->message),
-		"Unspecified attribute: %s", attr);
+		 "Unspecified attribute: %s", attr);
 	sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 	sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 	return;
@@ -597,7 +595,7 @@ static void
 parse_err_multiple_attrs(ud_t *d, const char *attr)
 {
 	snprintf(d->message, sizeof(d->message),
-		"Multiple attribute instances: %s", attr);
+		 "Multiple attribute instances: %s", attr);
 	sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 	sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 	return;
@@ -618,7 +616,7 @@ static void
 parse_err_unrecognized_attr(ud_t *d, const char *attr)
 {
 	snprintf(d->message, sizeof(d->message),
-		"Unrecognized attribute: %s", attr);
+		 "Unrecognized attribute: %s", attr);
 	sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 	sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 	return;
@@ -640,7 +638,7 @@ static void
 parse_err_illegal_attr_val(ud_t *d, const char *name, const char *value)
 {
 	snprintf(d->message, sizeof(d->message),
-		"Illegal attribute assignment: %s = %s", name, value);
+		 "Illegal attribute assignment: %s = %s", name, value);
 	sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 	sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 	return;
@@ -661,7 +659,7 @@ static void
 parse_err_illegal_char_data(ud_t *d, const char *s)
 {
 	snprintf(d->message, sizeof(d->message),
-		"Illegal character data: %s", s);
+		 "Illegal character data: %s", s);
 	sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 	sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 	return;
@@ -682,7 +680,7 @@ static void
 parse_err_illegal_end(ud_t *d, const char *el)
 {
 	snprintf(d->message, sizeof(d->message),
-		"Illegal end of element: %s", el);
+		 "Illegal end of element: %s", el);
 	sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 	sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 	return;
@@ -1018,10 +1016,10 @@ response_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 		if (strcmp(BASIL_ATR_PROTOCOL, *np) == 0) {
 			BASIL_STRSET_SHORT(protocol, *vp);
 			if ((strcmp(BASIL_VAL_VERSION_1_7, *vp) != 0) &&
-				(strcmp(BASIL_VAL_VERSION_1_4, *vp) != 0) &&
-				(strcmp(BASIL_VAL_VERSION_1_3, *vp) != 0) &&
-				(strcmp(BASIL_VAL_VERSION_1_2, *vp) != 0) &&
-				(strcmp(BASIL_VAL_VERSION_1_1, *vp) != 0)) {
+			    (strcmp(BASIL_VAL_VERSION_1_4, *vp) != 0) &&
+			    (strcmp(BASIL_VAL_VERSION_1_3, *vp) != 0) &&
+			    (strcmp(BASIL_VAL_VERSION_1_2, *vp) != 0) &&
+			    (strcmp(BASIL_VAL_VERSION_1_1, *vp) != 0)) {
 				parse_err_version_mismatch(d, *vp, d->basil_ver);
 				return;
 			}
@@ -1098,7 +1096,7 @@ response_data_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				return;
 			}
 		} else if (strcmp(BASIL_ATR_STATUS, *np) == 0) {
-			strcpy(d->status, *vp);
+			pbs_strncpy(d->status, *vp, sizeof(d->status));
 			if (strcmp(BASIL_VAL_SUCCESS, *vp) == 0) {
 				*brp->error = '\0';
 			} else if (strcmp(BASIL_VAL_FAILURE, *vp) == 0) {
@@ -1109,7 +1107,7 @@ response_data_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				return;
 			}
 		} else if (strcmp(BASIL_ATR_ERROR_CLASS, *np) == 0) {
-			strcpy(d->error_class, *vp);
+			pbs_strncpy(d->error_class, *vp, sizeof(d->error_class));
 			/*
 			 * The existence of a PERMENENT error used to
 			 * reset the BASIL_ERR_TRANSIENT flag. This
@@ -1123,7 +1121,7 @@ response_data_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				return;
 			}
 		} else if (strcmp(BASIL_ATR_ERROR_SOURCE, *np) == 0) {
-			strcpy(d->error_source, *vp);
+			pbs_strncpy(d->error_source, *vp, sizeof(d->error_source));
 			/*
 			 * Consider "BACKEND" errors TRANSIENT when trying
 			 * to create an ALPS reservation.
@@ -1138,8 +1136,7 @@ response_data_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				}
 			}
 		} else if (strcmp(BASIL_ATR_TYPE, *np) == 0) {
-			strncpy(d->type, *vp, sizeof(d->type) - 1);
-			d->type[sizeof(d->type) - 1] = '\0';
+			pbs_strncpy(d->type, *vp, sizeof(d->type));
 			if ((strcmp(BASIL_VAL_SYSTEM, *vp) != 0) &&
 			    (strcmp(BASIL_VAL_ENGINE, *vp) != 0)) {
 				parse_err_illegal_attr_val(d, *np, *vp);
@@ -1253,7 +1250,7 @@ message_end(ud_t *d, const XML_Char *el)
 	if (strcmp(el, handler[d->stack[d->depth]].element) != 0)
 		parse_err_illegal_end(d, el);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		BASIL_ERR_ID, d->message);
+		  BASIL_ERR_ID, d->message);
 	return;
 }
 
@@ -1350,8 +1347,7 @@ confirmed_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 		 */
 		if (strcmp(BASIL_ATR_RSVN_ID, *np) == 0) {
 			xml_dbg("%s: %s = %s", __func__, *np, *vp);
-		}
-		else if (strcmp(BASIL_ATR_PAGG_ID, *np) == 0) {
+		} else if (strcmp(BASIL_ATR_PAGG_ID, *np) == 0) {
 			xml_dbg("%s: %s = %s", __func__, *np, *vp);
 		}
 	}
@@ -1423,11 +1419,11 @@ released_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 static void
 engine_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 {
-	const XML_Char		**np;
-	const XML_Char		**vp;
-	basil_response_t 	*brp;
+	const XML_Char **np;
+	const XML_Char **vp;
+	basil_response_t *brp;
 	basil_response_query_engine_t *eng;
-	int	len = 0;
+	int len = 0;
 
 	if (stack_busted(d))
 		return;
@@ -1500,7 +1496,7 @@ inventory_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 	const XML_Char **np;
 	const XML_Char **vp;
 	basil_response_t *brp;
-	basil_response_query_inventory_t	*inv;
+	basil_response_query_inventory_t *inv;
 
 	if (stack_busted(d))
 		return;
@@ -1527,7 +1523,7 @@ inventory_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				return;
 			}
 			snprintf(&inv->mpp_host[0],
-				BASIL_STRING_LONG, "%s", *vp);
+				 BASIL_STRING_LONG, "%s", *vp);
 		} else {
 			parse_err_unrecognized_attr(d, *np);
 			return;
@@ -1544,8 +1540,7 @@ inventory_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 		basil11orig = 1;
 	}
 	if (inv->mpp_host[0] == '\0') {
-		strncpy(inv->mpp_host, FAKE_MPP_HOST, sizeof(inv->mpp_host));
-		inv->mpp_host[sizeof(inv->mpp_host)-1] = '\0';
+		pbs_strncpy(inv->mpp_host, FAKE_MPP_HOST, sizeof(inv->mpp_host));
 		basil11orig = 1;
 	}
 
@@ -2045,7 +2040,7 @@ segment_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 	 * value pointer with each loop. The somewhat complex loop control
 	 * syntax is just a fancy way of stepping through the pairs.
 	 */
-	for (np = vp = atts, vp++; np && *np && vp && *vp; np =++vp, vp++) {
+	for (np = vp = atts, vp++; np && *np && vp && *vp; np = ++vp, vp++) {
 		xml_dbg("%s: %s = %s", __func__, *np, *vp);
 		if (strcmp(BASIL_ATR_ORDINAL, *np) == 0) {
 			if (segment->ordinal >= 0) {
@@ -2327,7 +2322,7 @@ processor_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				return;
 			}
 			if (cu) {
-				cu->proc_per_cu_count = processor->ordinal+1;
+				cu->proc_per_cu_count = processor->ordinal + 1;
 			}
 		} else if (strcmp(BASIL_ATR_ARCH, *np) == 0) {
 			if (processor->arch) {
@@ -2940,7 +2935,7 @@ accelerator_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				parse_err_multiple_attrs(d, *np);
 				return;
 			}
-			len = strlen(*vp)+1;
+			len = strlen(*vp) + 1;
 			family = malloc(len);
 			if (!family) {
 				parse_err_out_of_memory(d);
@@ -3063,7 +3058,6 @@ accelerator_allocation_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 	return;
 }
 
-
 /**
  * @brief
  *	 This function is registered to handle the reservation array element
@@ -3114,8 +3108,8 @@ reservation_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 	const XML_Char **vp;
 	basil_rsvn_t *rsvn;
 	basil_response_t *brp;
-	basil_response_query_status_res_t 	*res_status = NULL;
-	basil_response_switch_res_t		*switch_res = NULL;
+	basil_response_query_status_res_t *res_status = NULL;
+	basil_response_switch_res_t *switch_res = NULL;
 
 	if (stack_busted(d))
 		return;
@@ -3150,8 +3144,8 @@ reservation_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 		 * control syntax is just a fancy way of stepping through
 		 * the pairs.
 		 */
-		for (np=vp=atts, vp++; np && *np && vp && *vp; np=++vp, vp++) {
-			xml_dbg("%s: %s = %s", (char *)__func__, *np, *vp);
+		for (np = vp = atts, vp++; np && *np && vp && *vp; np = ++vp, vp++) {
+			xml_dbg("%s: %s = %s", (char *) __func__, *np, *vp);
 			if (strcmp(BASIL_ATR_RSVN_ID, *np) == 0) {
 				if (res_status->rsvn_id >= 0) {
 					parse_err_multiple_attrs(d, *np);
@@ -3220,8 +3214,8 @@ reservation_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 		 * control syntax is just a fancy way of stepping through
 		 * the pairs.
 		 */
-		for (np=vp=atts, vp++; np && *np && vp && *vp; np=++vp, vp++) {
-			xml_dbg("%s: %s = %s", (char *)__func__, *np, *vp);
+		for (np = vp = atts, vp++; np && *np && vp && *vp; np = ++vp, vp++) {
+			xml_dbg("%s: %s = %s", (char *) __func__, *np, *vp);
 			if (strcmp(BASIL_ATR_RSVN_ID, *np) == 0) {
 				if (switch_res->rsvn_id >= 0) {
 					parse_err_multiple_attrs(d, *np);
@@ -3271,7 +3265,7 @@ reservation_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 		 * value pointer with each loop. The somewhat complex loop control
 		 * syntax is just a fancy way of stepping through the pairs.
 		 */
-		for (np=vp=atts, vp++; np && *np && vp && *vp; np=++vp, vp++) {
+		for (np = vp = atts, vp++; np && *np && vp && *vp; np = ++vp, vp++) {
 			xml_dbg("%s: %s = %s", __func__, *np, *vp);
 			if (strcmp(BASIL_ATR_RSVN_ID, *np) == 0) {
 				if (rsvn->rsvn_id >= 0) {
@@ -3288,43 +3282,43 @@ reservation_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 					parse_err_multiple_attrs(d, *np);
 					return;
 				}
-			snprintf(rsvn->user_name, BASIL_STRING_MEDIUM,
-					"%s", *vp);
+				snprintf(rsvn->user_name, BASIL_STRING_MEDIUM,
+					 "%s", *vp);
 			} else if (strcmp(BASIL_ATR_ACCOUNT_NAME, *np) == 0) {
 				if (*rsvn->account_name != '\0') {
 					parse_err_multiple_attrs(d, *np);
 					return;
 				}
-			snprintf(rsvn->account_name, BASIL_STRING_MEDIUM,
-					"%s", *vp);
+				snprintf(rsvn->account_name, BASIL_STRING_MEDIUM,
+					 "%s", *vp);
 			} else if (strcmp(BASIL_ATR_TIME_STAMP, *np) == 0) {
 				if (*rsvn->time_stamp != '\0') {
 					parse_err_multiple_attrs(d, *np);
 					return;
 				}
-			snprintf(rsvn->time_stamp, BASIL_STRING_MEDIUM,
-					"%s", *vp);
+				snprintf(rsvn->time_stamp, BASIL_STRING_MEDIUM,
+					 "%s", *vp);
 			} else if (strcmp(BASIL_ATR_BATCH_ID, *np) == 0) {
 				if (*rsvn->batch_id != '\0') {
 					parse_err_multiple_attrs(d, *np);
 					return;
 				}
-			snprintf(rsvn->batch_id, BASIL_STRING_LONG,
-					"%s", *vp);
+				snprintf(rsvn->batch_id, BASIL_STRING_LONG,
+					 "%s", *vp);
 			} else if (strcmp(BASIL_ATR_RSVN_MODE, *np) == 0) {
 				if (*rsvn->rsvn_mode != '\0') {
 					parse_err_multiple_attrs(d, *np);
 					return;
 				}
-			snprintf(rsvn->rsvn_mode, BASIL_STRING_MEDIUM,
-					"%s", *vp);
+				snprintf(rsvn->rsvn_mode, BASIL_STRING_MEDIUM,
+					 "%s", *vp);
 			} else if (strcmp(BASIL_ATR_GPC_MODE, *np) == 0) {
 				if (*rsvn->gpc_mode != '\0') {
 					parse_err_multiple_attrs(d, *np);
 					return;
 				}
-			snprintf(rsvn->gpc_mode, BASIL_STRING_MEDIUM,
-					"%s", *vp);
+				snprintf(rsvn->gpc_mode, BASIL_STRING_MEDIUM,
+					 "%s", *vp);
 			} else {
 				parse_err_unrecognized_attr(d, *np);
 				return;
@@ -3474,7 +3468,6 @@ ignore_element(ud_t *d, const XML_Char *el, const XML_Char **atts)
 	return;
 }
 
-
 /**
  * @brief
  * 	Generic method registered to handle character data for elements
@@ -3496,7 +3489,7 @@ disallow_char_data(ud_t *d, const XML_Char *s, int len)
 	int i;
 
 	for (i = 0; i < len; i++) {
-		if (!isspace(*(s+i)))
+		if (!isspace(*(s + i)))
 			break;
 	}
 	if (i == len)
@@ -3555,7 +3548,7 @@ parse_nidlist_char_data(ud_t *d, const char *s, int len)
 				log_err(errno, __func__, "malloc failure");
 				return;
 			}
-			strcpy(knl_node_list, d->current_sys.node_group->nidlist);
+			pbs_strncpy(knl_node_list, d->current_sys.node_group->nidlist, (len + 1));
 		} else {
 			/* Allocate an extra byte for the "," separation between rangelists. */
 			tmp_ptr = realloc(knl_node_list, sizeof(char) * (strlen(knl_node_list) + len + 2));
@@ -3602,7 +3595,7 @@ allow_char_data(ud_t *d, const XML_Char *s, int len)
 	 * "  12-15,18,19,20".  'j' accummulates the leading whitespace count.
 	 */
 	for (i = 0; i < len; i++) {
-		if (!isspace(*(s+i)))
+		if (!isspace(*(s + i)))
 			break;
 		j++;
 	}
@@ -3663,9 +3656,9 @@ inventory_end(ud_t *d, const XML_Char *el)
 		d->current.role_batch,
 		d->current.role_unknown);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		"roles", log_buffer);
+		  "roles", log_buffer);
 	sprintf(log_buffer, "%d up, %d down, %d unavailable, %d routing, "
-		"%d suspect, %d admin, %d unknown",
+			    "%d suspect, %d admin, %d unknown",
 		d->current.state_up,
 		d->current.state_down,
 		d->current.state_unavail,
@@ -3674,21 +3667,21 @@ inventory_end(ud_t *d, const XML_Char *el)
 		d->current.state_admin,
 		d->current.state_unknown);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		"state", log_buffer);
+		  "state", log_buffer);
 	sprintf(log_buffer, "%d gpu, %d unknown",
 		d->current.accel_type_gpu,
 		d->current.accel_type_unknown);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		"accelerator types", log_buffer);
+		  "accelerator types", log_buffer);
 	sprintf(log_buffer, "%d up, %d down, %d unknown",
 		d->current.accel_state_up,
 		d->current.accel_state_down,
 		d->current.accel_state_unknown);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		"accelerator state", log_buffer);
+		  "accelerator state", log_buffer);
 	sprintf(log_buffer, "%d sockets", d->current.socket_count);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		"inventory", log_buffer);
+		  "inventory", log_buffer);
 	return;
 }
 
@@ -3738,15 +3731,15 @@ parse_element_start(void *ud, const XML_Char *el, const XML_Char **atts)
 
 	if (!ud)
 		return;
-	d = (ud_t *)ud;
+	d = (ud_t *) ud;
 	xml_dbg("parse_element_start: ELEMENT = %s", el);
 	i = handler_find_index(el);
 	if (i < 0) {
 		sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 		sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 		snprintf(d->message, sizeof(d->message),
-			"Unrecognized element start at line %d: %s",
-			(int)XML_GetCurrentLineNumber(parser), el);
+			 "Unrecognized element start at line %d: %s",
+			 (int) XML_GetCurrentLineNumber(parser), el);
 		return;
 	}
 	d->depth++;
@@ -3776,15 +3769,15 @@ parse_element_end(void *ud, const XML_Char *el)
 
 	if (!ud)
 		return;
-	d = (ud_t *)ud;
+	d = (ud_t *) ud;
 	xml_dbg("parse_element_end: ELEMENT = %s", el);
 	i = handler_find_index(el);
 	if (i < 0) {
 		sprintf(d->error_class, "%s", BASIL_VAL_PERMANENT);
 		sprintf(d->error_source, "%s", BASIL_VAL_SYNTAX);
 		snprintf(d->message, sizeof(d->message),
-			"Unrecognized element end at line %d: %s",
-			(int)XML_GetCurrentLineNumber(parser), el);
+			 "Unrecognized element end at line %d: %s",
+			 (int) XML_GetCurrentLineNumber(parser), el);
 		return;
 	}
 	handler[i].end(d, el);
@@ -3814,7 +3807,7 @@ parse_char_data(void *ud, const XML_Char *s, int len)
 
 	if (!ud)
 		return;
-	d = (ud_t *)ud;
+	d = (ud_t *) ud;
 	handler[d->stack[d->depth]].char_data(d, s, len);
 	return;
 }
@@ -3842,35 +3835,35 @@ parse_char_data(void *ud, const XML_Char *s, int len)
  */
 void
 inventory_loop_on_segments(basil_node_t *node, vnl_t *nv, char *arch,
-	int *total_seg, long order, char *name_buf, int *total_cpu, long *total_mem)
+			   int *total_seg, long order, char *name_buf, int *total_cpu, long *total_mem)
 {
-	basil_node_socket_t	*socket = NULL;
-	basil_node_segment_t	*seg = NULL;
-	basil_node_processor_t	*proc = NULL;
-	basil_node_memory_t	*mem = NULL;
-	basil_label_t		*label = NULL;
+	basil_node_socket_t *socket = NULL;
+	basil_node_segment_t *seg = NULL;
+	basil_node_processor_t *proc = NULL;
+	basil_node_memory_t *mem = NULL;
+	basil_label_t *label = NULL;
 	basil_node_accelerator_t *accel = NULL;
 	basil_node_computeunit_t *cu = NULL;
-	int	aflag = READ_WRITE | ATR_DFLAG_CVTSLT;
-	long	totmem = 0;
-	int	totcpus = 0;
-	int	totaccel = 0;
-	int	first_seg = 0;
-	char	vname[VNODE_NAME_LEN];
-	char	*attr;
-	int	totseg = 0;
+	int aflag = READ_WRITE | ATR_DFLAG_CVTSLT;
+	long totmem = 0;
+	int totcpus = 0;
+	int totaccel = 0;
+	int first_seg = 0;
+	char vname[VNODE_NAME_LEN];
+	char *attr;
+	int totseg = 0;
 
 	/* Proceed only if we have valid pointers */
 	if (node == NULL) {
 		sprintf(log_buffer, "Bad pointer to node info");
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_NODE,
-			LOG_ERR, __func__, log_buffer);
+			  LOG_ERR, __func__, log_buffer);
 		return;
 	}
 	if (nv == NULL) {
 		sprintf(log_buffer, "Bad pointer to node list info");
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_NODE,
-			LOG_ERR, __func__, log_buffer);
+			  LOG_ERR, __func__, log_buffer);
 		return;
 	}
 
@@ -3898,7 +3891,7 @@ inventory_loop_on_segments(basil_node_t *node, vnl_t *nv, char *arch,
 			if (vnode_per_numa_node) {
 				snprintf(vname, sizeof(vname), "%s_%ld_%d",
 					 mpphost, node->node_id, totseg);
-				vname[sizeof(vname)-1]='\0';
+				vname[sizeof(vname) - 1] = '\0';
 			} else if (first_seg) {
 				/* When concatenating the segments into
 				 * one vnode, we don't put any segment info
@@ -3906,7 +3899,7 @@ inventory_loop_on_segments(basil_node_t *node, vnl_t *nv, char *arch,
 				 */
 				snprintf(vname, sizeof(vname), "%s_%ld",
 					 mpphost, node->node_id);
-				vname[sizeof(vname)-1] = '\0';
+				vname[sizeof(vname) - 1] = '\0';
 			}
 
 			attr = "sharing";
@@ -3945,7 +3938,7 @@ inventory_loop_on_segments(basil_node_t *node, vnl_t *nv, char *arch,
 				attr = "resources_available.PBScrayseg";
 				sprintf(utilBuffer, "%d", totseg);
 				if (vn_addvnr(nv, vname, attr, utilBuffer,
-				      ATR_TYPE_STR, aflag,
+					      ATR_TYPE_STR, aflag,
 					      NULL) == -1)
 					goto bad_vnl;
 			}
@@ -3992,10 +3985,10 @@ inventory_loop_on_segments(basil_node_t *node, vnl_t *nv, char *arch,
 					sprintf(utilBuffer,
 						"resources_available.PBScraylabel_%s",
 						label->name);
-				if (vn_addvnr(nv, vname, utilBuffer, "true",
-					      ATR_TYPE_BOOL, aflag,
-					      NULL) == -1)
-					goto bad_vnl;
+					if (vn_addvnr(nv, vname, utilBuffer, "true",
+						      ATR_TYPE_BOOL, aflag,
+						      NULL) == -1)
+						goto bad_vnl;
 				}
 			} else {
 				/*
@@ -4065,7 +4058,7 @@ inventory_loop_on_segments(basil_node_t *node, vnl_t *nv, char *arch,
 						 mpphost, node->node_id);
 				}
 
-				if ( vnode_per_numa_node || totseg == 0) {
+				if (vnode_per_numa_node || totseg == 0) {
 					if (vn_addvnr(nv, vname, attr, utilBuffer,
 						      0, 0, NULL) == -1)
 						goto bad_vnl;
@@ -4099,8 +4092,8 @@ inventory_loop_on_segments(basil_node_t *node, vnl_t *nv, char *arch,
 					if (accel->data.gpu) {
 						if (strcmp(accel->data.gpu->family, BASIL_VAL_UNKNOWN) == 0) {
 							sprintf(log_buffer, "The GPU family "
-								"value is 'UNKNOWN'. Check "
-								"your Cray GPU inventory.");
+									    "value is 'UNKNOWN'. Check "
+									    "your Cray GPU inventory.");
 							log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__, log_buffer);
 						}
 						attr = "resources_available.accelerator_model";
@@ -4137,9 +4130,9 @@ inventory_loop_on_segments(basil_node_t *node, vnl_t *nv, char *arch,
 			}
 		}
 
-	} while(socket);
+	} while (socket);
 
-	strncpy(name_buf, vname, VNODE_NAME_LEN);
+	pbs_strncpy(name_buf, vname, VNODE_NAME_LEN);
 	*total_cpu = totcpus;
 	*total_mem = totmem;
 	*total_seg = totseg;
@@ -4149,7 +4142,7 @@ inventory_loop_on_segments(basil_node_t *node, vnl_t *nv, char *arch,
 bad_vnl:
 	sprintf(log_buffer, "creation of Cray vnodes failed at %ld, with vname %s", order, vname);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		__func__, log_buffer);
+		  __func__, log_buffer);
 	/*
 	 * don't free nv since it might be important in the dump
 	 */
@@ -4167,28 +4160,28 @@ bad_vnl:
  * @retval	0	: success
  * @retval	-1	: failure
  */
-static int 
+static int
 inventory_to_vnodes(basil_response_t *brp)
 {
-	extern	int	internal_state_update;
-	extern	int	num_acpus;
-	extern	ulong	totalmem;
-	int		aflag = READ_WRITE | ATR_DFLAG_CVTSLT;
-	long		order = 0;
-	char		*attr;
-	vnl_t		*nv = NULL;
-	int		ret = 0;
-	char		*xmlbuf;
-	int		xmllen = 0;
-	int		seg_num = 0;
-	int		cpu_ct = 0;
-	long		*arr_nodes = NULL;
-	int		node_count = 0;
-	int		idx = 0;
-	int		skip_node = 0;
-	long		mem_ct = 0;
-	char		name[VNODE_NAME_LEN];
-	basil_node_t 	*node = NULL;
+	extern int internal_state_update;
+	extern int num_acpus;
+	extern unsigned long totalmem;
+	int aflag = READ_WRITE | ATR_DFLAG_CVTSLT;
+	long order = 0;
+	char *attr;
+	vnl_t *nv = NULL;
+	int ret = 0;
+	char *xmlbuf;
+	int xmllen = 0;
+	int seg_num = 0;
+	int cpu_ct = 0;
+	long *arr_nodes = NULL;
+	int node_count = 0;
+	int idx = 0;
+	int skip_node = 0;
+	long mem_ct = 0;
+	char name[VNODE_NAME_LEN];
+	basil_node_t *node = NULL;
 	basil_response_query_inventory_t *inv = NULL;
 	hwloc_topology_t topology;
 
@@ -4197,20 +4190,20 @@ inventory_to_vnodes(basil_response_t *brp)
 	if (brp->method != basil_method_query) {
 		snprintf(log_buffer, sizeof(log_buffer), "Wrong method: %d", brp->method);
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-			__func__, log_buffer);
+			  __func__, log_buffer);
 		return -1;
 	}
 	if (brp->data.query.type != basil_query_inventory) {
 		snprintf(log_buffer, sizeof(log_buffer), "Wrong query type: %d",
-			brp->data.query.type);
+			 brp->data.query.type);
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-			__func__, log_buffer);
+			  __func__, log_buffer);
 		return -1;
 	}
 	if (*brp->error != '\0') {
 		snprintf(log_buffer, sizeof(log_buffer), "Error in BASIL response: %s", brp->error);
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-			__func__, log_buffer);
+			  __func__, log_buffer);
 		return -1;
 	}
 
@@ -4218,10 +4211,9 @@ inventory_to_vnodes(basil_response_t *brp)
 		log_err(errno, __func__, "vnl_alloc failed!");
 		return -1;
 	}
-	strncpy(mpphost, brp->data.query.data.inventory.mpp_host,
-		sizeof(mpphost)-1);
-	mpphost[sizeof(mpphost) - 1] = '\0';
-	nv->vnl_modtime = (long)brp->data.query.data.inventory.timestamp;
+	pbs_strncpy(mpphost, brp->data.query.data.inventory.mpp_host,
+		    sizeof(mpphost));
+	nv->vnl_modtime = (long) brp->data.query.data.inventory.timestamp;
 
 	/*
 	 * add login node
@@ -4230,9 +4222,9 @@ inventory_to_vnodes(basil_response_t *brp)
 	if (hwloc_topology_init(&topology) == -1)
 		ret = -1;
 	else if ((hwloc_topology_set_flags(topology,
-							HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM | HWLOC_TOPOLOGY_FLAG_IO_DEVICES)
-					== -1) || (hwloc_topology_load(topology) == -1) ||
-			(hwloc_topology_export_xmlbuffer(topology, &xmlbuf, &xmllen) == -1)) {
+					   HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM | HWLOC_TOPOLOGY_FLAG_IO_DEVICES) == -1) ||
+		 (hwloc_topology_load(topology) == -1) ||
+		 (hwloc_topology_export_xmlbuffer(topology, &xmlbuf, &xmllen) == -1)) {
 		hwloc_topology_destroy(topology);
 		ret = -1;
 	}
@@ -4241,8 +4233,8 @@ inventory_to_vnodes(basil_response_t *brp)
 		log_err(PBSE_SYSTEM, __func__, "topology init/load/export failed");
 		return -1;
 	} else {
-		char	*lbuf;
-		int	lbuflen = xmllen + 1024;
+		char *lbuf;
+		int lbuflen = xmllen + 1024;
 
 		/*
 		 *	xmlbuf is almost certain to overflow log_buffer's size,
@@ -4251,32 +4243,32 @@ inventory_to_vnodes(basil_response_t *brp)
 		 */
 		if ((lbuf = malloc(lbuflen)) == NULL) {
 			snprintf(log_buffer, sizeof(log_buffer), "malloc logbuf (%d) failed",
-				lbuflen);
+				 lbuflen);
 			hwloc_free_xmlbuffer(topology, xmlbuf);
 			hwloc_topology_destroy(topology);
 			return -1;
 		} else {
 			snprintf(lbuf, lbuflen, "allocated log buffer, len %d", lbuflen);
 			log_event(PBSEVENT_DEBUG4, PBS_EVENTCLASS_NODE,
-				LOG_DEBUG, __func__, lbuf);
+				  LOG_DEBUG, __func__, lbuf);
 		}
 		log_event(PBSEVENT_DEBUG4,
-			PBS_EVENTCLASS_NODE,
-			LOG_DEBUG, __func__, "topology exported");
+			  PBS_EVENTCLASS_NODE,
+			  LOG_DEBUG, __func__, "topology exported");
 		snprintf(lbuf, lbuflen, "%s%s", NODE_TOPOLOGY_TYPE_HWLOC, xmlbuf);
 		if (vn_addvnr(nv, mom_short_name, ATTR_NODE_TopologyInfo,
-			lbuf, ATR_TYPE_STR, READ_ONLY, NULL) == -1) {
+			      lbuf, ATR_TYPE_STR, READ_ONLY, NULL) == -1) {
 			hwloc_free_xmlbuffer(topology, xmlbuf);
 			hwloc_topology_destroy(topology);
 			free(lbuf);
 			goto bad_vnl;
 		} else {
 			snprintf(lbuf, lbuflen, "attribute '%s = %s%s' added",
-				ATTR_NODE_TopologyInfo,
-				NODE_TOPOLOGY_TYPE_HWLOC, xmlbuf);
+				 ATTR_NODE_TopologyInfo,
+				 NODE_TOPOLOGY_TYPE_HWLOC, xmlbuf);
 			log_event(PBSEVENT_DEBUG4,
-				PBS_EVENTCLASS_NODE,
-				LOG_DEBUG, __func__, lbuf);
+				  PBS_EVENTCLASS_NODE,
+				  LOG_DEBUG, __func__, lbuf);
 			hwloc_free_xmlbuffer(topology, xmlbuf);
 			hwloc_topology_destroy(topology);
 			free(lbuf);
@@ -4295,12 +4287,12 @@ inventory_to_vnodes(basil_response_t *brp)
 
 	attr = "resources_available.vntype";
 	if (vn_addvnr(nv, mom_short_name, attr, CRAY_LOGIN,
-		0, 0, NULL) == -1)
+		      0, 0, NULL) == -1)
 		goto bad_vnl;
 
 	attr = "resources_available.PBScrayhost";
 	if (vn_addvnr(nv, mom_short_name, attr, mpphost,
-		ATR_TYPE_STR, aflag, NULL) == -1)
+		      ATR_TYPE_STR, aflag, NULL) == -1)
 		goto bad_vnl;
 
 	/*
@@ -4317,7 +4309,7 @@ inventory_to_vnodes(basil_response_t *brp)
 	 */
 	inv = &brp->data.query.data.inventory;
 	for (order = 1, node = inv->nodes; node; node = node->next, order++) {
-		char		*arch;
+		char *arch;
 
 		/*
 		 * We are only interested in creating non-KNL vnodes in this function.
@@ -4334,7 +4326,7 @@ inventory_to_vnodes(basil_response_t *brp)
 		if (skip_node)
 			continue;
 
-		(void)memset(name, '\0', VNODE_NAME_LEN);
+		(void) memset(name, '\0', VNODE_NAME_LEN);
 		if (node->role != basil_node_role_batch)
 			continue;
 		if (node->state != basil_node_state_up)
@@ -4358,27 +4350,27 @@ inventory_to_vnodes(basil_response_t *brp)
 				 */
 				if (vnode_per_numa_node) {
 					snprintf(name, VNODE_NAME_LEN, "%s_%ld_0",
-						mpphost, node->node_id);
+						 mpphost, node->node_id);
 				} else {
 					/* When concatenating the segments into
 					 * one vnode, we don't put any segment info
 					 * in the name.
 					 */
 					snprintf(name, VNODE_NAME_LEN, "%s_%ld",
-						mpphost, node->node_id);
+						 mpphost, node->node_id);
 				}
 				first_compute_node = 0;
 				attr = ATTR_NODE_TopologyInfo;
 				if (vn_addvnr(nv, name, attr,
-					(char *) basil_inventory,
-					ATR_TYPE_STR, READ_ONLY,
-					NULL) == -1)
+					      (char *) basil_inventory,
+					      ATR_TYPE_STR, READ_ONLY,
+					      NULL) == -1)
 					goto bad_vnl;
 			}
 		} else {
 			sprintf(log_buffer, "no saved basil_inventory");
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE,
-				LOG_DEBUG, __func__, log_buffer);
+				  LOG_DEBUG, __func__, log_buffer);
 		}
 		seg_num = 0;
 		cpu_ct = 0;
@@ -4396,13 +4388,13 @@ inventory_to_vnodes(basil_response_t *brp)
 			attr = "resources_available.ncpus";
 			sprintf(utilBuffer, "%d", cpu_ct);
 			if (vn_addvnr(nv, name, attr, utilBuffer,
-				0, 0, NULL) == -1)
+				      0, 0, NULL) == -1)
 				goto bad_vnl;
 
 			attr = "resources_available.mem";
 			snprintf(utilBuffer, sizeof(utilBuffer), "%lukb", mem_ct);
 			if (vn_addvnr(nv, name, attr, utilBuffer,
-				0, 0, NULL) == -1)
+				      0, 0, NULL) == -1)
 				goto bad_vnl;
 		}
 	}
@@ -4432,7 +4424,7 @@ inventory_to_vnodes(basil_response_t *brp)
 bad_vnl:
 	snprintf(log_buffer, sizeof(log_buffer), "creation of cray vnodes failed at %ld, with name %s", order, name);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		__func__, log_buffer);
+		  __func__, log_buffer);
 	/*
 	 * don't free nv since it might be importaint in the dump
 	 */
@@ -4601,11 +4593,10 @@ free_basil_accelerator(basil_node_accelerator_t *p)
 static void
 free_basil_computeunit(basil_node_computeunit_t *p)
 {
-	if(!p)
+	if (!p)
 		return;
 	free_basil_computeunit(p->next);
 	free(p);
-
 }
 
 /**
@@ -4628,7 +4619,6 @@ free_basil_segment(basil_node_segment_t *p)
 	free_basil_label(p->labels);
 	free_basil_computeunit(p->computeunits);
 	free(p);
-
 }
 
 /**
@@ -4639,11 +4629,11 @@ free_basil_segment(basil_node_segment_t *p)
 static void
 free_basil_socket(basil_node_socket_t *p)
 {
-        if(!p)
-                return;
-        free_basil_socket(p->next);
-        free_basil_segment(p->segments);
-        free(p);
+	if (!p)
+		return;
+	free_basil_socket(p->next);
+	free_basil_segment(p->segments);
+	free(p);
 }
 
 /**
@@ -4661,7 +4651,6 @@ free_basil_node(basil_node_t *p)
 	free_basil_accelerator(p->accelerators);
 	free_basil_socket(p->sockets);
 	free(p);
-
 }
 
 /**
@@ -4682,7 +4671,6 @@ free_basil_elements_KNL(basil_system_element_t *p)
 	free_basil_elements_KNL(nxtp);
 }
 
-
 /**
  * @brief
  * 	Destructor function for BASIL reservation structure.
@@ -4699,7 +4687,6 @@ free_basil_rsvn(basil_rsvn_t *p)
 		return;
 	free_basil_rsvn(p->next);
 	free(p);
-
 }
 
 /**
@@ -4779,7 +4766,7 @@ alps_request_child(int infd, int outfd)
 				sprintf(log_buffer, "dup() of out failed: %s",
 					strerror(errno));
 				log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE,
-					LOG_NOTICE, __func__, log_buffer);
+					  LOG_NOTICE, __func__, log_buffer);
 				_exit(127);
 			}
 			close(out);
@@ -4790,7 +4777,7 @@ alps_request_child(int infd, int outfd)
 			sprintf(log_buffer, "dup2() of in failed: %s",
 				strerror(errno));
 			log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE,
-				LOG_NOTICE, __func__, log_buffer);
+				  LOG_NOTICE, __func__, log_buffer);
 			_exit(127);
 		}
 		close(in);
@@ -4801,7 +4788,7 @@ alps_request_child(int infd, int outfd)
 			sprintf(log_buffer, "dup2() of out failed: %s",
 				strerror(errno));
 			log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE,
-				LOG_NOTICE, __func__, log_buffer);
+				  LOG_NOTICE, __func__, log_buffer);
 			_exit(127);
 		}
 		close(out);
@@ -4871,14 +4858,14 @@ alps_request_parent(int fdin, char *basil_ver)
 	in = fdopen(fdin, "r");
 	if (!in) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"Failed to open read FD.");
+			  "Failed to open read FD.");
 		return NULL;
 	}
 	memset(&ud, 0, sizeof(ud));
 	brp = malloc(sizeof(basil_response_t));
 	if (!brp) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"Failed to allocate response structure.");
+			  "Failed to allocate response structure.");
 		return NULL;
 	}
 	memset(brp, 0, sizeof(basil_response_t));
@@ -4886,11 +4873,11 @@ alps_request_parent(int fdin, char *basil_ver)
 	parser = XML_ParserCreate(NULL);
 	if (!parser) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"Failed to create parser.");
+			  "Failed to create parser.");
 		free_basil_response_data(brp);
 		return NULL;
 	}
-	XML_SetUserData(parser, (void *)&ud);
+	XML_SetUserData(parser, (void *) &ud);
 	XML_SetElementHandler(parser, parse_element_start, parse_element_end);
 	XML_SetCharacterDataHandler(parser, parse_char_data);
 
@@ -4899,16 +4886,16 @@ alps_request_parent(int fdin, char *basil_ver)
 	if ((alps_client_out = strdup(NODE_TOPOLOGY_TYPE_CRAY)) == NULL) {
 		sprintf(log_buffer, "failed to allocate client output buffer");
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_NODE, LOG_ERR,
-			__func__, log_buffer);
+			  __func__, log_buffer);
 		free_basil_response_data(brp);
 		return NULL;
 	} else
 		inventory_size = strlen(alps_client_out) + 1;
 
 	if (basil_ver != NULL)
-		strncpy(ud.basil_ver, basil_ver, BASIL_STRING_SHORT);
+		pbs_strncpy(ud.basil_ver, basil_ver, BASIL_STRING_SHORT);
 	else
-		strncpy(ud.basil_ver, BASIL_VAL_UNKNOWN, BASIL_STRING_SHORT);
+		pbs_strncpy(ud.basil_ver, BASIL_VAL_UNKNOWN, BASIL_STRING_SHORT);
 	ud.basil_ver[BASIL_STRING_SHORT - 1] = '\0';
 
 	do {
@@ -4916,7 +4903,7 @@ alps_request_parent(int fdin, char *basil_ver)
 		int len = 0;
 		expatBuffer[0] = '\0';
 		len = fread(expatBuffer, sizeof(char),
-			(EXPAT_BUFFER_LEN - 1), in);
+			    (EXPAT_BUFFER_LEN - 1), in);
 		rc = ferror(in);
 		if (rc) {
 			if (len == 0) {
@@ -4928,15 +4915,15 @@ alps_request_parent(int fdin, char *basil_ver)
 				"Read error on stream: rc=%d, len=%d",
 				rc, len);
 			log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE,
-				LOG_NOTICE, __func__, log_buffer);
+				  LOG_NOTICE, __func__, log_buffer);
 			break;
 		}
 		*(expatBuffer + len) = '\0';
 		if (pbs_strcat(&alps_client_out, &inventory_size,
-			expatBuffer) == NULL) {
+			       expatBuffer) == NULL) {
 			sprintf(log_buffer, "failed to save client response");
 			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_NODE, LOG_ERR,
-				__func__, log_buffer);
+				  __func__, log_buffer);
 			free(alps_client_out);
 			alps_client_out = NULL;
 			break;
@@ -4957,12 +4944,12 @@ alps_request_parent(int fdin, char *basil_ver)
 		sprintf(log_buffer, "%s BASIL error from %s: %s",
 			ud.error_class, ud.error_source, ud.message);
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE,
-			__func__, log_buffer);
+			  __func__, log_buffer);
 		snprintf(brp->error, BASIL_ERROR_BUFFER_SIZE, ud.message);
 		if (strcmp(BASIL_VAL_PARSER, ud.error_source) == 0) {
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__, "XML buffer: ");
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE,
-				LOG_DEBUG, __func__, expatBuffer);
+				  LOG_DEBUG, __func__, expatBuffer);
 		}
 	}
 	XML_ParserFree(parser);
@@ -5001,38 +4988,38 @@ alps_request(char *msg, char *basil_ver)
 
 	if (!alps_client) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"No alps_client specified in MOM configuration file.");
+			  "No alps_client specified in MOM configuration file.");
 		return NULL;
 	}
 	if (!msg) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-			__func__, "No message parameter for method.");
+			  __func__, "No message parameter for method.");
 		return NULL;
 	}
 	msglen = strlen(msg);
 	if (msglen < 32) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-			__func__, "ALPS request too short.");
+			  __func__, "ALPS request too short.");
 		return NULL;
 	}
 	snprintf(log_buffer, sizeof(log_buffer),
-		"Sending ALPS request: %s", msg);
+		 "Sending ALPS request: %s", msg);
 	log_event(PBSEVENT_DEBUG2, 0, LOG_DEBUG, __func__, log_buffer);
 	if (pipe(toChild) == -1)
 		return NULL;
 	if (pipe(fromChild) == -1) {
-		(void)close(toChild[0]);
-		(void)close(toChild[1]);
+		(void) close(toChild[0]);
+		(void) close(toChild[1]);
 		return NULL;
 	}
 
 	pid = fork();
 	if (pid < 0) {
 		log_err(errno, __func__, "fork");
-		(void)close(toChild[0]);
-		(void)close(toChild[1]);
-		(void)close(fromChild[0]);
-		(void)close(fromChild[1]);
+		(void) close(toChild[0]);
+		(void) close(toChild[1]);
+		(void) close(fromChild[0]);
+		(void) close(fromChild[1]);
 		return NULL;
 	}
 	if (pid == 0) {
@@ -5047,8 +5034,8 @@ alps_request(char *msg, char *basil_ver)
 	if (fp == NULL) {
 		sprintf(log_buffer, "fdopen() failed: %s", strerror(errno));
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE,
-			__func__, log_buffer);
-		kill(pid, SIGKILL);	/* don't let child run */
+			  __func__, log_buffer);
+		kill(pid, SIGKILL); /* don't let child run */
 		goto done;
 	}
 
@@ -5056,21 +5043,21 @@ alps_request(char *msg, char *basil_ver)
 	if (wlen < msglen) {
 		log_err(errno, __func__, "fwrite");
 		fclose(fp);
-		kill(pid, SIGKILL);	/* don't let child run */
+		kill(pid, SIGKILL); /* don't let child run */
 		goto done;
 	}
 
 	if (fflush(fp) != 0) {
 		log_err(errno, __func__, "fflush");
 		fclose(fp);
-		kill(pid, SIGKILL);	/* don't let child run */
+		kill(pid, SIGKILL); /* don't let child run */
 		goto done;
 	}
 
 	fclose(fp);
 	if ((brp = alps_request_parent(fromChild[0], basil_ver)) == NULL) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__,
-			"No response from ALPS.");
+			  "No response from ALPS.");
 	}
 
 done:
@@ -5080,9 +5067,9 @@ done:
 	 * generate a message.
 	 */
 	if ((exited == -1) || (!WIFEXITED(status)) ||
-		(WEXITSTATUS(status) != 0)) {
+	    (WEXITSTATUS(status) != 0)) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__,
-			"BASIL query process exited abnormally.");
+			  "BASIL query process exited abnormally.");
 	}
 
 	close(toChild[1]);
@@ -5144,7 +5131,6 @@ alps_free_nodelist_param(basil_nodelist_param_t *p)
 	if (p->nodelist)
 		free(p->nodelist);
 	free(p);
-
 }
 
 /**
@@ -5164,7 +5150,6 @@ alps_free_accelerator_param(basil_accelerator_param_t *p)
 	alps_free_accelerator_param(p->next);
 	free_basil_accelerator_gpu(p->data.gpu);
 	free(p);
-
 }
 
 /**
@@ -5213,24 +5198,24 @@ alps_free_reserve_request(basil_request_reserve_t *p)
  * The vnode are combined by alps_create_reserve_request() to form
  * the ALPS reservation.
  */
-typedef	struct	nodesum {
-	char		*name;
-	char		*vntype;
-	char		*arch;
-	long		nid;
-	long		mpiprocs;
-	long		ncpus;
-	long		threads;
-	long long	mem;
-	long		chunks;
-	long		width;
-	long		depth;
-	enum vnode_sharing_state	share;
-	int		naccels;
-	int		need_accel;
-	char		*accel_model;
-	long long	accel_mem;
-	int		done;
+typedef struct nodesum {
+	char *name;
+	char *vntype;
+	char *arch;
+	long nid;
+	long mpiprocs;
+	long ncpus;
+	long threads;
+	long long mem;
+	long chunks;
+	long width;
+	long depth;
+	enum vnode_sharing_state share;
+	int naccels;
+	int need_accel;
+	char *accel_model;
+	long long accel_mem;
+	int done;
 } nodesum_t;
 
 /**
@@ -5266,27 +5251,27 @@ int
 alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 {
 	basil_request_reserve_t *basil_req;
-	basil_reserve_param_t	*pend;
-	enum rlplace_value	rpv;
-	enum vnode_sharing	vnsv;
+	basil_reserve_param_t *pend;
+	enum rlplace_value rpv;
+	enum vnode_sharing vnsv;
 	struct passwd *pwent;
-	int		i = 0;
-	int		j = 0;
-	int		num = 0;
-	int		err_ret = 1;
-	nodesum_t	*nodes;
-	vmpiprocs	*vp;
-	size_t		len = 0;
-	size_t		nsize = 0;
-	char		*cp;
-	long		pstate = 0;
-	char		*pgov = NULL;
-	char		*pname = NULL;
-	resource	*pres;
+	int i = 0;
+	int j = 0;
+	int num = 0;
+	int err_ret = 1;
+	nodesum_t *nodes;
+	vmpiprocs *vp;
+	size_t len = 0;
+	size_t nsize = 0;
+	char *cp;
+	long pstate = 0;
+	char *pgov = NULL;
+	char *pname = NULL;
+	resource *pres;
 
 	*req = NULL;
 
-	nodes = (nodesum_t *)calloc(pjob->ji_numvnod, sizeof(nodesum_t));
+	nodes = (nodesum_t *) calloc(pjob->ji_numvnod, sizeof(nodesum_t));
 	if (nodes == NULL)
 		return 1;
 
@@ -5301,14 +5286,14 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 	num = 0;
 	len = strlen(mpphost);
 	for (i = 0; i < pjob->ji_numvnod; i += vp->vn_mpiprocs) {
-		vnal_t		*vnp;
-		char		*vntype, *vnt;
-		char		*sharing;
-		long		nid;
-		int		seg;
-		long long	mem;
-		char		*arch;
-		enum vnode_sharing_state	share;
+		vnal_t *vnp;
+		char *vntype, *vnt;
+		char *sharing;
+		long nid;
+		int seg;
+		long long mem;
+		char *arch;
+		enum vnode_sharing_state share;
 		vp = &pjob->ji_vnods[i];
 
 		assert(vp->vn_mpiprocs > 0);
@@ -5338,8 +5323,8 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 			sprintf(log_buffer, "vnode %s does not exist",
 				vp->vn_vname);
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB,
-				LOG_DEBUG, pjob->ji_qs.ji_jobid,
-				log_buffer);
+				  LOG_DEBUG, pjob->ji_qs.ji_jobid,
+				  log_buffer);
 			free(nodes);
 			return 2;
 		}
@@ -5350,8 +5335,8 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 			sprintf(log_buffer, "vnode %s has no vntype value",
 				vp->vn_vname);
 			log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB,
-				LOG_DEBUG, pjob->ji_qs.ji_jobid,
-				log_buffer);
+				  LOG_DEBUG, pjob->ji_qs.ji_jobid,
+				  log_buffer);
 			continue;
 		}
 		/*
@@ -5359,21 +5344,21 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 		 * one of the values.
 		 */
 		for (vnt = parse_comma_string(vntype); vnt != NULL;
-			vnt = parse_comma_string(NULL)) {
+		     vnt = parse_comma_string(NULL)) {
 			if (strcmp(vnt, CRAY_COMPUTE) == 0)
 				break;
 			sprintf(log_buffer, "vnode %s has vntype %s",
 				vp->vn_vname, vnt);
 			log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB,
-				LOG_DEBUG, pjob->ji_qs.ji_jobid,
-				log_buffer);
+				  LOG_DEBUG, pjob->ji_qs.ji_jobid,
+				  log_buffer);
 		}
 		if (vnt == NULL) {
 			sprintf(log_buffer, "vnode %s does not have vntype %s",
 				vp->vn_vname, CRAY_COMPUTE);
 			log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB,
-				LOG_DEBUG, pjob->ji_qs.ji_jobid,
-				log_buffer);
+				  LOG_DEBUG, pjob->ji_qs.ji_jobid,
+				  log_buffer);
 			continue;
 		}
 
@@ -5382,26 +5367,26 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 			sprintf(log_buffer, "vnode %s has no arch value",
 				vp->vn_vname);
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB,
-				LOG_DEBUG, pjob->ji_qs.ji_jobid,
-				log_buffer);
+				  LOG_DEBUG, pjob->ji_qs.ji_jobid,
+				  log_buffer);
 			free(nodes);
 			return 2;
 		}
 
 		/* check legal values for arch */
 		if (strcmp(BASIL_VAL_XT, arch) != 0 &&
-			strcmp(BASIL_VAL_X2, arch) != 0) {
+		    strcmp(BASIL_VAL_X2, arch) != 0) {
 			sprintf(log_buffer, "vnode %s has bad arch value %s",
 				vp->vn_vname, arch);
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB,
-				LOG_DEBUG, pjob->ji_qs.ji_jobid,
-				log_buffer);
+				  LOG_DEBUG, pjob->ji_qs.ji_jobid,
+				  log_buffer);
 			free(nodes);
 			return 2;
 		}
 
 		/* rounded up value for size_mb which is memory per MPI rank */
-		mem = (vp->vn_mem + vp->vn_mpiprocs - 1)/vp->vn_mpiprocs;
+		mem = (vp->vn_mem + vp->vn_mpiprocs - 1) / vp->vn_mpiprocs;
 		sharing = attr_exist(vnp, "sharing");
 		vnsv = str_to_vnode_sharing(sharing);
 		share = vnss[vnsv][rpv];
@@ -5413,16 +5398,16 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 		 ** ReserveParam XML section is created.
 		 */
 		for (j = 0; j < num; j++) {
-			nodesum_t	*ns = &nodes[j];
+			nodesum_t *ns = &nodes[j];
 
 			if (ns->nid == nid && ns->share == share &&
-				ns->mpiprocs == vp->vn_mpiprocs &&
-				ns->ncpus == vp->vn_cpus &&
-				ns->threads == vp->vn_threads &&
-				ns->mem == mem &&
-				(strcmp(ns->arch, arch) == 0) &&
-				ns->need_accel == vp->vn_need_accel &&
-				ns->accel_mem == vp->vn_accel_mem) {
+			    ns->mpiprocs == vp->vn_mpiprocs &&
+			    ns->ncpus == vp->vn_cpus &&
+			    ns->threads == vp->vn_threads &&
+			    ns->mem == mem &&
+			    (strcmp(ns->arch, arch) == 0) &&
+			    ns->need_accel == vp->vn_need_accel &&
+			    ns->accel_mem == vp->vn_accel_mem) {
 				if (ns->need_accel == 1) {
 					/* If an accelerator is needed, check to
 					 * see if the model has been set.
@@ -5432,12 +5417,12 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 					 * or vice versa.
 					 */
 					if (vp->vn_accel_model &&
-						ns->accel_model) {
+					    ns->accel_model) {
 						if (strcmp(ns->accel_model, vp->vn_accel_model) != 0) {
 							continue;
 						}
 					} else if (!(vp->vn_accel_model == NULL &&
-						ns->accel_model == NULL)) {
+						     ns->accel_model == NULL)) {
 						/* if both are NULL they match
 						 * otherwise keep looking
 						 */
@@ -5448,7 +5433,7 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 				break;
 			}
 		}
-		if (j == num) {		/* need a new entry */
+		if (j == num) { /* need a new entry */
 			nodes[num].nid = nid;
 			nodes[num].name = vp->vn_vname;
 			nodes[num].mpiprocs = vp->vn_mpiprocs;
@@ -5471,12 +5456,12 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 			nodes[num++].chunks = 1;
 		}
 	}
-	if (num == 0) {	/* no compute nodes -> no reservation */
+	if (num == 0) { /* no compute nodes -> no reservation */
 		free(nodes);
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB,
-			LOG_DEBUG, pjob->ji_qs.ji_jobid,
-			"no ALPS reservation created: "
-			"no compute nodes allocated");
+			  LOG_DEBUG, pjob->ji_qs.ji_jobid,
+			  "no ALPS reservation created: "
+			  "no compute nodes allocated");
 		return 0;
 	}
 
@@ -5490,15 +5475,13 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 		goto err;
 	sprintf(basil_req->user_name, "%s", pwent->pw_name);
 
-	strncpy(basil_req->batch_id, pjob->ji_qs.ji_jobid,
-		sizeof(basil_req->batch_id)-1);
-	basil_req->batch_id[sizeof(basil_req->batch_id)-1] = '\0';
+	pbs_strncpy(basil_req->batch_id, pjob->ji_qs.ji_jobid,
+		    sizeof(basil_req->batch_id));
 
 	/* check for pstate or pgov */
-	for (pres = (resource *)
-				GET_NEXT(pjob->ji_wattr[(int)JOB_ATR_resource].at_val.at_list);
-			pres != NULL;
-			pres = (resource *)GET_NEXT(pres->rs_link)) {
+	for (pres = (resource *) GET_NEXT(get_jattr_list(pjob, JOB_ATR_resource));
+	     pres != NULL;
+	     pres = (resource *) GET_NEXT(pres->rs_link)) {
 
 		if ((pstate > 0) && (pgov != NULL))
 			break;
@@ -5513,10 +5496,10 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 			pstate = atol(pres->rs_value.at_val.at_str);
 			if (pstate <= 0) {
 				snprintf(log_buffer, sizeof(log_buffer),
-					"pstate value \"%s\" could not be used for the reservation",
-					pres->rs_value.at_val.at_str);
+					 "pstate value \"%s\" could not be used for the reservation",
+					 pres->rs_value.at_val.at_str);
 				log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB,
-					LOG_DEBUG, pjob->ji_qs.ji_jobid, log_buffer);
+					  LOG_DEBUG, pjob->ji_qs.ji_jobid, log_buffer);
 				pstate = 0;
 			}
 			continue;
@@ -5527,9 +5510,8 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 		}
 	}
 
-
 	for (i = 0; i < num; i++) {
-		nodesum_t	*ns = &nodes[i];
+		nodesum_t *ns = &nodes[i];
 
 		/*
 		 * ALPS cannot represent situations where a thread
@@ -5544,20 +5526,20 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 
 	pend = NULL;
 
-	for (i = 0; i < num ; i++) {
-		basil_reserve_param_t		*p;
-		basil_nodelist_param_t		*n;
-		basil_accelerator_param_t	*a;
-		basil_accelerator_gpu_t		*gpu;
-		nodesum_t	*ns = &nodes[i];
-		char		*arch = ns->arch;
-		long long	mem = ns->mem;
-		char		*accel_model = ns->accel_model;
-		long long	accel_mem = ns->accel_mem;
-		long		width;
-		long		last_nid, prev_nid;
+	for (i = 0; i < num; i++) {
+		basil_reserve_param_t *p;
+		basil_nodelist_param_t *n;
+		basil_accelerator_param_t *a;
+		basil_accelerator_gpu_t *gpu;
+		nodesum_t *ns = &nodes[i];
+		char *arch = ns->arch;
+		long long mem = ns->mem;
+		char *accel_model = ns->accel_model;
+		long long accel_mem = ns->accel_mem;
+		long width;
+		long last_nid, prev_nid;
 
-		if (ns->done)		/* already output */
+		if (ns->done) /* already output */
 			continue;
 
 		p = malloc(sizeof(basil_reserve_param_t));
@@ -5593,7 +5575,7 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 		 * If the user requested place=excl then we need to pass
 		 * that information into the ALPS reservation.
 		 */
-		p->rsvn_mode = basil_rsvn_mode_none;	/* initialize it */
+		p->rsvn_mode = basil_rsvn_mode_none; /* initialize it */
 		if (rpv == rlplace_excl) {
 			/*
 			 * The user asked for the node exclusively.
@@ -5603,17 +5585,18 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 		}
 		if (ns->ncpus != ns->threads) {
 			sprintf(log_buffer, "ompthreads %ld does not match"
-				" ncpus %ld", ns->threads, ns->ncpus);
+					    " ncpus %ld",
+				ns->threads, ns->ncpus);
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB,
-				LOG_DEBUG, pjob->ji_qs.ji_jobid,
-				log_buffer);
+				  LOG_DEBUG, pjob->ji_qs.ji_jobid,
+				  log_buffer);
 		}
 
 		/*
 		 * Collapse matching entries.
 		 */
-		for (j = i+1; j<num; j++) {
-			nodesum_t	*ns2 = &nodes[j];
+		for (j = i + 1; j < num; j++) {
+			nodesum_t *ns2 = &nodes[j];
 
 			/* Look for matching nid entries that have not
 			 * yet been output.
@@ -5640,12 +5623,12 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 				continue;
 			if (ns->need_accel == 1) {
 				if (accel_model &&
-					ns2->accel_model) {
+				    ns2->accel_model) {
 					if (strcmp(ns2->accel_model, accel_model) != 0) {
 						continue;
 					}
 				} else if (!(accel_model == NULL &&
-					ns2->accel_model == NULL)) {
+					     ns2->accel_model == NULL)) {
 					continue;
 				}
 			}
@@ -5661,7 +5644,7 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 				continue;
 			}
 
-			if (last_nid == prev_nid)	/* no range */
+			if (last_nid == prev_nid) /* no range */
 				sprintf(utilBuffer, ",%ld", ns2->nid);
 			else {
 				sprintf(utilBuffer, "-%ld,%ld",
@@ -5671,10 +5654,10 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 
 			/* check to see if we need to get a new nodelist */
 			if (strlen(utilBuffer) + 1 >
-				nsize - strlen(n->nodelist)) {
-				char	*hold;
+			    nsize - strlen(n->nodelist)) {
+				char *hold;
 
-				nsize *= 2;	/* double size */
+				nsize *= 2; /* double size */
 				hold = realloc(n->nodelist, nsize);
 				if (hold == NULL)
 					goto err;
@@ -5684,17 +5667,17 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 			strcat(n->nodelist, utilBuffer);
 		}
 		p->width = width;
-		if (last_nid < prev_nid) {	/* last range */
-			size_t	slen;
+		if (last_nid < prev_nid) { /* last range */
+			size_t slen;
 
 			sprintf(utilBuffer, "-%ld", prev_nid);
 			slen = strlen(utilBuffer) + 1;
 
 			/* check to see if we need to get a new nodelist */
 			if (slen > nsize - strlen(n->nodelist)) {
-				char	*hold;
+				char *hold;
 
-				nsize += slen+1;
+				nsize += slen + 1;
 				hold = realloc(n->nodelist, nsize);
 				if (hold == NULL)
 					goto err;
@@ -5709,7 +5692,7 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 			if (p->memory == NULL)
 				goto err;
 			memset(p->memory, 0, sizeof(basil_memory_param_t));
-			p->memory->size_mb = (long)((mem+1023)/1024);
+			p->memory->size_mb = (long) ((mem + 1023) / 1024);
 			p->memory->type = basil_memory_type_os;
 		}
 		/*
@@ -5739,7 +5722,7 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 				}
 				if (accel_mem > 0) {
 					/* ALPS expects MB */
-					gpu->memory = (unsigned int)((accel_mem+1023)/1024);
+					gpu->memory = (unsigned int) ((accel_mem + 1023) / 1024);
 				}
 			}
 		}
@@ -5753,14 +5736,14 @@ alps_create_reserve_request(job *pjob, basil_request_reserve_t **req)
 		}
 		if (pgov != NULL) {
 			if (strlen(pgov) < sizeof(p->pgovernor)) {
-				strcpy(p->pgovernor, pgov);
+				pbs_strncpy(p->pgovernor, pgov, sizeof(p->pgovernor));
 			} else {
 				sprintf(log_buffer, "pgov value %s is too long,"
-					" length must be less than %ld",
+						    " length must be less than %ld",
 					pgov, sizeof(p->pgovernor));
 				log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB,
-					LOG_DEBUG, pjob->ji_qs.ji_jobid,
-					log_buffer);
+					  LOG_DEBUG, pjob->ji_qs.ji_jobid,
+					  log_buffer);
 			}
 		}
 	}
@@ -5791,7 +5774,7 @@ err:
  */
 int
 alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
-	unsigned long long *pagg)
+			unsigned long long *pagg)
 {
 	basil_reserve_param_t *param;
 	basil_memory_param_t *mem;
@@ -5802,29 +5785,26 @@ alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
 
 	if (!bresvp) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"Cannot create ALPS reservation, missing data.");
+			  "Cannot create ALPS reservation, missing data.");
 		return (-1);
 	}
 	if (*bresvp->user_name == '\0') {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"Cannot create ALPS reservation, missing user name.");
+			  "Cannot create ALPS reservation, missing user name.");
 		return (-1);
 	}
 	if (!bresvp->params) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"Cannot create ALPS reservation, missing parameters.");
+			  "Cannot create ALPS reservation, missing parameters.");
 		return (-1);
 	}
 	new_alps_req();
 	sprintf(utilBuffer, "<?xml version=\"1.0\"?>\n"
-		"<" BASIL_ELM_REQUEST " "
-		BASIL_ATR_PROTOCOL "=\"%s\" "
-		BASIL_ATR_METHOD "=\"" BASIL_VAL_RESERVE "\">\n", basilversion_inventory);
+			    "<" BASIL_ELM_REQUEST " " BASIL_ATR_PROTOCOL "=\"%s\" " BASIL_ATR_METHOD "=\"" BASIL_VAL_RESERVE "\">\n",
+		basilversion_inventory);
 	add_alps_req(utilBuffer);
 	sprintf(utilBuffer,
-		" <" BASIL_ELM_RESVPARAMARRAY " "
-		BASIL_ATR_USER_NAME "=\"%s\" "
-		BASIL_ATR_BATCH_ID "=\"%s\"",
+		" <" BASIL_ELM_RESVPARAMARRAY " " BASIL_ATR_USER_NAME "=\"%s\" " BASIL_ATR_BATCH_ID "=\"%s\"",
 		bresvp->user_name, bresvp->batch_id);
 	add_alps_req(utilBuffer);
 	if (*bresvp->account_name != '\0') {
@@ -5837,12 +5817,10 @@ alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
 		add_alps_req("  <" BASIL_ELM_RESERVEPARAM);
 		switch (param->arch) {
 			case basil_node_arch_x2:
-				add_alps_req(" " BASIL_ATR_ARCH "=\""
-					BASIL_VAL_X2 "\"");
+				add_alps_req(" " BASIL_ATR_ARCH "=\"" BASIL_VAL_X2 "\"");
 				break;
 			default:
-				add_alps_req(" " BASIL_ATR_ARCH "=\""
-					BASIL_VAL_XT "\"");
+				add_alps_req(" " BASIL_ATR_ARCH "=\"" BASIL_VAL_XT "\"");
 				break;
 		}
 		if (param->width >= 0) {
@@ -5856,11 +5834,9 @@ alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
 		 */
 		if (!basil11orig) {
 			if (param->rsvn_mode == basil_rsvn_mode_exclusive) {
-				add_alps_req(" " BASIL_ATR_RSVN_MODE "=\""
-					BASIL_VAL_EXCLUSIVE "\"");
+				add_alps_req(" " BASIL_ATR_RSVN_MODE "=\"" BASIL_VAL_EXCLUSIVE "\"");
 			} else if (param->rsvn_mode == basil_rsvn_mode_shared) {
-				add_alps_req(" " BASIL_ATR_RSVN_MODE "=\""
-					BASIL_VAL_SHARED "\"");
+				add_alps_req(" " BASIL_ATR_RSVN_MODE "=\"" BASIL_VAL_SHARED "\"");
 			}
 		}
 		if (param->depth >= 0) {
@@ -5900,8 +5876,7 @@ alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
 		if (param->memory) {
 			add_alps_req("   <" BASIL_ELM_MEMPARAMARRAY ">\n");
 			for (mem = param->memory; mem; mem = mem->next) {
-				add_alps_req("    <" BASIL_ELM_MEMPARAM " "
-					BASIL_ATR_TYPE "=\"");
+				add_alps_req("    <" BASIL_ELM_MEMPARAM " " BASIL_ATR_TYPE "=\"");
 				switch (mem->type) {
 					case basil_memory_type_hugepage:
 						add_alps_req(BASIL_VAL_HUGEPAGE);
@@ -5924,9 +5899,8 @@ alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
 		if (param->labels) {
 			add_alps_req("   <" BASIL_ELM_LABELPARAMARRAY ">\n");
 			for (label = param->labels; label && *label->name;
-				label = label->next) {
-				add_alps_req("    <" BASIL_ELM_LABELPARAM " "
-					BASIL_ATR_NAME "=");
+			     label = label->next) {
+				add_alps_req("    <" BASIL_ELM_LABELPARAM " " BASIL_ATR_NAME "=");
 				sprintf(utilBuffer, "\"%s\"", label->name);
 				add_alps_req(utilBuffer);
 				add_alps_req(" " BASIL_ATR_TYPE "=");
@@ -5958,8 +5932,8 @@ alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
 		if (param->nodelists) {
 			add_alps_req("   <" BASIL_ELM_NODEPARMARRAY ">\n");
 			for (nl = param->nodelists;
-				nl && nl->nodelist && *nl->nodelist;
-				nl = nl->next) {
+			     nl && nl->nodelist && *nl->nodelist;
+			     nl = nl->next) {
 				add_alps_req("    <" BASIL_ELM_NODEPARAM ">");
 				add_alps_req(nl->nodelist);
 				add_alps_req("</" BASIL_ELM_NODEPARAM ">\n");
@@ -5969,19 +5943,16 @@ alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
 		if (param->accelerators) {
 			add_alps_req("   <" BASIL_ELM_ACCELPARAMARRAY ">\n");
 			for (accel = param->accelerators; accel;
-				accel = accel->next) {
-				add_alps_req("    <" BASIL_ELM_ACCELPARAM " "
-					BASIL_ATR_TYPE "=\"" BASIL_VAL_GPU "\"");
+			     accel = accel->next) {
+				add_alps_req("    <" BASIL_ELM_ACCELPARAM " " BASIL_ATR_TYPE "=\"" BASIL_VAL_GPU "\"");
 				if (accel->data.gpu) {
 					if (accel->data.gpu->family) {
-						sprintf(utilBuffer, " "
-							BASIL_ATR_FAMILY "=\"%s\"",
+						sprintf(utilBuffer, " " BASIL_ATR_FAMILY "=\"%s\"",
 							accel->data.gpu->family);
 						add_alps_req(utilBuffer);
 					}
 					if (accel->data.gpu->memory > 0) {
-						sprintf(utilBuffer, " "
-							BASIL_ATR_MEMORY_MB "=\"%d\"",
+						sprintf(utilBuffer, " " BASIL_ATR_MEMORY_MB "=\"%d\"",
 							accel->data.gpu->memory);
 						add_alps_req(utilBuffer);
 					}
@@ -5995,10 +5966,10 @@ alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
 	add_alps_req(" </" BASIL_ELM_RESVPARAMARRAY ">\n");
 	add_alps_req("</" BASIL_ELM_REQUEST ">");
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__,
-		"Creating ALPS reservation for job.");
-	if ((brp = alps_request(requestBuffer, basilversion_inventory)) == NULL){
+		  "Creating ALPS reservation for job.");
+	if ((brp = alps_request(requestBuffer, basilversion_inventory)) == NULL) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"Failed to create ALPS reservation.");
+			  "Failed to create ALPS reservation.");
 		return (-1);
 	}
 	if (*brp->error != '\0') {
@@ -6013,7 +5984,7 @@ alps_create_reservation(basil_request_reserve_t *bresvp, long *rsvn_id,
 	sprintf(log_buffer, "Created ALPS reservation %ld.",
 		brp->data.reserve.rsvn_id);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		__func__, log_buffer);
+		  __func__, log_buffer);
 	*rsvn_id = brp->data.reserve.rsvn_id;
 	free_basil_response_data(brp);
 	return (0);
@@ -6041,33 +6012,31 @@ alps_confirm_reservation(job *pjob)
 
 	if (!pjob) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"Cannot confirm ALPS reservation, invalid job.");
+			  "Cannot confirm ALPS reservation, invalid job.");
 		return (-1);
 	}
 	/* Return success if no reservation present. */
 	if (pjob->ji_extended.ji_ext.ji_reservation < 0) {
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-			pjob->ji_qs.ji_jobid,
-			"No MPP reservation to confirm.");
+			  pjob->ji_qs.ji_jobid,
+			  "No MPP reservation to confirm.");
 		return (0);
 	}
 	if (pjob->ji_extended.ji_ext.ji_pagg == 0) {
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-			pjob->ji_qs.ji_jobid,
-			"No PAGG to confirm MPP reservation.");
+			  pjob->ji_qs.ji_jobid,
+			  "No PAGG to confirm MPP reservation.");
 		return (1);
 	}
 	sprintf(log_buffer, "Confirming ALPS reservation %ld.",
 		pjob->ji_extended.ji_ext.ji_reservation);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-		pjob->ji_qs.ji_jobid, log_buffer);
+		  pjob->ji_qs.ji_jobid, log_buffer);
 	new_alps_req();
 	sprintf(requestBuffer, "<?xml version=\"1.0\"?>\n"
-		"<" BASIL_ELM_REQUEST " "
-		BASIL_ATR_PROTOCOL "=\"%s\" "
-		BASIL_ATR_METHOD "=\"" BASIL_VAL_CONFIRM "\" "
-		BASIL_ATR_RSVN_ID "=\"%ld\" "
-		"%s =\"%llu\"/>", basilversion_inventory,
+			       "<" BASIL_ELM_REQUEST " " BASIL_ATR_PROTOCOL "=\"%s\" " BASIL_ATR_METHOD "=\"" BASIL_VAL_CONFIRM "\" " BASIL_ATR_RSVN_ID "=\"%ld\" "
+			       "%s =\"%llu\"/>",
+		basilversion_inventory,
 		pjob->ji_extended.ji_ext.ji_reservation,
 		basil11orig ? BASIL_ATR_ADMIN_COOKIE : BASIL_ATR_PAGG_ID,
 		pjob->ji_extended.ji_ext.ji_pagg);
@@ -6075,7 +6044,7 @@ alps_confirm_reservation(job *pjob)
 		sprintf(log_buffer, "Failed to confirm ALPS reservation %ld.",
 			pjob->ji_extended.ji_ext.ji_reservation);
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 		return (-1);
 	}
 	if (*brp->error != '\0') {
@@ -6089,7 +6058,7 @@ alps_confirm_reservation(job *pjob)
 	}
 	sprintf(log_buffer, "ALPS reservation confirmed.");
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-		pjob->ji_qs.ji_jobid, log_buffer);
+		  pjob->ji_qs.ji_jobid, log_buffer);
 	free_basil_response_data(brp);
 	return (0);
 }
@@ -6114,26 +6083,24 @@ alps_cancel_reservation(job *pjob)
 
 	if (!pjob) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE, __func__,
-			"Cannot cancel ALPS reservation, invalid job.");
+			  "Cannot cancel ALPS reservation, invalid job.");
 		return (-1);
 	}
 	/* Return success if no reservation present. */
 	if (pjob->ji_extended.ji_ext.ji_reservation < 0 ||
-		pjob->ji_extended.ji_ext.ji_pagg == 0) {
+	    pjob->ji_extended.ji_ext.ji_pagg == 0) {
 		return (0);
 	}
 	sprintf(log_buffer, "Canceling ALPS reservation %ld with PAGG %llu.",
 		pjob->ji_extended.ji_ext.ji_reservation,
 		pjob->ji_extended.ji_ext.ji_pagg);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-		pjob->ji_qs.ji_jobid, log_buffer);
+		  pjob->ji_qs.ji_jobid, log_buffer);
 	new_alps_req();
 	sprintf(requestBuffer, "<?xml version=\"1.0\"?>\n"
-		"<" BASIL_ELM_REQUEST " "
-		BASIL_ATR_PROTOCOL "=\"%s\" "
-		BASIL_ATR_METHOD "=\"" BASIL_VAL_RELEASE "\" "
-		BASIL_ATR_RSVN_ID "=\"%ld\" "
-		"%s =\"%llu\"/>", basilversion_inventory,
+			       "<" BASIL_ELM_REQUEST " " BASIL_ATR_PROTOCOL "=\"%s\" " BASIL_ATR_METHOD "=\"" BASIL_VAL_RELEASE "\" " BASIL_ATR_RSVN_ID "=\"%ld\" "
+			       "%s =\"%llu\"/>",
+		basilversion_inventory,
 		pjob->ji_extended.ji_ext.ji_reservation,
 		basil11orig ? BASIL_ATR_ADMIN_COOKIE : BASIL_ATR_PAGG_ID,
 		pjob->ji_extended.ji_ext.ji_pagg);
@@ -6141,7 +6108,7 @@ alps_cancel_reservation(job *pjob)
 		sprintf(log_buffer, "Failed to cancel ALPS reservation %ld.",
 			pjob->ji_extended.ji_ext.ji_reservation);
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 		return (-1);
 	}
 	if (*brp->error != '\0') {
@@ -6163,14 +6130,14 @@ alps_cancel_reservation(job *pjob)
 			 */
 			bzero(buf, sizeof(buf));
 			snprintf(buf, sizeof(buf), "No entry for resId %ld",
-				pjob->ji_extended.ji_ext.ji_reservation);
+				 pjob->ji_extended.ji_ext.ji_reservation);
 			if (strstr(brp->error, buf) == NULL) {
 				sprintf(log_buffer, "Failed to cancel ALPS "
-					"reservation %ld. BASIL response error: %s",
+						    "reservation %ld. BASIL response error: %s",
 					pjob->ji_extended.ji_ext.ji_reservation,
 					brp->error);
 				log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB,
-					LOG_NOTICE, pjob->ji_qs.ji_jobid, log_buffer);
+					  LOG_NOTICE, pjob->ji_qs.ji_jobid, log_buffer);
 				free_basil_response_data(brp);
 				return (-1);
 			}
@@ -6184,18 +6151,18 @@ alps_cancel_reservation(job *pjob)
 	 */
 	if (brp->data.release.claims > 0) {
 		sprintf(log_buffer, "ALPS reservation %ld has %u claims "
-			"against it",
+				    "against it",
 			pjob->ji_extended.ji_ext.ji_reservation,
 			brp->data.release.claims);
 		log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 		free_basil_response_data(brp);
 		return (1);
 	}
 
 	sprintf(log_buffer, "ALPS reservation cancelled.");
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-		pjob->ji_qs.ji_jobid, log_buffer);
+		  pjob->ji_qs.ji_jobid, log_buffer);
 	free_basil_response_data(brp);
 	return (0);
 }
@@ -6226,45 +6193,42 @@ alps_suspend_resume_reservation(job *pjob, basil_switch_action_t switchval)
 		strcpy(actionstring, BASIL_VAL_IN);
 	} else {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"Invalid switch action %d.", switchval);
+			 "Invalid switch action %d.", switchval);
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE,
-			(char *)__func__, log_buffer);
+			  (char *) __func__, log_buffer);
 		return (-1);
 	}
 
 	if (!pjob) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"Cannot %s (%d), invalid job.", switch_buf, switchval);
+			 "Cannot %s (%d), invalid job.", switch_buf, switchval);
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE,
-			(char *)__func__, log_buffer);
+			  (char *) __func__, log_buffer);
 		return (-1);
 	}
 	snprintf(log_buffer, sizeof(log_buffer),
-		"Switching ALPS reservation %ld to %s",
-		pjob->ji_extended.ji_ext.ji_reservation, switch_buf);
+		 "Switching ALPS reservation %ld to %s",
+		 pjob->ji_extended.ji_ext.ji_reservation, switch_buf);
 	log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-		pjob->ji_qs.ji_jobid, log_buffer);
+		  pjob->ji_qs.ji_jobid, log_buffer);
 	new_alps_req();
-	snprintf(utilBuffer, sizeof(utilBuffer),"<?xml version=\"1.0\"?>\n"
-		"<" BASIL_ELM_REQUEST " "
-		BASIL_ATR_PROTOCOL "=\"%s\" "
-		BASIL_ATR_METHOD "=\"" BASIL_VAL_SWITCH "\">\n", basilversion_inventory);
+	snprintf(utilBuffer, sizeof(utilBuffer), "<?xml version=\"1.0\"?>\n"
+						 "<" BASIL_ELM_REQUEST " " BASIL_ATR_PROTOCOL "=\"%s\" " BASIL_ATR_METHOD "=\"" BASIL_VAL_SWITCH "\">\n",
+		 basilversion_inventory);
 	add_alps_req(utilBuffer);
-	add_alps_req( " <" BASIL_ELM_RSVNARRAY ">\n");
+	add_alps_req(" <" BASIL_ELM_RSVNARRAY ">\n");
 	snprintf(utilBuffer, sizeof(utilBuffer),
-		"  <" BASIL_ELM_RESERVATION " "
-		BASIL_ATR_RSVN_ID "=\"%ld\" "
-		BASIL_ATR_ACTION "=\"%s\"/>\n",
-		pjob->ji_extended.ji_ext.ji_reservation,
-		actionstring);
+		 "  <" BASIL_ELM_RESERVATION " " BASIL_ATR_RSVN_ID "=\"%ld\" " BASIL_ATR_ACTION "=\"%s\"/>\n",
+		 pjob->ji_extended.ji_ext.ji_reservation,
+		 actionstring);
 	add_alps_req(utilBuffer);
-	add_alps_req( " </" BASIL_ELM_RSVNARRAY ">\n");
-	add_alps_req( "</" BASIL_ELM_REQUEST ">");
+	add_alps_req(" </" BASIL_ELM_RSVNARRAY ">\n");
+	add_alps_req("</" BASIL_ELM_REQUEST ">");
 	if ((brp = alps_request(requestBuffer, basilversion_inventory)) == NULL) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"Failed to switch %s ALPS reservation.", actionstring);
+			 "Failed to switch %s ALPS reservation.", actionstring);
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_NOTICE,
-			(char *)__func__, log_buffer);
+			  (char *) __func__, log_buffer);
 		return (-1);
 	}
 	if (*brp->error != '\0') {
@@ -6282,7 +6246,7 @@ alps_suspend_resume_reservation(job *pjob, basil_switch_action_t switchval)
 		}
 	}
 	log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-		(char *)__func__, "Made the ALPS SWITCH request.");
+		  (char *) __func__, "Made the ALPS SWITCH request.");
 	free_basil_response_data(brp);
 	return (0);
 }
@@ -6305,53 +6269,49 @@ alps_confirm_suspend_resume(job *pjob, basil_switch_action_t switchval)
 	basil_response_query_status_res_t *res = NULL;
 
 	if (!pjob) {
-		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_JOB, LOG_ERR, (char *)__func__,
-			"Cannot confirm ALPS reservation, invalid job.");
+		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_JOB, LOG_ERR, (char *) __func__,
+			  "Cannot confirm ALPS reservation, invalid job.");
 		return (-1);
 	}
 	/* If no reservation ID return an error */
 	if (pjob->ji_extended.ji_ext.ji_reservation < 0) {
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_JOB, LOG_ERR,
-			pjob->ji_qs.ji_jobid,
-			"No ALPS reservation ID provided.  Can't confirm SWITCH status.");
+			  pjob->ji_qs.ji_jobid,
+			  "No ALPS reservation ID provided.  Can't confirm SWITCH status.");
 		return (-1);
 	}
 
 	if ((switchval != basil_switch_action_out) &&
 	    (switchval != basil_switch_action_in)) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"Invalid switch action %d.", switchval);
+			 "Invalid switch action %d.", switchval);
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE, LOG_ERR,
-			(char *)__func__, log_buffer);
+			  (char *) __func__, log_buffer);
 		return (-1);
 	}
 
 	sprintf(log_buffer, "Confirming ALPS reservation %ld SWITCH status.",
 		pjob->ji_extended.ji_ext.ji_reservation);
 	log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-		pjob->ji_qs.ji_jobid, log_buffer);
+		  pjob->ji_qs.ji_jobid, log_buffer);
 	new_alps_req();
 	sprintf(utilBuffer, "<?xml version=\"1.0\"?>\n"
-		"<" BASIL_ELM_REQUEST " "
-		BASIL_ATR_PROTOCOL "=\"%s\" "
-		BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" "
-		BASIL_ATR_TYPE "=\"" BASIL_VAL_STATUS "\">\n",
+			    "<" BASIL_ELM_REQUEST " " BASIL_ATR_PROTOCOL "=\"%s\" " BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" " BASIL_ATR_TYPE "=\"" BASIL_VAL_STATUS "\">\n",
 		basilversion_inventory);
 	add_alps_req(utilBuffer);
-	add_alps_req( " <"  BASIL_ELM_RSVNARRAY ">\n");
+	add_alps_req(" <" BASIL_ELM_RSVNARRAY ">\n");
 	sprintf(utilBuffer,
-		"  <"  BASIL_ELM_RESERVATION " "
-		BASIL_ATR_RSVN_ID "=\"%ld\"/>\n",
+		"  <" BASIL_ELM_RESERVATION " " BASIL_ATR_RSVN_ID "=\"%ld\"/>\n",
 		pjob->ji_extended.ji_ext.ji_reservation);
 	add_alps_req(utilBuffer);
-	add_alps_req( " </" BASIL_ELM_RSVNARRAY ">\n");
-	add_alps_req( "</" BASIL_ELM_REQUEST ">");
+	add_alps_req(" </" BASIL_ELM_RSVNARRAY ">\n");
+	add_alps_req("</" BASIL_ELM_REQUEST ">");
 
 	if ((brp = alps_request(requestBuffer, basilversion_inventory)) == NULL) {
 		sprintf(log_buffer, "Failed to confirm ALPS reservation %ld has been switched.",
 			pjob->ji_extended.ji_ext.ji_reservation);
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 		return (-1);
 	}
 	if (*brp->error != '\0') {
@@ -6371,9 +6331,9 @@ alps_confirm_suspend_resume(job *pjob, basil_switch_action_t switchval)
 	res = brp->data.query.data.status.reservation;
 	if (res->status == basil_reservation_status_invalid) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"ALPS SWITCH status is = 'INVALID'");
+			 "ALPS SWITCH status is = 'INVALID'");
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 		free_basil_response_data(brp);
 		return (-1);
 	}
@@ -6384,28 +6344,28 @@ alps_confirm_suspend_resume(job *pjob, basil_switch_action_t switchval)
 	 */
 	if (res->status == basil_reservation_status_mix) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"ALPS SWITCH status is = 'MIX', keep checking "
-			"ALPS status.");
+			 "ALPS SWITCH status is = 'MIX', keep checking "
+			 "ALPS status.");
 		log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 		free_basil_response_data(brp);
 		return (1);
 	}
 	if (res->status == basil_reservation_status_switch) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"ALPS SWITCH status is = 'SWITCH', keep checking "
-			"ALPS status.");
+			 "ALPS SWITCH status is = 'SWITCH', keep checking "
+			 "ALPS status.");
 		log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 		free_basil_response_data(brp);
 		return (1);
 	}
 	if (res->status == basil_reservation_status_unknown) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"ALPS SWITCH status is = 'UNKNOWN', keep checking "
-			"ALPS status.");
+			 "ALPS SWITCH status is = 'UNKNOWN', keep checking "
+			 "ALPS status.");
 		log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 		free_basil_response_data(brp);
 		return (1);
 	}
@@ -6417,21 +6377,21 @@ alps_confirm_suspend_resume(job *pjob, basil_switch_action_t switchval)
 			 * need to keep checking status
 			 */
 			snprintf(log_buffer, sizeof(log_buffer),
-				"ALPS SWITCH status is 'RUN', and "
-				"'SUSPEND' was requested, keep checking "
-				"ALPS status.");
+				 "ALPS SWITCH status is 'RUN', and "
+				 "'SUSPEND' was requested, keep checking "
+				 "ALPS status.");
 			log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-				pjob->ji_qs.ji_jobid, log_buffer);
+				  pjob->ji_qs.ji_jobid, log_buffer);
 			free_basil_response_data(brp);
 			return (1);
-		 } else {
+		} else {
 			/* We are trying to run the application again, and it is running! */
 			snprintf(log_buffer, sizeof(log_buffer),
-				"ALPS reservation %ld has been successfully "
-				"switched to 'RUN'.",
-				pjob->ji_extended.ji_ext.ji_reservation);
+				 "ALPS reservation %ld has been successfully "
+				 "switched to 'RUN'.",
+				 pjob->ji_extended.ji_ext.ji_reservation);
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-				pjob->ji_qs.ji_jobid, log_buffer);
+				  pjob->ji_qs.ji_jobid, log_buffer);
 			free_basil_response_data(brp);
 			return (0);
 		}
@@ -6442,21 +6402,21 @@ alps_confirm_suspend_resume(job *pjob, basil_switch_action_t switchval)
 			 * need to keep checking status
 			 */
 			snprintf(log_buffer, sizeof(log_buffer),
-				"ALPS SWITCH status is 'SUSPEND', "
-				"and 'RUN' was requested, keep checking "
-				"ALPS status.");
+				 "ALPS SWITCH status is 'SUSPEND', "
+				 "and 'RUN' was requested, keep checking "
+				 "ALPS status.");
 			log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-				pjob->ji_qs.ji_jobid, log_buffer);
+				  pjob->ji_qs.ji_jobid, log_buffer);
 			free_basil_response_data(brp);
 			return (1);
 		} else {
 			/* We are trying to suspend the application, and it is! */
 			snprintf(log_buffer, sizeof(log_buffer),
-				"ALPS reservation %ld has been successfully "
-				"switched to 'SUSPEND'.",
-				pjob->ji_extended.ji_ext.ji_reservation);
+				 "ALPS reservation %ld has been successfully "
+				 "switched to 'SUSPEND'.",
+				 pjob->ji_extended.ji_ext.ji_reservation);
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-				pjob->ji_qs.ji_jobid, log_buffer);
+				  pjob->ji_qs.ji_jobid, log_buffer);
 			free_basil_response_data(brp);
 			return (0);
 		}
@@ -6469,12 +6429,12 @@ alps_confirm_suspend_resume(job *pjob, basil_switch_action_t switchval)
 	 * we can be aware of how often the race condition is encountered.
 	 */
 	if ((res->status == basil_reservation_status_empty) &&
-	   (switchval == basil_switch_action_out)) {
+	    (switchval == basil_switch_action_out)) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"ALPS reservation %ld SWITCH status is = 'EMPTY'.",
-			pjob->ji_extended.ji_ext.ji_reservation);
+			 "ALPS reservation %ld SWITCH status is = 'EMPTY'.",
+			 pjob->ji_extended.ji_ext.ji_reservation);
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 		free_basil_response_data(brp);
 		return (2);
 	}
@@ -6482,12 +6442,12 @@ alps_confirm_suspend_resume(job *pjob, basil_switch_action_t switchval)
 	 * there was nothing to do, so consider the SWITCH done.
 	 */
 	if ((res->status == basil_reservation_status_empty) &&
-	   (switchval == basil_switch_action_in)) {
+	    (switchval == basil_switch_action_in)) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"ALPS reservation %ld has been successfully switched.",
-			pjob->ji_extended.ji_ext.ji_reservation);
+			 "ALPS reservation %ld has been successfully switched.",
+			 pjob->ji_extended.ji_ext.ji_reservation);
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 	}
 	free_basil_response_data(brp);
 	return (0);
@@ -6503,17 +6463,14 @@ alps_engine_query(void)
 	basil_response_t *brp = NULL;
 	char *ver = NULL;
 	char *tmp = NULL;
-	int 	i = 0;
-	int	found_ver = 0;
+	int i = 0;
+	int found_ver = 0;
 
 	new_alps_req();
 	for (i = 0; (pbs_supported_basil_versions[i] != NULL); i++) {
 		sprintf(basilversion_inventory, pbs_supported_basil_versions[i]);
 		sprintf(requestBuffer, "<?xml version=\"1.0\"?>\n"
-			"<" BASIL_ELM_REQUEST " "
-			BASIL_ATR_PROTOCOL "=\"%s\" "
-			BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" "
-			BASIL_ATR_TYPE "=\"" BASIL_VAL_ENGINE "\"/>",
+				       "<" BASIL_ELM_REQUEST " " BASIL_ATR_PROTOCOL "=\"%s\" " BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" " BASIL_ATR_TYPE "=\"" BASIL_VAL_ENGINE "\"/>",
 			basilversion_inventory);
 		if ((brp = alps_request(requestBuffer, basilversion_inventory)) != NULL) {
 			if (*brp->error == '\0') {
@@ -6536,10 +6493,11 @@ alps_engine_query(void)
 								if ((strcmp(basilversion_inventory, tmp)) == 0) {
 									/* Success! We found a version to speak */
 									sprintf(log_buffer, "The basilversion is "
-										"set to %s", basilversion_inventory);
+											    "set to %s",
+										basilversion_inventory);
 									log_event(PBSEVENT_DEBUG,
-										PBS_EVENTCLASS_NODE,
-										LOG_DEBUG, __func__, log_buffer);
+										  PBS_EVENTCLASS_NODE,
+										  LOG_DEBUG, __func__, log_buffer);
 									found_ver = 1;
 									break;
 								}
@@ -6550,18 +6508,19 @@ alps_engine_query(void)
 	 						 * itself succeeded. Something is wrong.
 	 						 */
 							if (found_ver == 0) {
-	 							sprintf(log_buffer, "ALPS ENGINE query failed. "
-									"Supported BASIL versions returned: "
-									"'%s'", ver);
+								sprintf(log_buffer, "ALPS ENGINE query failed. "
+										    "Supported BASIL versions returned: "
+										    "'%s'",
+									ver);
 								log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE,
-									LOG_NOTICE, __func__, log_buffer);
+									  LOG_NOTICE, __func__, log_buffer);
 							}
 						} else {
 							/* No memory */
 							sprintf(log_buffer, "ALPS ENGINE query failed. No "
-								"memory");
+									    "memory");
 							log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_NODE,
-								LOG_NOTICE, __func__, log_buffer);
+								  LOG_NOTICE, __func__, log_buffer);
 						}
 					} else {
 						if ((strcmp(basilversion_inventory, BASIL_VAL_VERSION_1_1)) == 0) {
@@ -6570,35 +6529,39 @@ alps_engine_query(void)
 							 * assume CLE 2.2 is running.
 							 */
 							sprintf(log_buffer, "Assuming CLE 2.2 is running, "
-								"setting the basilversion to %s", basilversion_inventory);
+									    "setting the basilversion to %s",
+								basilversion_inventory);
 							log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_NODE,
-								LOG_DEBUG,__func__, log_buffer);
+								  LOG_DEBUG, __func__, log_buffer);
 							sprintf(log_buffer, "The basilversion is "
-								"set to %s", basilversion_inventory);
+									    "set to %s",
+								basilversion_inventory);
 							log_event(PBSEVENT_DEBUG,
-								PBS_EVENTCLASS_NODE,
-								LOG_DEBUG,__func__, log_buffer);
+								  PBS_EVENTCLASS_NODE,
+								  LOG_DEBUG, __func__, log_buffer);
 							found_ver = 1;
 						}
 					}
 				} else {
 					/* wrong method in the response */
 					sprintf(log_buffer, "Wrong method, expected: %d but "
-						"got: %d", basil_method_query, brp->method);
+							    "got: %d",
+						basil_method_query, brp->method);
 					log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE,
-						LOG_DEBUG,__func__, log_buffer);
+						  LOG_DEBUG, __func__, log_buffer);
 				}
 			} else {
 				/* There was an error in the BASIL response */
 				sprintf(log_buffer, "Error in BASIL response: %s", brp->error);
 				log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-					__func__, log_buffer);
+					  __func__, log_buffer);
 			}
 		} else {
 			sprintf(log_buffer, "ALPS ENGINE query failed with BASIL "
-				"version %s.", basilversion_inventory);
+					    "version %s.",
+				basilversion_inventory);
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE,
-				LOG_NOTICE,__func__, log_buffer);
+				  LOG_NOTICE, __func__, log_buffer);
 		}
 		free(ver);
 		ver = NULL;
@@ -6618,7 +6581,7 @@ alps_engine_query(void)
 		sprintf(basilversion_inventory, BASIL_VAL_UNDEFINED);
 		sprintf(log_buffer, "No BASIL versions are understood.");
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE,
-			LOG_NOTICE,__func__, log_buffer);
+			  LOG_NOTICE, __func__, log_buffer);
 	} else {
 		/* we found a BASIL version that works
 		 * Set basilver so the rest of the code can use switch
@@ -6633,7 +6596,6 @@ alps_engine_query(void)
 		} else if ((strcmp(basilversion_inventory, BASIL_VAL_VERSION_1_1)) == 0) {
 			basilver = basil_1_1;
 		}
-
 	}
 }
 
@@ -6657,14 +6619,12 @@ alps_inventory(void)
 	alps_engine_query();
 	new_alps_req();
 	sprintf(requestBuffer, "<?xml version=\"1.0\"?>\n"
-		"<" BASIL_ELM_REQUEST " "
-		BASIL_ATR_PROTOCOL "=\"%s\" "
-		BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" "
-		BASIL_ATR_TYPE "=\"" BASIL_VAL_INVENTORY "\"/>", basilversion_inventory);
+			       "<" BASIL_ELM_REQUEST " " BASIL_ATR_PROTOCOL "=\"%s\" " BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" " BASIL_ATR_TYPE "=\"" BASIL_VAL_INVENTORY "\"/>",
+		basilversion_inventory);
 	if ((brp = alps_request(requestBuffer, basilversion_inventory)) == NULL) {
 		sprintf(log_buffer, "ALPS inventory request failed.");
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_NODE,
-			LOG_NOTICE, __func__, log_buffer);
+			  LOG_NOTICE, __func__, log_buffer);
 		return -1;
 	}
 	if (basil_inventory != NULL)
@@ -6673,7 +6633,7 @@ alps_inventory(void)
 	if (basil_inventory == NULL) {
 		sprintf(log_buffer, "failed to save inventory response");
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_NODE, LOG_ERR,
-			__func__, log_buffer);
+			  __func__, log_buffer);
 	}
 	rc = inventory_to_vnodes(brp);
 	free_basil_response_data(brp);
@@ -6702,10 +6662,10 @@ alps_system_KNL(void)
 
 	if (basil_1_7_supported)
 		log_event(PBSEVENT_DEBUG4, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__,
-			"This Cray system supports the BASIL 1.7 protocol.");
+			  "This Cray system supports the BASIL 1.7 protocol.");
 	else {
 		log_event(PBSEVENT_DEBUG4, PBS_EVENTCLASS_NODE, LOG_ERR, __func__,
-			"This Cray system does not support the BASIL 1.7 protocol.");
+			  "This Cray system does not support the BASIL 1.7 protocol.");
 		return;
 	}
 
@@ -6719,10 +6679,8 @@ alps_system_KNL(void)
 
 	/* Create a System (BASIL 1.7) Query request to fetch KNL information. */
 	snprintf(requestBuffer_knl, UTIL_BUFFER_LEN, "<?xml version=\"1.0\"?>\n"
-		"<" BASIL_ELM_REQUEST " "
-		BASIL_ATR_PROTOCOL "=\"%s\" "
-		BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" "
-		BASIL_ATR_TYPE "=\"" BASIL_VAL_SYSTEM "\"/>", basilversion_system);
+						     "<" BASIL_ELM_REQUEST " " BASIL_ATR_PROTOCOL "=\"%s\" " BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" " BASIL_ATR_TYPE "=\"" BASIL_VAL_SYSTEM "\"/>",
+		 basilversion_system);
 
 	/*
 	 * The 'basil_ver' argument is checked in response_start() (a callback
@@ -6764,10 +6722,7 @@ alps_engine_query_KNL(void)
 	/* the ENGINE Query. */
 
 	sprintf(requestBuffer_knl, "<?xml version=\"1.0\"?>\n"
-		"<" BASIL_ELM_REQUEST " "
-		BASIL_ATR_PROTOCOL "=\"%s\" "
-		BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" "
-		BASIL_ATR_TYPE "=\"" BASIL_VAL_ENGINE "\"/>",
+				   "<" BASIL_ELM_REQUEST " " BASIL_ATR_PROTOCOL "=\"%s\" " BASIL_ATR_METHOD "=\"" BASIL_VAL_QUERY "\" " BASIL_ATR_TYPE "=\"" BASIL_VAL_ENGINE "\"/>",
 		BASIL_VAL_VERSION_1_1);
 	if ((brp_eng = alps_request(requestBuffer_knl, BASIL_VAL_VERSION_1_1)) != NULL) {
 		/* Proceed if no errors in the response data. */
@@ -6788,15 +6743,16 @@ alps_engine_query_KNL(void)
 			} else {
 				/* Wrong method in the response. */
 				sprintf(log_buffer, "Wrong method, expected: %d but "
-					"got: %d", basil_method_query, brp_eng->method);
+						    "got: %d",
+					basil_method_query, brp_eng->method);
 				log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE,
-					LOG_DEBUG, __func__, log_buffer);
+					  LOG_DEBUG, __func__, log_buffer);
 			}
 		} else {
 			/* There was an error in the BASIL response. */
 			sprintf(log_buffer, "Error in BASIL response: %s", brp_eng->error);
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG,
-				__func__, log_buffer);
+				  __func__, log_buffer);
 		}
 	}
 
@@ -6823,25 +6779,25 @@ system_to_vnodes_KNL(void)
 
 	if (brp_knl->method != basil_method_query) {
 		snprintf(log_buffer, sizeof(log_buffer), "Wrong method: %d",
-			brp_knl->method);
+			 brp_knl->method);
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__,
-			log_buffer);
+			  log_buffer);
 		return;
 	}
 
 	if (brp_knl->data.query.type != basil_query_system) {
 		snprintf(log_buffer, sizeof(log_buffer), "Wrong query type: %d",
-			brp_knl->data.query.type);
+			 brp_knl->data.query.type);
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__,
-			log_buffer);
+			  log_buffer);
 		return;
 	}
 
 	if (*brp_knl->error != '\0') {
 		snprintf(log_buffer, sizeof(log_buffer), "Error in BASIL response: %s",
-			brp_knl->error);
+			 brp_knl->error);
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_DEBUG, __func__,
-			log_buffer);
+			  log_buffer);
 		return;
 	}
 
@@ -6867,26 +6823,23 @@ system_to_vnodes_KNL(void)
 static void
 create_vnodes_KNL(basil_response_query_system_t *sys_knl)
 {
-	char	*attr, *arch;
-	char	vname[VNODE_NAME_LEN];
-	char	utilBuffer_knl[(UTIL_BUFFER_LEN * sizeof(char))];
-	int	ncpus_per_knl;
-	int	node_idx = 0;
-	int	node_count =0;
-	long	node_id = 0;
-	long	*nid_arr = NULL;
-	int	atype = READ_WRITE | ATR_DFLAG_CVTSLT;
-	char	mpphost_knl[BASIL_STRING_LONG];
-
+	char *attr, *arch;
+	char vname[VNODE_NAME_LEN];
+	char utilBuffer_knl[(UTIL_BUFFER_LEN * sizeof(char))];
+	int ncpus_per_knl;
+	int node_idx = 0;
+	int node_count = 0;
+	long node_id = 0;
+	long *nid_arr = NULL;
+	int atype = READ_WRITE | ATR_DFLAG_CVTSLT;
+	char mpphost_knl[BASIL_STRING_LONG];
 
 	basil_system_element_t *node_group;
-
 
 	if (sys_knl == NULL)
 		return;
 
 	snprintf(mpphost_knl, sizeof(mpphost_knl), "%s", sys_knl->mpp_host);
-
 
 	/*
 	 * Iterate through all the Node groups in the System Query Response. Each
@@ -6929,8 +6882,8 @@ create_vnodes_KNL(basil_response_query_system_t *sys_knl)
 
 				attr = ATTR_NODE_TopologyInfo;
 				if (vn_addvnr(vnlp, vname, attr, (char *) basil_inventory,
-					     ATR_TYPE_STR, READ_ONLY, NULL) == -1)
-					  goto bad_vnl;
+					      ATR_TYPE_STR, READ_ONLY, NULL) == -1)
+					goto bad_vnl;
 				first_compute_node = 0;
 			}
 
@@ -6980,7 +6933,7 @@ create_vnodes_KNL(basil_response_query_system_t *sys_knl)
 
 			attr = "current_aoe";
 			snprintf(utilBuffer_knl, sizeof(utilBuffer_knl), "%s_%s",
-				node_group->numa_cfg, node_group->hbm_cfg);
+				 node_group->numa_cfg, node_group->hbm_cfg);
 			if (vn_addvnr(vnlp, vname, attr, utilBuffer_knl, 0, 0, NULL) == -1)
 				goto bad_vnl;
 
@@ -7026,12 +6979,13 @@ bad_vnl:
  */
 static int
 exclude_from_KNL_processing(basil_system_element_t *ptrNodeGrp,
-		short int check_state)
+			    short int check_state)
 {
 	if ((strcmp(ptrNodeGrp->role, BASIL_VAL_BATCH_SYS) != 0) ||
 	    (check_state ? (strcmp(ptrNodeGrp->state,
-			BASIL_VAL_UP_SYS) != 0) : 0) ||
-			((strcmp(ptrNodeGrp->numa_cfg, "") == 0) &&
+				   BASIL_VAL_UP_SYS) != 0)
+			 : 0) ||
+	    ((strcmp(ptrNodeGrp->numa_cfg, "") == 0) &&
 	     (strcmp(ptrNodeGrp->hbmsize, "") == 0) &&
 	     (strcmp(ptrNodeGrp->hbm_cfg, "") == 0)))
 		return 1;
@@ -7065,7 +7019,7 @@ process_nodelist_KNL(char *nidlist, int *ptr_count)
 		return NULL;
 	}
 
-	if ((nidlist_array = strdup(nidlist)) == NULL){
+	if ((nidlist_array = strdup(nidlist)) == NULL) {
 		log_err(errno, __func__, "malloc failure");
 		*ptr_count = 0;
 		return NULL;
@@ -7081,7 +7035,7 @@ process_nodelist_KNL(char *nidlist, int *ptr_count)
 		 * an argument to store_nids(). In case of tokens such as "14-18", nid_num=14
 		 * and 'endptr' points to the first invalid character i.e. "-".
 		 */
-		nid_num = (int)strtol(token, &endptr, 10);
+		nid_num = (int) strtol(token, &endptr, 10);
 		/* Checking for invalid data in the Node rangelist. */
 		if ((*endptr != '\0') && (*endptr != '-')) {
 			snprintf(log_buffer, sizeof(log_buffer), "Bad KNL Rangelist: \"%s\"", nidlist_array);
@@ -7132,7 +7086,7 @@ store_nids(int nid_num, char *endptr, long **nid_arr, int *nid_count)
 
 	if (*endptr == '-') {
 		int nid_num_last;
-		nid_num_last = (int)strtol(endptr + 1, &ptr, 10);
+		nid_num_last = (int) strtol(endptr + 1, &ptr, 10);
 		/* Checking for invalid data in the Node rangelist. */
 		if ((*ptr != '\0') && (*ptr != '-')) {
 			snprintf(log_buffer, sizeof(log_buffer), "Bad KNL Rangelist: \"%s\"", endptr);
@@ -7145,7 +7099,7 @@ store_nids(int nid_num, char *endptr, long **nid_arr, int *nid_count)
 		range_len = (nid_num_last - nid_num) + 1;
 	}
 
-	tmp_ptr = (long *)realloc(*nid_arr, (count + range_len) * sizeof(long));
+	tmp_ptr = (long *) realloc(*nid_arr, (count + range_len) * sizeof(long));
 	if (!tmp_ptr) {
 		log_err(errno, __func__, "realloc failure");
 		free(*nid_arr);
@@ -7157,7 +7111,6 @@ store_nids(int nid_num, char *endptr, long **nid_arr, int *nid_count)
 	for (i = 0; i < range_len; i++) {
 		*(*nid_arr + count) = nid_num + i;
 		count++;
-
 	}
 
 	*nid_count = count;
@@ -7192,7 +7145,7 @@ system_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 	brp->data.query.type = basil_query_system;
 	sys = &brp->data.query.data.system;
 
-	for (np=vp=atts, vp++; np && *np && vp && *vp; np=++vp, vp++) {
+	for (np = vp = atts, vp++; np && *np && vp && *vp; np = ++vp, vp++) {
 		xml_dbg("%s: %s = %s", __func__, *np, *vp);
 		if (strcmp(BASIL_ATR_TIMESTAMP, *np) == 0) {
 			if (sys->timestamp != 0) {
@@ -7249,11 +7202,11 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 	int page_size_KB = 0;
 	int shift_count = 0;
 	int res = 0;
-	long page_count, avl_mem;
+	long page_count, avail_mem;
 	char *invalid_char_ptr;
 
 	brp = d->brp;
-	node_group = (basil_system_element_t *)calloc(1, sizeof(basil_system_element_t));
+	node_group = (basil_system_element_t *) calloc(1, sizeof(basil_system_element_t));
 	if (!node_group) {
 		parse_err_out_of_memory(d);
 		return;
@@ -7274,7 +7227,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 	 * "hbm_size_mb", "hbm_cache_pct") are repeated within each "Nodes"
 	 * element under consideration, invoke parse_err_multiple_attrs().
 	 */
-	for (np=vp=atts, vp++; np && *np && vp && *vp; np=++vp, vp++) {
+	for (np = vp = atts, vp++; np && *np && vp && *vp; np = ++vp, vp++) {
 		xml_dbg("%s: %s = %s", __func__, *np, *vp);
 		if (strcmp(BASIL_ATR_ROLE, *np) == 0) {
 			if (*node_group->role != '\0') {
@@ -7284,7 +7237,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 
 			if ((strcmp(BASIL_VAL_BATCH_SYS, *vp) == 0) ||
 			    (strcmp(BASIL_VAL_INTERACTIVE_SYS, *vp) == 0))
-				strncpy(node_group->role, *vp, sizeof(node_group->role) - 1);
+				pbs_strncpy(node_group->role, *vp, sizeof(node_group->role));
 			else
 				strcpy(node_group->role, BASIL_VAL_UNKNOWN);
 		} else if (strcmp(BASIL_ATR_STATE, *np) == 0) {
@@ -7299,7 +7252,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 			    (strcmp(BASIL_VAL_ROUTING_SYS, *vp) == 0) ||
 			    (strcmp(BASIL_VAL_SUSPECT_SYS, *vp) == 0) ||
 			    (strcmp(BASIL_VAL_ADMIN_SYS, *vp) == 0))
-				strncpy(node_group->state, *vp, sizeof(node_group->state) - 1);
+				pbs_strncpy(node_group->state, *vp, sizeof(node_group->state));
 			else
 				strcpy(node_group->state, BASIL_VAL_UNKNOWN);
 		} else if (strcmp(BASIL_ATR_SPEED, *np) == 0) {
@@ -7325,7 +7278,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				parse_err_illegal_attr_val(d, *np, *vp);
 				return;
 			}
-			strncpy(node_group->numa_nodes, *vp, sizeof(node_group->numa_nodes) - 1);
+			pbs_strncpy(node_group->numa_nodes, *vp, sizeof(node_group->numa_nodes));
 		} else if (strcmp(BASIL_ATR_DIES, *np) == 0) {
 			if (*node_group->n_dies != '\0') {
 				parse_err_multiple_attrs(d, *np);
@@ -7337,7 +7290,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				parse_err_illegal_attr_val(d, *np, *vp);
 				return;
 			}
-			strncpy(node_group->n_dies, *vp, sizeof(node_group->n_dies) - 1);
+			pbs_strncpy(node_group->n_dies, *vp, sizeof(node_group->n_dies));
 		} else if (strcmp(BASIL_ATR_COMPUTE_UNITS, *np) == 0) {
 			if (*node_group->compute_units != '\0') {
 				parse_err_multiple_attrs(d, *np);
@@ -7349,7 +7302,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				parse_err_illegal_attr_val(d, *np, *vp);
 				return;
 			}
-			strncpy(node_group->compute_units, *vp, sizeof(node_group->compute_units) - 1);
+			pbs_strncpy(node_group->compute_units, *vp, sizeof(node_group->compute_units));
 		} else if (strcmp(BASIL_ATR_CPUS_PER_CU, *np) == 0) {
 			if (*node_group->cpus_per_cu != '\0') {
 				parse_err_multiple_attrs(d, *np);
@@ -7361,7 +7314,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				parse_err_illegal_attr_val(d, *np, *vp);
 				return;
 			}
-			strncpy(node_group->cpus_per_cu, *vp, sizeof(node_group->cpus_per_cu) - 1);
+			pbs_strncpy(node_group->cpus_per_cu, *vp, sizeof(node_group->cpus_per_cu));
 		} else if (strcmp(BASIL_ATR_PAGE_SIZE_KB, *np) == 0) {
 			if (*node_group->pgszl2 != '\0') {
 				parse_err_multiple_attrs(d, *np);
@@ -7376,7 +7329,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 			}
 
 			shift_count = 0;
-			while(1) {
+			while (1) {
 				/* Computing log base 2 of page_size_KB. */
 				/* e.g. if page_size_kb = 1 KB (i.e. 1024 Bytes), */
 				/* then pgszl2 = 10 (since 2 ^ 10 = 1024). */
@@ -7402,8 +7355,8 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				return;
 			}
 
-			avl_mem = page_size_KB * page_count;
-			snprintf(node_group->avlmem, BASIL_STRING_SHORT, "%ld", avl_mem);
+			avail_mem = page_size_KB * page_count;
+			snprintf(node_group->avlmem, BASIL_STRING_SHORT, "%ld", avail_mem);
 		} else if (strcmp(BASIL_ATR_ACCELS, *np) == 0) {
 			if (*node_group->accel_name != '\0') {
 				parse_err_multiple_attrs(d, *np);
@@ -7415,7 +7368,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				parse_err_illegal_attr_val(d, *np, *vp);
 				return;
 			}
-			strncpy(node_group->accel_name, *vp, sizeof(node_group->accel_name) - 1);
+			pbs_strncpy(node_group->accel_name, *vp, sizeof(node_group->accel_name));
 		} else if (strcmp(BASIL_ATR_ACCEL_STATE, *np) == 0) {
 			if (*node_group->accel_state != '\0') {
 				parse_err_multiple_attrs(d, *np);
@@ -7424,7 +7377,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 
 			if ((strcmp(BASIL_VAL_UP_SYS, *vp) == 0) ||
 			    (strcmp(BASIL_VAL_DOWN_SYS, *vp) == 0))
-				strncpy(node_group->accel_state, *vp, sizeof(node_group->accel_state) - 1);
+				pbs_strncpy(node_group->accel_state, *vp, sizeof(node_group->accel_state));
 			else
 				strcpy(node_group->accel_state, BASIL_VAL_UNKNOWN);
 		} else if (strcmp(BASIL_ATR_NUMA_CFG, *np) == 0) {
@@ -7439,7 +7392,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 			    (strcmp(BASIL_VAL_SNC4_SYS, *vp) == 0) ||
 			    (strcmp(BASIL_VAL_HEMI_SYS, *vp) == 0) ||
 			    (strcmp(BASIL_VAL_QUAD_SYS, *vp) == 0))
-				strncpy(node_group->numa_cfg, *vp, sizeof(node_group->numa_cfg) - 1);
+				pbs_strncpy(node_group->numa_cfg, *vp, sizeof(node_group->numa_cfg));
 			else {
 				parse_err_illegal_attr_val(d, *np, *vp);
 				return;
@@ -7455,7 +7408,7 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 				parse_err_illegal_attr_val(d, *np, *vp);
 				return;
 			}
-			strncpy(node_group->hbmsize, *vp, sizeof(node_group->hbmsize) - 1);
+			pbs_strncpy(node_group->hbmsize, *vp, sizeof(node_group->hbmsize));
 		} else if (strcmp(BASIL_ATR_HBM_CFG, *np) == 0) {
 			if (*node_group->hbm_cfg != '\0') {
 				parse_err_multiple_attrs(d, *np);
@@ -7466,13 +7419,12 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
 			    (strcmp(BASIL_VAL_25_SYS, *vp) == 0) ||
 			    (strcmp(BASIL_VAL_50_SYS, *vp) == 0) ||
 			    (strcmp(BASIL_VAL_100_SYS, *vp) == 0))
-				strncpy(node_group->hbm_cfg, *vp, sizeof(node_group->hbm_cfg) - 1);
+				pbs_strncpy(node_group->hbm_cfg, *vp, sizeof(node_group->hbm_cfg));
 			else {
 				parse_err_illegal_attr_val(d, *np, *vp);
 				return;
 			}
-		}
-		else {
+		} else {
 			parse_err_unrecognized_attr(d, *np);
 			return;
 		}
@@ -7486,6 +7438,9 @@ node_group_start(ud_t *d, const XML_Char *el, const XML_Char **atts)
  * The definition of element_handler_t above explains the different
  * structure elements.
  */
+
+// clang-format off
+
 static element_handler_t handler[] =
 {
 	{
@@ -7772,3 +7727,5 @@ static element_handler_t handler[] =
 	}
 };
 #endif /* MOM_ALPS */
+
+// clang-format on

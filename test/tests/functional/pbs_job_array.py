@@ -1,54 +1,101 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
+from ptl.utils.pbs_logutils import PBSLogUtils
 
 
 class TestJobArray(TestFunctional):
     """
-    Test suite for PBSPro's job array feature
+    Test suite for job array feature
     """
+    lu = PBSLogUtils()
+    qjh = """
+import pbs
+
+e = pbs.event()
+j = e.job
+if j.max_run_subjobs is None:
+    j.max_run_subjobs = %d
+pbs.logmsg(pbs.LOG_DEBUG, "max_run_subjobs set to %%d" %% j.max_run_subjobs)
+e.accept()
+"""
+    mjh = """
+import pbs
+
+e = pbs.event()
+j = e.job
+if j.max_run_subjobs != 0:
+    if j.max_run_subjobs > 10:
+        j.max_run_subjobs = %d
+pbs.logmsg(pbs.LOG_DEBUG, "max_run_subjobs set to %%d" %% j.max_run_subjobs)
+e.accept()
+"""
+    mjh2 = """
+import pbs
+
+e = pbs.event()
+j = e.job
+j.max_run_subjobs = %d
+pbs.logmsg(pbs.LOG_DEBUG, "max_run_subjobs set to %%d" %% j.max_run_subjobs)
+e.accept()
+"""
+
+    def create_max_run_subjobs_hook(self, max_run, event, name, script):
+        """
+        function to create a hook
+        - max_run Number of subjobs that can concurrently run
+        - event queuejob or modifyjob
+        - name hook name
+        - script hook script
+        """
+        hook = script % int(max_run)
+        attrs = {'event': event}
+        self.server.create_import_hook(name, attrs, hook, overwrite=True)
 
     def test_arrayjob_Erecord_startval(self):
         """
         Check that an arrayjob's E record's 'start' value is not set to 0
         """
         j = Job(TEST_USER, attrs={
-            ATTR_J: '1-2',
+            ATTR_J: '1-2', ATTR_k: 'oe',
             'Resource_List.select': 'ncpus=1'
         })
         j.set_sleep_time(1)
@@ -86,6 +133,8 @@ class TestJobArray(TestFunctional):
         rv = self.is_server_licensed(self.server)
         _msg = 'No license found on server %s' % (self.server.shortname)
         self.assertTrue(rv, _msg)
+        attr = {'state': (MATCH_RE, 'free|job-busy')}
+        self.server.expect(NODE, attr, id=self.mom.shortname)
 
     def test_running_subjob_survive_restart(self):
         """
@@ -97,33 +146,23 @@ class TestJobArray(TestFunctional):
         j = Job(TEST_USER, attrs={
             ATTR_J: '1-3', 'Resource_List.select': 'ncpus=1'})
 
-        j.set_sleep_time(20)
-
         j_id = self.server.submit(j)
-        subjid_2 = j.create_subjob_id(j_id, 2)
+        subjid_1 = j.create_subjob_id(j_id, 1)
 
         # 1. check job array has begun
         self.server.expect(JOB, {'job_state': 'B'}, j_id)
 
-        # 2. wait till subjob 2 starts running
-        self.server.expect(JOB, {'job_state': 'R'}, subjid_2, offset=20)
+        # 2. check subjob 1 started running
+        self.server.expect(JOB, {'job_state': 'R'}, subjid_1)
 
         # 3. Kill and restart the server
         self.kill_and_restart_svr()
 
         # 4. array job should be B
-        self.server.expect(JOB, {'job_state': 'B'}, j_id, max_attempts=1)
+        self.server.expect(JOB, {'job_state': 'B'}, j_id)
 
-        # 5. subjob 1 should be X
-        self.server.expect(JOB, {'job_state': 'X'},
-                           j.create_subjob_id(j_id, 1), max_attempts=1)
-
-        # 6. subjob 2 should be R
-        self.server.expect(JOB, {'job_state': 'R'}, subjid_2, max_attempts=1)
-
-        # 7. subjob 3 should be Q
-        self.server.expect(JOB, {'job_state': 'Q'},
-                           j.create_subjob_id(j_id, 3), max_attempts=1)
+        # 5. subjob 1 should be R
+        self.server.expect(JOB, {'job_state': 'R'}, subjid_1)
 
     def test_running_subjob_survive_restart_with_history(self):
         """
@@ -307,7 +346,7 @@ class TestJobArray(TestFunctional):
         self.server.expect(JOB, {'comment': 'Subjob finished'}, subjid_1,
                            offset=8)
         self.server.delete(subjid_2, extend='force')
-        self.server.expect(JOB, {'comment': 'Subjob terminated'}, subjid_2)
+        self.server.expect(JOB, {'comment': 'Subjob finished'}, subjid_2)
         self.kill_and_restart_svr()
         self.server.expect(
             JOB, {'comment': 'Subjob finished'}, subjid_1, max_attempts=1)
@@ -329,7 +368,7 @@ class TestJobArray(TestFunctional):
         subjid_2 = j.create_subjob_id(j_id, 2)
         self.server.delete(subjid_2, extend='force')
         self.server.expect(
-            JOB, {'comment': (MATCH_RE, 'terminated')}, subjid_2, extend='x')
+            JOB, {'comment': (MATCH_RE, 'finished')}, subjid_2, extend='x')
         self.server.expect(JOB, {'comment': (
             MATCH_RE, 'Job run at.*and finished')}, subjid_1, extend='x')
         self.kill_and_restart_svr()
@@ -367,6 +406,7 @@ class TestJobArray(TestFunctional):
         self.server.manager(MGR_CMD_SET, SERVER, a)
         j = Job(TEST_USER, attrs={
             ATTR_J: '1-2', 'Resource_List.select': 'ncpus=1'})
+        j.set_sleep_time(300)
         j_id = self.server.submit(j)
         subjid_1 = j.create_subjob_id(j_id, 1)
         a = {'job_state': 'R', 'run_count': 1}
@@ -374,7 +414,7 @@ class TestJobArray(TestFunctional):
         for _ in range(5):
             self.kill_and_restart_svr()
             self.server.expect(
-                JOB, a, subjid_1, attrop=PTL_AND, max_attempts=1)
+                JOB, a, subjid_1, attrop=PTL_AND)
 
     def test_job_array_history_duration(self):
         """
@@ -388,7 +428,7 @@ class TestJobArray(TestFunctional):
         self.server.manager(MGR_CMD_SET, SERVER, a)
         j = Job(TEST_USER, attrs={
             ATTR_J: '1-2', 'Resource_List.select': 'ncpus=1'})
-        j.set_sleep_time(5)
+        j.set_sleep_time(15)
         j_id = self.server.submit(j)
         subjid_1 = j.create_subjob_id(j_id, 1)
         subjid_2 = j.create_subjob_id(j_id, 2)
@@ -421,6 +461,8 @@ class TestJobArray(TestFunctional):
         self.server.expect(JOB, a, subjid_1, attrop=PTL_AND)
         self.server.delete(subjid_1, extend='force')
         self.kill_and_restart_svr()
+        subjid_2 = j.create_subjob_id(j_id, 2)
+        self.server.expect(JOB, {'job_state': 'R'}, subjid_2)
         self.server.delete(j_id, wait=True)
         self.server.manager(MGR_CMD_DELETE, QUEUE, id='workq')
 
@@ -582,7 +624,8 @@ class TestJobArray(TestFunctional):
         a = {'resources_available.ncpus': 2}
         self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
         j = Job(TEST_USER, attrs={
-            ATTR_J: '1-2', 'Resource_List.select': 'ncpus=1'})
+            ATTR_J: '1-2', 'Resource_List.select': 'ncpus=1',
+            ATTR_k: 'oe'})
         j.set_sleep_time(5)
         j_id = self.server.submit(j)
         self.server.expect(JOB, {'job_state': 'F'}, j_id, extend='x', offset=5)
@@ -644,7 +687,7 @@ class TestJobArray(TestFunctional):
         Test that subjobs standard error and out files are generated
         in the custom directory provided with oe qsub options
         """
-        tmp_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        tmp_dir = self.du.create_temp_dir(asuser=TEST_USER)
         a = {ATTR_e: tmp_dir, ATTR_o: tmp_dir, ATTR_J: '1-4'}
         j = Job(TEST_USER, attrs=a)
         j.set_sleep_time(2)
@@ -658,10 +701,9 @@ class TestJobArray(TestFunctional):
             for sub_ind in range(1, 5):
                 f_name = j.create_subjob_id(jid, sub_ind) + ext
                 if f_name not in file_list:
-                    raise self.failureException("std file " + f_name
-                                                + " not found")
+                    raise self.failureException("std file " + f_name +
+                                                " not found")
 
-    @skipOnCpuSet
     @skipOnCray
     def test_subjob_wrong_state(self):
         """
@@ -671,17 +713,322 @@ class TestJobArray(TestFunctional):
         a = {'resources_available.ncpus': 200}
         self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
         j = Job(attrs={ATTR_J: '1-200'})
+        j.set_sleep_time(200)
         self.server.submit(j)
         # while the server is sending the jobs to the MoM, restart the server
         self.server.restart()
-        # make sure the mom is free so the scheduler can run jobs on it
-        self.server.expect(NODE, {'state': 'free'}, id=self.mom.shortname)
-        self.logger.info('Sleeping to ensure licenses are received')
-        time.sleep(5)
-        self.server.manager(MGR_CMD_SET, MGR_OBJ_SERVER,
-                            {'scheduling': 'True'})
-        # ensure the sched cycle is finished
-        self.server.manager(MGR_CMD_SET, MGR_OBJ_SERVER,
-                            {'scheduling': 'False'})
+        # triggering scheduling cycle all jobs are in R state.
+        self.scheduler.run_scheduling_cycle()
         # ensure all the subjobs are running
         self.server.expect(JOB, {'job_state=R': 200}, extend='t')
+
+    def test_recover_big_array_job(self):
+        """
+        Test that during server restart, server is able to recover valid
+        array jobs which are bigger than the current value of max_array_size
+        server attribute
+        """
+        # submit a medium size array job
+        a = {'resources_available.ncpus': 4}
+        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
+        j = Job(attrs={ATTR_J: '1-200'})
+        j_id = self.server.submit(j)
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=j_id)
+
+        # reduce max_array_size
+        a = {ATTR_maxarraysize: 40}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        self.server.expect(SERVER, a)
+        try:
+            self.server.submit(Job(attrs={ATTR_J: '1-200'}))
+        except PbsSubmitError as e:
+            exp_msg = 'qsub: Array job exceeds server or queue size limit'
+            self.assertEqual(exp_msg, e.msg[0])
+
+        # restart the server to check for crash
+        try:
+            self.server.restart()
+        except PbsServiceError as e:
+            if 'pbs_server startup failed' in e.msg:
+                reset_db = 'echo y | ' + \
+                    os.path.join(self.server.pbs_conf['PBS_EXEC'],
+                                 'sbin', 'pbs_server') + ' -t create'
+                self.du.run_cmd(cmd=reset_db, sudo=True, as_script=True)
+            self.fail('TC failed as server recovery failed')
+        else:
+            self.server.expect(JOB, {ATTR_state: 'B'}, id=j_id)
+
+    def test_max_run_subjobs_basic(self):
+        """
+        Test that if a job is submitted with 'max_run_subjobs' attribute
+        number of subjobs that run do not exceed the attribute value.
+        """
+
+        a = {'resources_available.ncpus': 8}
+        self.mom.create_vnodes(a, 1)
+        j = Job(attrs={ATTR_J: '1-20%2'})
+        j_id = self.server.submit(j)
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=j_id)
+        self.server.expect(JOB, {'job_state=R': 2}, extend='t')
+
+        self.server.alterjob(j_id, {ATTR_W: 'max_run_subjobs=5'})
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+        self.server.expect(JOB, {'job_state=R': 5}, extend='t')
+        msg = "Number of concurrent running subjobs limit reached"
+        self.scheduler.log_match(j_id + ';' + msg)
+
+    @skipOnCpuSet
+    def test_max_run_subjobs_equiv_class(self):
+        """
+        Test that if a job is submitted with 'max_run_subjobs' attribute
+        it does not stop jobs in equivalence class from running
+        """
+
+        a = {'resources_available.ncpus': 8}
+        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
+        j = Job(attrs={ATTR_J: '1-20%2', 'Resource_List.walltime': 3600,
+                       'Resource_List.select': 'ncpus=2'})
+        j_id = self.server.submit(j)
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=j_id)
+        self.server.expect(JOB, {'job_state=R': 2}, extend='t')
+
+        j = Job(attrs={'Resource_List.walltime': 3600,
+                       'Resource_List.select': 'ncpus=2'})
+        j_id_equiv = self.server.submit(j)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j_id_equiv)
+
+    @skipOnCpuSet
+    def test_max_run_subjobs_calendar(self):
+        """
+        Test that if a job is submitted with 'max_run_subjobs' attribute
+        gets into calendar when it cannot run.
+        """
+
+        a = {'resources_available.ncpus': 8}
+        self.mom.create_vnodes(a, 1)
+        a = {'backfill_depth': '2'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        self.scheduler.set_sched_config({'strict_ordering': 'True'})
+        j1 = Job(attrs={'Resource_List.walltime': 200})
+        j1.set_sleep_time(200)
+        j1_id = self.server.submit(j1)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=j1_id)
+        j2 = Job(attrs={ATTR_J: '1-20%2', 'Resource_List.walltime': 300})
+        j2.set_sleep_time(300)
+        j2_id = self.server.submit(j2)
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=j2_id)
+        self.server.expect(JOB, {'job_state=R': 3}, extend='t')
+        j2_sub1 = j2.create_subjob_id(j2_id, 1)
+        job_arr = self.server.status(JOB, id=j2_sub1)
+        stime = self.lu.convert_date_time(job_arr[0]['stime'],
+                                          fmt="%a %b %d %H:%M:%S %Y")
+        job_arr = self.server.status(JOB, id=j2_id)
+
+        # check estimated start time is set on job array
+        self.assertIn('estimated.start_time', job_arr[0])
+        errmsg = j2_id + ";Error in calculation of start time of top job"
+        self.scheduler.log_match(errmsg, existence=False, max_attempts=10)
+        est = self.lu.convert_date_time(job_arr[0]['estimated.start_time'],
+                                        fmt="%a %b %d %H:%M:%S %Y")
+        self.assertAlmostEqual(stime + 300, est, 1)
+
+    def test_max_run_subjobs_queuejob_hook(self):
+        """
+        Test that a queuejob hook is able to set max_run_subjobs attribute.
+        """
+        a = {'resources_available.ncpus': 8}
+        self.mom.create_vnodes(a, 1)
+
+        self.create_max_run_subjobs_hook(3, "queuejob", "h1", self.qjh)
+        j1 = Job(attrs={ATTR_J: '1-20'})
+        jid1 = self.server.submit(j1)
+        self.server.log_match("max_run_subjobs set to 3")
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=jid1)
+        self.server.expect(JOB, {'job_state=R': 3}, extend='t')
+
+        # Submit a normal job and see if queuejob hook cannot set the
+        # attribute.
+        with self.assertRaises(PbsSubmitError) as e:
+            self.server.submit(Job())
+        self.assertIn("Attribute has to be set on an array job",
+                      e.exception.msg[0])
+
+    def test_max_run_subjobs_modifyjob_hook(self):
+        """
+        Submit array job with large max_run_subjobs limit see if modifyjob
+        modifies it.
+        """
+        a = {'resources_available.ncpus': 20}
+        self.mom.create_vnodes(a, 1)
+
+        self.create_max_run_subjobs_hook(3, "modifyjob", "h1", self.mjh)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        j = Job(attrs={ATTR_J: '1-50'})
+        jid = self.server.submit(j)
+        self.server.expect(JOB, {ATTR_state: 'Q'}, id=jid)
+        self.server.alterjob(jid, {ATTR_W: 'max_run_subjobs=20'})
+        self.server.log_match("max_run_subjobs set to 3")
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+        self.server.expect(JOB, {'job_state=R': 3}, extend='t')
+
+        # Modify a normal job and see if queuejob hook cannot set the
+        # attribute.
+        self.create_max_run_subjobs_hook(3, "modifyjob", "h1", self.mjh2)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        nj = self.server.submit(Job())
+        with self.assertRaises(PbsAlterError) as e:
+            self.server.alterjob(nj, {'Resource_List.soft_walltime': 50})
+        self.assertIn("Attribute has to be set on an array job",
+                      e.exception.msg[0])
+
+    def test_max_run_subjobs_preemption(self):
+        """
+        Submit array job with max_run_subjobs limit and see if such a job
+        hits the limit, no preemption is attempted.
+        """
+        a = {'queue_type': 'execution',
+             'started': 'True',
+             'enabled': 'True',
+             'Priority': 200}
+        self.server.manager(MGR_CMD_CREATE, QUEUE, a, "wq2")
+
+        a = {'resources_available.ncpus': 8}
+        self.mom.create_vnodes(a, 1)
+
+        a = {'Resource_List.select': 'ncpus=2'}
+        j = Job(attrs=a)
+        jid = self.server.submit(j)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
+
+        a = {ATTR_J: '1-20%3', 'Resource_List.select': 'ncpus=2',
+             ATTR_q: 'wq2'}
+        j_arr = Job(attrs=a)
+        jid_arr = self.server.submit(j_arr)
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=jid_arr)
+        self.server.expect(JOB, {'job_state=R': 4}, extend='t')
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
+
+    def test_max_run_subjobs_qrun(self):
+        """
+        Submit array job with max_run_subjobs limit and see if such a job
+        is run using qrun, max_run_subjobs limit is ignored.
+        """
+        a = {'resources_available.ncpus': 8}
+        self.mom.create_vnodes(a, 1)
+
+        a = {'Resource_List.select': 'ncpus=2'}
+        j = Job(attrs=a)
+        jid = self.server.submit(j)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
+
+        a = {ATTR_J: '1-20%3', 'Resource_List.select': 'ncpus=2'}
+        j_arr = Job(attrs=a)
+        jid_arr = self.server.submit(j_arr)
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=jid_arr)
+        self.server.expect(JOB, {'job_state=R': 4}, extend='t')
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
+        subjid_4 = j_arr.create_subjob_id(jid_arr, 4)
+        self.server.expect(JOB, {ATTR_state: 'Q'}, id=subjid_4)
+        self.server.runjob(subjid_4)
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=jid_arr)
+        self.server.expect(JOB, {'job_state=R': 4}, extend='t')
+        self.server.expect(JOB, {ATTR_state: 'S'}, id=jid)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=subjid_4)
+
+    def test_max_run_subjobs_suspend(self):
+        """
+        Submit array job with max_run_subjobs limit and see if such a job
+        is has suspended subjobs, those subjobs are not counted against the
+        limit.
+        """
+
+        a = {'resources_available.ncpus': 8}
+        self.mom.create_vnodes(a, 1)
+
+        a = {ATTR_J: '1-20%3', 'Resource_List.select': 'ncpus=2'}
+        j_arr = Job(attrs=a)
+        jid_arr = self.server.submit(j_arr)
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=jid_arr)
+        self.server.expect(JOB, {'job_state=R': 3}, extend='t')
+        subjid_2 = j_arr.create_subjob_id(jid_arr, 2)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=subjid_2)
+        self.server.sigjob(jobid=subjid_2, signal="suspend")
+        self.server.expect(JOB, {ATTR_state: 'S'}, id=subjid_2)
+        self.server.expect(JOB, {'job_state=R': 3}, extend='t')
+        subjid_4 = j_arr.create_subjob_id(jid_arr, 4)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=subjid_4)
+
+    def test_max_run_subjobs_eligible_time(self):
+        """
+        Test that array jobs hitting max_run_subjobs limit still
+        accrues eligible time.
+        """
+
+        a = {'resources_available.ncpus': 8}
+        self.mom.create_vnodes(a, 1)
+
+        a = {'eligible_time_enable': 'True'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        accrue = {'ineligible': 1, 'eligible': 2, 'run': 3, 'exit': 4}
+
+        a = {ATTR_J: '1-20%3', 'Resource_List.select': 'ncpus=2'}
+        j_arr = Job(attrs=a)
+        jid_arr = self.server.submit(j_arr)
+        self.server.expect(JOB, {ATTR_state: 'B'}, id=jid_arr)
+        self.server.expect(JOB, {'job_state=R': 3}, extend='t')
+        self.server.expect(JOB, {'accrue_type': accrue['eligible']},
+                           id=jid_arr)
+
+    def test_max_run_subjobs_on_non_array(self):
+        """
+        Test that setting max_run_subjobs on non-array jobs is rejected.
+        """
+        a = {ATTR_W: 'max_run_subjobs=4'}
+        with self.assertRaises(PbsSubmitError) as e:
+            self.server.submit(Job(attrs=a))
+        self.assertIn("Attribute has to be set on an array job",
+                      e.exception.msg[0])
+
+    def test_multiple_max_run_subjobs_values(self):
+        """
+        Test that setting max_run_subjobs more than once on an array
+        job is rejected.
+        """
+
+        qsub_cmd = os.path.join(self.server.pbs_conf['PBS_EXEC'],
+                                'bin', 'qsub')
+
+        cmd = [qsub_cmd, '-J1-4%2', '-Wmax_run_subjobs=4', '--',
+               self.mom.sleep_cmd, '100']
+        rv = self.du.run_cmd(self.server.hostname, cmd=cmd)
+        self.assertNotEqual(rv['rc'], 0, 'qsub must fail')
+        msg = "qsub: multiple max_run_subjobs values found"
+        self.assertEqual(rv['err'][0], msg)
+
+    def test_qdel_job_array_downed_mom(self):
+        """
+        Test to check if qdel of a job array returns
+        an error when mom is downed.
+        """
+
+        a = {'resources_available.ncpus': 1}
+        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
+        j = Job(TEST_USER, attrs={
+            ATTR_J: '1-3', 'Resource_List.select': 'ncpus=1'})
+
+        j_id = self.server.submit(j)
+
+        # 1. check job array has begun
+        self.server.expect(JOB, {'job_state': 'B'}, j_id)
+
+        self.mom.stop()
+
+        try:
+            self.server.deljob(j_id)
+        except PbsDeljobError as e:
+            err_msg = "could not connect to MOM"
+            self.assertTrue(err_msg in e.msg[0],
+                            "Did not get the expected message")
+            self.assertTrue(e.rc != 0, "Exit code shows success")
+        else:
+            raise self.failureException("qdel job array did not return error")

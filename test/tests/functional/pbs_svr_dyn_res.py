@@ -1,42 +1,46 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 from ptl.lib.pbs_ifl_mock import *
+from ptl.utils.pbs_procutils import ProcUtils
 
 
 class TestServerDynRes(TestFunctional):
@@ -45,9 +49,6 @@ class TestServerDynRes(TestFunctional):
 
     def setUp(self):
         TestFunctional.setUp(self)
-        # Setup node
-        a = {'resources_available.ncpus': 4}
-        self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
 
     def check_access_log(self, fp, exist=True):
         """
@@ -58,13 +59,12 @@ class TestServerDynRes(TestFunctional):
         # correct log message and avoid false positives from previous
         # logs
         time.sleep(1)
-        match_from = int(time.time())
+        match_from = time.time()
         self.scheduler.apply_config(validate=False)
         self.scheduler.get_pid()
         self.scheduler.signal('-HUP')
         self.scheduler.log_match(fp + ' file has a non-secure file access',
-                                 starttime=match_from, existence=exist,
-                                 max_attempts=10)
+                                 starttime=match_from, existence=exist)
 
     def setup_dyn_res(self, resname, restype, script_body):
         """
@@ -102,19 +102,22 @@ class TestServerDynRes(TestFunctional):
         # Create a server_dyn_res of type long
         resname = ["mybadres"]
         restype = ["long"]
-        script_body = ["echo abc"]
+        script_body = ['echo abc']
 
+        start_time = time.time()
         # Add it as a server_dyn_res that returns a string output
         filenames = self.setup_dyn_res(resname, restype, script_body)
 
         # Submit a job
         j = Job(TEST_USER)
+        j.set_sleep_time(1)
         jid = self.server.submit(j)
 
         # Make sure that "Problem with creating server data structure"
         # is not logged in sched_logs
         self.scheduler.log_match("Problem with creating server data structure",
-                                 existence=False, max_attempts=10)
+                                 existence=False, max_attempts=10,
+                                 starttime=start_time)
 
         # Also check that "<script> returned bad output"
         # is in the logs
@@ -247,6 +250,8 @@ class TestServerDynRes(TestFunctional):
         a = {'job_state': 'R', 'Resource_List.foobar_small': 4}
         self.server.expect(JOB, a, id=jid)
 
+        self.server.delete(jid, wait=True)
+
         a = {'Resource_List.foobar_medium': '10'}
         # Submit job
         j = Job(TEST_USER, attrs=a)
@@ -255,6 +260,8 @@ class TestServerDynRes(TestFunctional):
         # Job must run successfully
         a = {'job_state': 'R', 'Resource_List.foobar_medium': 10}
         self.server.expect(JOB, a, id=jid)
+
+        self.server.delete(jid, wait=True)
 
         a = {'Resource_List.foobar_large': '18'}
         # Submit job
@@ -287,6 +294,8 @@ class TestServerDynRes(TestFunctional):
         # Job must run successfully
         a = {'job_state': 'R', 'Resource_List.foobar': 'abc'}
         self.server.expect(JOB, a, id=jid)
+
+        self.server.delete(jid, wait=True)
 
         # Submit job
         a = {'Resource_List.foobar': 'xyz'}
@@ -324,6 +333,8 @@ class TestServerDynRes(TestFunctional):
         a = {'job_state': 'R', 'Resource_List.foobar': 'red'}
         self.server.expect(JOB, a, id=jid)
 
+        self.server.delete(jid, wait=True)
+
         # Submit job
         a = {'Resource_List.foobar': 'green'}
         j = Job(TEST_USER, attrs=a)
@@ -360,6 +371,8 @@ class TestServerDynRes(TestFunctional):
         a = {'job_state': 'R', 'Resource_List.foobar': '95gb'}
         self.server.expect(JOB, a, id=jid1)
 
+        self.server.delete(jid1, wait=True)
+
         # Submit job
         a = {'Resource_List.foobar': '101gb'}
         j2 = Job(TEST_USER, attrs=a)
@@ -372,24 +385,15 @@ class TestServerDynRes(TestFunctional):
         # The job shouldn't run
         a = {'job_state': 'Q', 'comment': job_comment}
         self.server.expect(JOB, a, id=jid2, attrop=PTL_AND)
-
-        # Delete jobs
-        self.server.deljob(jid1, wait=True, runas=TEST_USER)
+        self.server.expect(JOB, 'queue', op=UNSET, id=jid1)
         self.server.deljob(jid2, wait=True, runas=TEST_USER)
 
         # Submit jobs again
-        a = {'Resource_List.foobar': '50gb'}
+        a = {'Resource_List.foobar': '100gb'}
         j1 = Job(TEST_USER, attrs=a)
         jid1 = self.server.submit(j1)
-
-        a = {'Resource_List.foobar': '50gb'}
-        j2 = Job(TEST_USER, attrs=a)
-        jid2 = self.server.submit(j2)
-
-        # Both jobs must run successfully
-        a = {'job_state': 'R', 'Resource_List.foobar': '50gb'}
+        a = {'job_state': 'R', 'Resource_List.foobar': '100gb'}
         self.server.expect(JOB, a, id=jid1)
-        self.server.expect(JOB, a, id=jid2)
 
     def test_res_size_runtime(self):
         """
@@ -416,13 +420,20 @@ class TestServerDynRes(TestFunctional):
         a = {'job_state': 'R', 'Resource_List.foobar': '95gb'}
         self.server.expect(JOB, a, id=jid)
 
+        # Turn off scheduling. There is a race where scheduler could
+        # already be inside a cycle because of previous expect call and
+        # read the old dynamic resource script.
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
         # Change script during job run
-        cmd = ["echo", "\"echo 50gb\"", " > ", filenames[0]]
-        self.du.run_cmd(cmd=cmd, runas=ROOT_USER, as_script=True)
+        tmp_file = self.du.create_temp_file(body="echo 50gb")
+        self.du.run_copy(src=tmp_file, dest=filenames[0], sudo=True,
+                         preserve_permission=False)
 
         # Rerun job
         self.server.rerunjob(jid)
 
+        # Turn on scheduling
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
         # The job shouldn't run
         job_comment = "Can Never Run: Insufficient amount of server resource:"
         job_comment += " foobar (R: 95gb A: 50gb T: 50gb)"
@@ -519,6 +530,69 @@ class TestServerDynRes(TestFunctional):
         job_comment = "Can Never Run: Insufficient amount of server resource:"
         job_comment += " foo (True != False)"
         a = {'job_state': 'Q', 'comment': job_comment}
+        self.server.expect(JOB, a, id=jid)
+
+    def test_res_timeout(self):
+        """
+        Test server_dyn_res script timeouts after 30 seconds
+        """
+
+        # Create a resource of type boolean
+        resname = ["foo"]
+        restype = ["boolean"]
+
+        # Prep for server_dyn_resource script
+        resval = ["sleep 60\necho true"]
+
+        filenames = self.setup_dyn_res(resname, restype, resval)
+
+        # Submit job
+        a = {'Resource_List.foo': 'true'}
+        j = Job(TEST_USER, attrs=a)
+        jid = self.server.submit(j)
+
+        self.logger.info('Sleeping 30 seconds to wait for script to timeout')
+        time.sleep(30)
+        self.scheduler.log_match("%s timed out" % filenames[0])
+        self.scheduler.log_match("Setting resource foo to 0")
+
+        # The job shouldn't run
+        job_comment = "Can Never Run: Insufficient amount of server resource:"
+        job_comment += " foo (True != False)"
+        a = {'job_state': 'Q', 'comment': job_comment}
+        self.server.expect(JOB, a, id=jid)
+
+    def test_res_set_timeout(self):
+        """
+        Test setting server_dyn_res script to timeout after 10 seconds
+        """
+
+        self.server.manager(MGR_CMD_SET, SCHED,
+                            {ATTR_sched_server_dyn_res_alarm: 10})
+
+        # Create a resource of type boolean
+        resname = ["foo"]
+        restype = ["boolean"]
+
+        # Prep for server_dyn_resource script
+        resval = ["sleep 20\necho true"]
+
+        filenames = self.setup_dyn_res(resname, restype, resval)
+
+        # Submit job
+        a = {'Resource_List.foo': 'true'}
+        j = Job(TEST_USER, attrs=a)
+        jid = self.server.submit(j)
+
+        self.logger.info('Sleeping 10 seconds to wait for script to timeout')
+        time.sleep(10)
+        self.scheduler.log_match("%s timed out" % filenames[0])
+        self.scheduler.log_match("Setting resource foo to 0")
+
+        # The job shouldn't run
+        job_comment = "Can Never Run: Insufficient amount of server resource:"
+        job_comment += " foo (True != False)"
+        a = {'job_state': 'Q', 'comment': job_comment}
         self.server.expect(JOB, a, id=jid, attrop=PTL_AND)
 
     def test_svr_dyn_res_permissions(self):
@@ -533,35 +607,39 @@ class TestServerDynRes(TestFunctional):
         self.scheduler.add_resource('foo')
 
         scr_body = ['echo "10"', 'exit 0']
-        home_dir = os.path.expanduser("~")
+        home_dir = os.path.expanduser('~')
         fp = self.scheduler.add_server_dyn_res("foo", scr_body,
                                                dirname=home_dir,
                                                validate=False)
 
         # give write permission to group and others
-        self.du.chmod(path=fp, mode=0766, sudo=True)
+        self.du.chmod(path=fp, mode=0o766, sudo=True)
         self.check_access_log(fp)
 
         # give write permission to group
-        self.du.chmod(path=fp, mode=0764, sudo=True)
+        self.du.chmod(path=fp, mode=0o764, sudo=True)
         self.check_access_log(fp)
 
         # give write permission to others
-        self.du.chmod(path=fp, mode=0746, sudo=True)
+        self.du.chmod(path=fp, mode=0o746, sudo=True)
         self.check_access_log(fp)
 
         # give write permission to user only
-        self.du.chmod(path=fp, mode=0744, sudo=True)
+        self.du.chmod(path=fp, mode=0o744, sudo=True)
         if os.getuid() != 0:
-                self.check_access_log(fp, exist=True)
+            self.check_access_log(fp, exist=True)
         else:
-                self.check_access_log(fp, exist=False)
+            self.check_access_log(fp, exist=False)
 
         # Create script in a directory which has more open privileges
         # This should make loading of this file fail in all cases
-        # Create the dirctory name with a space in it, to make sure PBS parses
+        # Create the directory name with a space in it, to make sure PBS parses
         # it correctly.
-        dir_temp = self.du.mkdtemp(mode=0766, dir=home_dir, suffix=' tmp')
+        dir_temp = self.du.create_temp_dir(mode=0o766,
+                                           dirname=home_dir,
+                                           suffix=' tmp')
+        self.du.chmod(path=dir_temp, mode=0o766, sudo=True)
+        self.du.chown(path=dir_temp, sudo=True, uid=self.scheduler.user)
         fp = self.scheduler.add_server_dyn_res("foo", scr_body,
                                                dirname=dir_temp,
                                                validate=False)
@@ -570,41 +648,66 @@ class TestServerDynRes(TestFunctional):
         self.dirnames.append(dir_temp)
 
         # give write permission to group and others
-        self.du.chmod(path=fp, mode=0766, sudo=True)
+        self.du.chmod(path=fp, mode=0o766, sudo=True)
         self.check_access_log(fp)
 
         # give write permission to group
-        self.du.chmod(path=fp, mode=0764, sudo=True)
+        self.du.chmod(path=fp, mode=0o764, sudo=True)
         self.check_access_log(fp)
 
         # give write permission to others
-        self.du.chmod(path=fp, mode=0746, sudo=True)
+        self.du.chmod(path=fp, mode=0o746, sudo=True)
         self.check_access_log(fp)
 
         # give write permission to user only
-        self.du.chmod(path=fp, mode=0744, sudo=True)
+        self.du.chmod(path=fp, mode=0o744, sudo=True)
         self.check_access_log(fp)
 
         # Create dynamic resource script in PBS_HOME directory and check
         # file permissions
-        # self.scheduler.add_mom_dyn_res by default creates the script in
+        # self.scheduler.add_server_dyn_res by default creates the script in
         # PBS_HOME as root
-        fp = self.scheduler.add_server_dyn_res("foo", scr_body, perm=0766,
+        fp = self.scheduler.add_server_dyn_res("foo", scr_body, perm=0o766,
                                                validate=False)
 
         self.check_access_log(fp)
 
         # give write permission to group
-        self.du.chmod(path=fp, mode=0764, sudo=True)
+        self.du.chmod(path=fp, mode=0o764, sudo=True)
         self.check_access_log(fp)
 
         # give write permission to others
-        self.du.chmod(path=fp, mode=0746, sudo=True)
+        self.du.chmod(path=fp, mode=0o746, sudo=True)
         self.check_access_log(fp)
 
         # give write permission to user only
-        self.du.chmod(path=fp, mode=0744, sudo=True)
+        self.du.chmod(path=fp, mode=0o744, sudo=True)
         self.check_access_log(fp, exist=False)
+
+    def test_res_cleanup(self):
+        """
+        Test that the scheduler cleans up its children
+        """
+        pu = ProcUtils()
+        resname = ["normal", "invalid", "timeout"]
+        restype = ["long", "long", "long"]
+
+        # Prep for server_dyn_resource scripts.
+        script_body = ["echo 8", "echo hello", "sleep 40; echo 20"]
+
+        filenames = self.setup_dyn_res(resname, restype, script_body)
+
+        a = {'Resource_List.normal': '2',
+             'Resource_List.invalid': '8',
+             'Resource_List.timeout': 10}
+        j = Job(TEST_USER, attrs=a)
+        jid = self.server.submit(j)
+        self.logger.info('Sleeping 30 seconds to wait for script to timeout')
+        time.sleep(30)
+        self.scheduler.log_match("%s timed out" % filenames[2])
+        children = pu.get_proc_children(hostname=self.scheduler.hostname,
+                                        ppid=self.scheduler.get_pid())
+        self.assertFalse(children)
 
     def tearDown(self):
         # removing all files creating in test

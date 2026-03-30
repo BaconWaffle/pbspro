@@ -1,39 +1,40 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
 
 /**
@@ -69,11 +70,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <signal.h>
-
-#include "rpp.h"
-#include "tpp_common.h"
-#include "tpp_platform.h"
-
+#include "tpp_internal.h"
 #ifdef HAVE_SYS_EVENTFD_H
 #include <sys/eventfd.h>
 #endif
@@ -176,9 +173,12 @@ void
 tpp_em_destroy(void *em_ctx)
 {
 	epoll_context_t *ctx = (epoll_context_t *) em_ctx;
-	close(ctx->epoll_fd);
-	free(ctx->events);
-	free(ctx);
+
+	if (ctx != NULL) {
+		close(ctx->epoll_fd);
+		free(ctx->events);
+		free(ctx);
+	}
 }
 
 /**
@@ -332,9 +332,9 @@ tpp_em_del_fd(void *em_ctx, int fd)
 int
 tpp_em_pwait(void *em_ctx, em_event_t **ev_array, int timeout, const sigset_t *sigmask)
 {
-        epoll_context_t *ctx = (epoll_context_t *) em_ctx;
-        *ev_array = ctx->events;
-        return (epoll_pwait(ctx->epoll_fd, ctx->events, ctx->max_nfds, timeout, sigmask));
+	epoll_context_t *ctx = (epoll_context_t *) em_ctx;
+	*ev_array = ctx->events;
+	return (epoll_pwait(ctx->epoll_fd, ctx->events, ctx->max_nfds, timeout, sigmask));
 }
 #else
 int
@@ -351,7 +351,7 @@ tpp_em_pwait(void *em_ctx, em_event_t **ev_array, int timeout, const sigset_t *s
 }
 #endif
 
-#elif defined (PBS_USE_POLL)
+#elif defined(PBS_USE_POLL)
 
 /************************************************* POLL ************************************************/
 
@@ -590,10 +590,9 @@ tpp_em_pwait(void *em_ctx, em_event_t **ev_array, int timeout, const sigset_t *s
 	return ev_count;
 }
 
-
 /*************************************** GENERIC SELECT ************************************************/
 
-#elif defined (PBS_USE_SELECT)
+#elif defined(PBS_USE_SELECT)
 /**
  * @brief
  *	Initialize event monitoring
@@ -906,13 +905,13 @@ tpp_em_wait_win(void *em_ctx, em_event_t **ev_array, int timeout)
 
 /********************************** END OF MULTIPLEXING CODE *****************************************/
 
-
 /********************************** START OF MBOX CODE ***********************************************/
 /**
  * @brief
  *	Initialize an mbox
  *
  * @param[in] - mbox   - The mbox to read from
+ * @param[in] - size   - The total size allowed, or -1 for inifinite
  *
  * @return  Error code
  * @retval  -1 - Failure
@@ -925,15 +924,21 @@ tpp_em_wait_win(void *em_ctx, em_event_t **ev_array, int timeout)
  *
  */
 int
-tpp_mbox_init(tpp_mbox_t *mbox)
+tpp_mbox_init(tpp_mbox_t *mbox, char *name, int size)
 {
 	tpp_init_lock(&mbox->mbox_mutex);
+	tpp_lock(&mbox->mbox_mutex);
+
 	TPP_QUE_CLEAR(&mbox->mbox_queue);
+
+	snprintf(mbox->mbox_name, sizeof(mbox->mbox_name), "%s", name);
+	mbox->mbox_size = 0;
+	mbox->max_size = size;
 
 #ifdef HAVE_SYS_EVENTFD_H
 	if ((mbox->mbox_eventfd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)) == -1) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "eventfd() error, errno=%d", errno);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		tpp_log(LOG_CRIT, __func__, "eventfd() error, errno=%d", errno);
+		tpp_unlock(&mbox->mbox_mutex);
 		return -1;
 	}
 #else
@@ -945,8 +950,8 @@ tpp_mbox_init(tpp_mbox_t *mbox)
 	 * Use the self-pipe trick!
 	 */
 	if (tpp_pipe_cr(mbox->mbox_pipe) != 0) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "pipe() error, errno=%d", errno);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		tpp_log(LOG_CRIT, __func__, "pipe() error, errno=%d", errno);
+		tpp_unlock(&mbox->mbox_mutex);
 		return -1;
 	}
 	/* set the cmd pipe to nonblocking now
@@ -957,6 +962,7 @@ tpp_mbox_init(tpp_mbox_t *mbox)
 	tpp_set_close_on_exec(mbox->mbox_pipe[0]);
 	tpp_set_close_on_exec(mbox->mbox_pipe[1]);
 #endif
+	tpp_unlock(&mbox->mbox_mutex);
 	return 0;
 }
 
@@ -998,7 +1004,7 @@ tpp_mbox_getfd(tpp_mbox_t *mbox)
  *
  */
 void
-tpp_mbox_destroy(tpp_mbox_t *mbox, int destroy_lock)
+tpp_mbox_destroy(tpp_mbox_t *mbox)
 {
 #ifdef HAVE_SYS_EVENTFD_H
 	close(mbox->mbox_eventfd);
@@ -1008,8 +1014,6 @@ tpp_mbox_destroy(tpp_mbox_t *mbox, int destroy_lock)
 	if (mbox->mbox_pipe[1] > -1)
 		tpp_pipe_close(mbox->mbox_pipe[1]);
 #endif
-	if (destroy_lock)
-		tpp_destroy_lock(&mbox->mbox_mutex);
 }
 
 /**
@@ -1034,21 +1038,11 @@ tpp_mbox_destroy(tpp_mbox_t *mbox, int destroy_lock)
 int
 tpp_mbox_monitor(void *em_ctx, tpp_mbox_t *mbox)
 {
-#ifdef HAVE_SYS_EVENTFD_H
 	/* add eventfd to the poll set */
-	if (tpp_em_add_fd(em_ctx, mbox->mbox_eventfd, EM_IN) == -1) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "em_add_fd() error, errno=%d", errno);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+	if (tpp_em_add_fd(em_ctx, tpp_mbox_getfd(mbox), EM_IN) == -1) {
+		tpp_log(LOG_CRIT, __func__, "em_add_fd() error for mbox=%s, errno=%d", mbox->mbox_name, errno);
 		return -1;
 	}
-#else
-	/* add the pipe to the poll set */
-	if (tpp_em_add_fd(em_ctx, mbox->mbox_pipe[0], EM_IN) == -1) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "em_add_fd() error, errno=%d", errno);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
-		return -1;
-	}
-#endif
 
 	return 0;
 }
@@ -1082,7 +1076,9 @@ tpp_mbox_read(tpp_mbox_t *mbox, unsigned int *tfd, int *cmdval, void **data)
 #endif
 	tpp_cmd_t *cmd = NULL;
 
-	*cmdval = -1;
+	if (cmdval)
+		*cmdval = -1;
+
 	errno = 0;
 
 	tpp_lock(&mbox->mbox_mutex);
@@ -1092,11 +1088,17 @@ tpp_mbox_read(tpp_mbox_t *mbox, unsigned int *tfd, int *cmdval, void **data)
 
 	/* if no more data, clear all notifications */
 	if (cmd == NULL) {
+		mbox->mbox_size = 0;
 #ifdef HAVE_SYS_EVENTFD_H
-		read(mbox->mbox_eventfd, &u, sizeof(uint64_t));
+		if (read(mbox->mbox_eventfd, &u, sizeof(uint64_t)) == -1)
+			;
 #else
-		while (tpp_pipe_read(mbox->mbox_pipe[0], &b, sizeof(char)) == sizeof(char));
+		while (tpp_pipe_read(mbox->mbox_pipe[0], &b, sizeof(char)) == sizeof(char))
+			;
 #endif
+	} else {
+		/* reduce from mbox size during read */
+		mbox->mbox_size -= cmd->sz;
 	}
 
 	tpp_unlock(&mbox->mbox_mutex);
@@ -1106,8 +1108,12 @@ tpp_mbox_read(tpp_mbox_t *mbox, unsigned int *tfd, int *cmdval, void **data)
 		return -1;
 	}
 
-	*tfd = cmd->tfd;
-	*cmdval = cmd->cmdval;
+	if (tfd)
+		*tfd = cmd->tfd;
+
+	if (cmdval)
+		*cmdval = cmd->cmdval;
+
 	*data = cmd->data;
 
 	free(cmd);
@@ -1126,7 +1132,7 @@ tpp_mbox_read(tpp_mbox_t *mbox, unsigned int *tfd, int *cmdval, void **data)
  * @param[in] - n      - The node/position to start searching from
  * @param[in] - tfd    - The Virtual file descriptor
  * @param[out] - cmdval - Return the cmdval
- * @param[out] - data - Any data associated
+ * @param[out] - data - Return any data associated
  *
  * @par Side Effects:
  *	None
@@ -1135,7 +1141,7 @@ tpp_mbox_read(tpp_mbox_t *mbox, unsigned int *tfd, int *cmdval, void **data)
  *
  */
 int
-tpp_mbox_clear(tpp_mbox_t *mbox, tpp_que_elem_t **n, unsigned int tfd, int *cmdval, void **data)
+tpp_mbox_clear(tpp_mbox_t *mbox, tpp_que_elem_t **n, unsigned int tfd, short *cmdval, void **data)
 {
 	tpp_cmd_t *cmd;
 	int ret = -1;
@@ -1147,13 +1153,16 @@ tpp_mbox_clear(tpp_mbox_t *mbox, tpp_que_elem_t **n, unsigned int tfd, int *cmdv
 		cmd = TPP_QUE_DATA(*n);
 		if (cmd && cmd->tfd == tfd) {
 			*n = tpp_que_del_elem(&mbox->mbox_queue, *n);
-			*cmdval = cmd->cmdval;
-			*data = cmd->data;
+			if (cmdval)
+				*cmdval = cmd->cmdval;
+			if (data)
+				*data = cmd->data;
 			free(cmd);
 			ret = 0;
 			break;
 		}
 	}
+	mbox->mbox_size = 0;
 
 	tpp_unlock(&mbox->mbox_mutex);
 
@@ -1168,6 +1177,7 @@ tpp_mbox_clear(tpp_mbox_t *mbox, tpp_que_elem_t **n, unsigned int tfd, int *cmdv
  * @param[in] - cmdval - The command or operation
  * @param[in] - tfd    - The Virtual file descriptor
  * @param[in] - data   - Any data pointer associated, if any (or NULL)
+ * @param[in] - sz     - size of the data
  *
  * @return Error code
  * @retval -1 Failure
@@ -1180,7 +1190,7 @@ tpp_mbox_clear(tpp_mbox_t *mbox, tpp_que_elem_t **n, unsigned int tfd, int *cmdv
  *
  */
 int
-tpp_mbox_post(tpp_mbox_t *mbox, unsigned int tfd, int cmdval, void *data)
+tpp_mbox_post(tpp_mbox_t *mbox, unsigned int tfd, char cmdval, void *data, int sz)
 {
 	tpp_cmd_t *cmd;
 	ssize_t s;
@@ -1193,22 +1203,27 @@ tpp_mbox_post(tpp_mbox_t *mbox, unsigned int tfd, int cmdval, void *data)
 	errno = 0;
 	cmd = malloc(sizeof(tpp_cmd_t));
 	if (!cmd) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "Out of memory in em_mbox_post");
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		tpp_log(LOG_CRIT, __func__, "Out of memory in em_mbox_post for mbox=%s", mbox->mbox_name);
 		return -1;
 	}
 	cmd->cmdval = cmdval;
 	cmd->tfd = tfd;
 	cmd->data = data;
+	cmd->sz = sz;
 
 	/* add the cmd to the threads queue */
 	tpp_lock(&mbox->mbox_mutex);
+
 	if (tpp_enque(&mbox->mbox_queue, cmd) == NULL) {
 		tpp_unlock(&mbox->mbox_mutex);
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "Out of memory in em_mbox_post");
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		free(cmd);
+		tpp_log(LOG_CRIT, __func__, "Out of memory in em_mbox_post for mbox=%s", mbox->mbox_name);
 		return -1;
 	}
+
+	/* add to the size to global size during enque */
+	mbox->mbox_size += sz;
+
 	tpp_unlock(&mbox->mbox_mutex);
 
 	while (1) {
@@ -1229,8 +1244,7 @@ tpp_mbox_post(tpp_mbox_t *mbox, unsigned int tfd, int cmdval, void *data)
 				/* pipe is full, which is fine, anyway we behave like edge triggered */
 				break;
 			} else if (errno != EINTR) {
-				snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "mbox post failed, errno=%d", errno);
-				tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+				tpp_log(LOG_CRIT, __func__, "mbox post failed for mbox=%s, errno=%d", mbox->mbox_name, errno);
 				return -1;
 			}
 		}

@@ -1,40 +1,43 @@
 # coding: utf-8
 """
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
  *
  */
 """
@@ -325,7 +328,7 @@ class Pmi:
             # of nid numbers.
             if Pmi.ninfo is None:
                 allnids = set()
-                for jobid in e.job_list.keys():
+                for jobid in list(e.job_list.keys()):
                     j = e.job_list[jobid]
                     nidset = jobnids(j)
                     allnids.update(nidset)
@@ -455,14 +458,15 @@ class Pmi:
             seen = True
             try:						# parse the metric list
                 metlist = eval(metstr, {})
-                metrics = dict(metlist[i:i + 2] for i in range(0,
-                                                               len(metlist), 2))
+                metrics = dict(
+                    metlist[i:i + 2] for i in range(0, len(metlist), 2))
                 joules = metrics["energy_used"]
                 energy += joules
-                pbs.logjobmsg(job.id,
-                              'Cray:RUR: {"apid":%s,"apid_energy":%dJ,"job_energy":%dJ}' %
-                              (apid, joules, energy))
-            except Exception, e:
+                pbs.logjobmsg(
+                    job.id,
+                    'Cray:RUR: {"apid":%s,"apid_energy":%dJ,"job_energy":%dJ}'
+                    % (apid, joules, energy))
+            except Exception as e:
                 pbs.logjobmsg(job.id,
                               "Cray:RUR: energy_used not found: %s" % str(e))
 
@@ -479,14 +483,16 @@ class Pmi:
             pbs.logjobmsg(job.id, "Cray:RUR: energy %fkWh" % new_energy)
             job.resources_used["energy"] = new_energy
         elif new_energy > old_energy:
-            pbs.logjobmsg(job.id,
-                          "Cray:RUR: energy %fkWh replaces periodic energy %fkWh" %
-                          (new_energy, old_energy))
+            pbs.logjobmsg(
+                job.id,
+                "Cray:RUR: energy %fkWh replaces periodic energy %fkWh" %
+                (new_energy, old_energy))
             job.resources_used["energy"] = new_energy
         else:
-            pbs.logjobmsg(job.id,
-                          "Cray:RUR: energy %fkWh last periodic usage %fkWh" %
-                          (new_energy, old_energy))
+            pbs.logjobmsg(
+                job.id,
+                "Cray:RUR: energy %fkWh last periodic usage %fkWh" %
+                (new_energy, old_energy))
         return True
 
     def _pmi_power_off(self, hosts):
@@ -520,7 +526,8 @@ class Pmi:
                 states = n["data"]["PWR_Attrs"][0]["PWR_AttrValueCapabilities"]
                 for s in states:
                     if int(s) != 0:
-                        cmd = "set_sleep_state_limit --nids " + str(nid) + " --limit " + str(s)
+                        cmd = ("set_sleep_state_limit --nids " + str(nid) +
+                               " --limit " + str(s))
                         launch(func, cmd)
                         sleep_time = random.randint(1, 10)
                         time.sleep(sleep_time)
@@ -539,7 +546,8 @@ class Pmi:
                 states = n["data"]["PWR_Attrs"][0]["PWR_AttrValueCapabilities"]
                 for s in reversed(states):
                     if int(s) != 0:
-                        cmd = "set_sleep_state_limit --nids " + str(nid) + " --limit " + str(s)
+                        cmd = ("set_sleep_state_limit --nids " + str(nid) +
+                               " --limit " + str(s))
                         launch(func, cmd)
                         sleep_time = random.randint(1, 10)
                         time.sleep(sleep_time)

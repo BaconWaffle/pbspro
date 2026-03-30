@@ -1,44 +1,43 @@
-/* 
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+/*
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
 
-/**
- * @file	hnls.c
- */
+#include <pbs_config.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,14 +58,8 @@
 
 #elif defined(WIN32)
 
-#include <Winsock2.h>
-#include <Ws2tcpip.h>
-#include <Iphlpapi.h>
-
-#pragma comment(lib,"Ws2_32.lib")
-#pragma comment(lib,"Iphlpapi.lib")
-#include <windows.h>
-#include "win.h"
+#pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "Iphlpapi.lib")
 
 #else
 
@@ -78,12 +71,11 @@
 #include <sys/socketvar.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <stropts.h>
 #include <netdb.h>
 
 #endif
 
-extern char	*netaddr(struct sockaddr_in *);
+extern char *netaddr(struct sockaddr_in *);
 #define NETADDR_BUF 80
 
 /**
@@ -122,7 +114,7 @@ free_if_hostnames(char **names)
  *
  * @par MT-safe: Yes
  *
- * @param[in]		sockaddr - structure holding information 
+ * @param[in]		sockaddr - structure holding information
  *					about particular address
  * @param[out]		family   - holds the socket's family type
  *					"ipv4" or "ipv6"
@@ -138,7 +130,7 @@ get_sa_family(struct sockaddr *saddr, char *family)
 	if (!saddr)
 		return;
 
-	switch(saddr->sa_family){
+	switch (saddr->sa_family) {
 		case AF_INET:
 			strncpy(family, "ipv4", IFFAMILY_MAX);
 			break;
@@ -158,7 +150,7 @@ get_sa_family(struct sockaddr *saddr, char *family)
  *
  * @par MT-safe: Yes
  *
- * @param[in]   sockaddr - structure holding information 
+ * @param[in]   sockaddr - structure holding information
  *				about addresses
  *
  * @return char**
@@ -178,7 +170,7 @@ get_if_hostnames(struct sockaddr *saddr)
 	const char *bufp = NULL;
 #ifdef WIN32
 	char host[NI_MAXHOST] = {'\0'};
-	int ret = 0;	
+	int ret = 0;
 #endif /* WIN32 */
 
 	if (!saddr)
@@ -186,7 +178,7 @@ get_if_hostnames(struct sockaddr *saddr)
 
 	switch (saddr->sa_family) {
 		case AF_INET:
-			saddr_in = (struct sockaddr_in *)saddr;
+			saddr_in = (struct sockaddr_in *) saddr;
 #ifdef WIN32
 			saddr_in->sin_family = AF_INET;
 #endif /* WIN32 */
@@ -206,7 +198,7 @@ get_if_hostnames(struct sockaddr *saddr)
 #endif /* WIN32 */
 			break;
 		case AF_INET6:
-			saddr_in6 = (struct sockaddr_in6 *)saddr;
+			saddr_in6 = (struct sockaddr_in6 *) saddr;
 #ifdef WIN32
 			saddr_in6->sin6_family = AF_INET6;
 #endif /* WIN32 */
@@ -230,20 +222,20 @@ get_if_hostnames(struct sockaddr *saddr)
 	}
 
 #ifdef WIN32
-	names = (char**)calloc(2, sizeof(char*));
-	if(!names)
+	names = (char **) calloc(2, sizeof(char *));
+	if (!names)
 		return NULL;
 	names[0] = strdup(host);
 #else
 	/* Count the aliases. */
 	for (aliases = 0; hostp->h_aliases[aliases]; aliases++)
 		;
-	names = (char **)calloc((aliases + 2), sizeof(char *));
+	names = (char **) calloc((aliases + 2), sizeof(char *));
 	if (!names)
 		return NULL;
 	names[0] = strdup(hostp->h_name);
 	for (i = 0; i < aliases; i++) {
-		names[i+1] = strdup(hostp->h_aliases[i]);
+		names[i + 1] = strdup(hostp->h_aliases[i]);
 	}
 #endif /* WIN32 */
 	return names;
@@ -274,7 +266,7 @@ get_if_info(char *msg)
 
 	int c, i, ret;
 	char **hostnames;
-	struct ifaddrs *ifp, *listp;	
+	struct ifaddrs *ifp, *listp;
 
 	if (!msg)
 		return NULL;
@@ -286,9 +278,9 @@ get_if_info(char *msg)
 	}
 	for (listp = ifp; listp; listp = listp->ifa_next) {
 		hostnames = get_if_hostnames(listp->ifa_addr);
-		if(!hostnames)
+		if (!hostnames)
 			continue;
-		curr = (struct log_net_info *)calloc(1, sizeof(struct log_net_info));
+		curr = (struct log_net_info *) calloc(1, sizeof(struct log_net_info));
 		if (!curr) {
 			free_if_info(head);
 			free_if_hostnames(hostnames);
@@ -301,12 +293,11 @@ get_if_info(char *msg)
 		if (!head)
 			head = curr;
 		get_sa_family(listp->ifa_addr, curr->iffamily);
-		strncpy(curr->ifname, listp->ifa_name, IFNAME_MAX);
-		curr->ifname[IFNAME_MAX - 1] = '\0';
+		pbs_strncpy(curr->ifname, listp->ifa_name, IFNAME_MAX);
 		/* Count the hostname entries and allocate space */
 		for (c = 0; hostnames[c]; c++)
 			;
-		curr->ifhostnames = (char**)calloc(c + 1, sizeof(char*));
+		curr->ifhostnames = (char **) calloc(c + 1, sizeof(char *));
 		if (!curr->ifhostnames) {
 			free_if_info(head);
 			free_if_hostnames(hostnames);
@@ -314,8 +305,8 @@ get_if_info(char *msg)
 			msg[LOG_BUF_SIZE - 1] = '\0';
 			return NULL;
 		}
-		for (i = 0; i < c; i++){
-			curr->ifhostnames[i] = (char*)calloc(PBS_MAXHOSTNAME, sizeof(char));
+		for (i = 0; i < c; i++) {
+			curr->ifhostnames[i] = (char *) calloc(PBS_MAXHOSTNAME, sizeof(char));
 			if (!curr->ifhostnames[i]) {
 				free_if_info(head);
 				free_if_hostnames(hostnames);
@@ -344,7 +335,7 @@ get_if_info(char *msg)
 
 	if (!msg)
 		return NULL;
-	addrlistp = (IP_ADAPTER_ADDRESSES *)malloc(size);
+	addrlistp = (IP_ADAPTER_ADDRESSES *) malloc(size);
 	if (!addrlistp) {
 		strncpy(msg, "Out of memory", LOG_BUF_SIZE);
 		msg[LOG_BUF_SIZE - 1] = '\0';
@@ -380,10 +371,10 @@ get_if_info(char *msg)
 	}
 	for (addrp = addrlistp; addrp; addrp = addrp->Next) {
 		for (ucp = addrp->FirstUnicastAddress; ucp; ucp = ucp->Next) {
-			hostnames = get_if_hostnames((struct sockaddr *)ucp->Address.lpSockaddr);
+			hostnames = get_if_hostnames((struct sockaddr *) ucp->Address.lpSockaddr);
 			if (!hostnames)
 				continue;
-			curr = (struct log_net_info *)calloc(1, sizeof(struct log_net_info));
+			curr = (struct log_net_info *) calloc(1, sizeof(struct log_net_info));
 			if (!curr) {
 				free(addrlistp);
 				free_if_info(head);
@@ -411,7 +402,7 @@ get_if_info(char *msg)
 			/* Count the hostname entries and allocate space */
 			for (c = 0; hostnames[c]; c++)
 				;
-			curr->ifhostnames = (char**)calloc(c + 1, sizeof(char*));
+			curr->ifhostnames = (char **) calloc(c + 1, sizeof(char *));
 			if (!curr->ifhostnames) {
 				free(addrlistp);
 				free_if_info(head);
@@ -421,7 +412,7 @@ get_if_info(char *msg)
 				return NULL;
 			}
 			for (i = 0; i < c; i++) {
-				curr->ifhostnames[i] = (char*)calloc(PBS_MAXHOSTNAME, sizeof(char));
+				curr->ifhostnames[i] = (char *) calloc(PBS_MAXHOSTNAME, sizeof(char));
 				if (!(curr->ifhostnames[i])) {
 					free(addrlistp);
 					free_if_info(head);
@@ -442,7 +433,7 @@ get_if_info(char *msg)
 	free(addrlistp);
 #endif
 
-	return(head);
+	return (head);
 }
 
 /**
@@ -470,9 +461,11 @@ free_if_info(struct log_net_info *ni)
 	while (curr) {
 		struct log_net_info *temp;
 		temp = curr;
-		curr = curr -> next;
-		for (i = 0; temp->ifhostnames[i]; i++)
-			free(temp->ifhostnames[i]);
+		curr = curr->next;
+		if (temp->ifhostnames != NULL) {
+			for (i = 0; temp->ifhostnames[i]; i++)
+				free(temp->ifhostnames[i]);
+		}
 		free(temp->ifhostnames);
 		free(temp);
 	}
@@ -627,15 +620,15 @@ get_all_ips(char *hostname, char *msg_buf, size_t msg_buf_len)
 	for (listp = ifp; listp; listp = listp->ifa_next) {
 		int hlen;
 
-		if ((listp->ifa_addr == NULL) || (listp->ifa_addr->sa_family != AF_INET)) 
+		if ((listp->ifa_addr == NULL) || (listp->ifa_addr->sa_family != AF_INET))
 			continue;
-		sprintf(buf, "%s", netaddr((struct sockaddr_in *)listp->ifa_addr));
-		if (!strcmp(buf,"unknown"))
+		sprintf(buf, "%s", netaddr((struct sockaddr_in *) listp->ifa_addr));
+		if (!strcmp(buf, "unknown"))
 			continue;
 		if ((p = strchr(buf, ':')))
 			*p = '\0';
 
-		hlen = strlen (buf);
+		hlen = strlen(buf);
 		tmp = realloc(nodenames, len + hlen + 2); /* 2 for comma and null char */
 		if (!tmp) {
 			strncpy(msg_buf, "Out of memory", msg_buf_len);
@@ -657,8 +650,8 @@ get_all_ips(char *hostname, char *msg_buf, size_t msg_buf_len)
 	freeifaddrs(ifp);
 
 #elif defined(WIN32)
-	
-	pIPAddrTable = (MIB_IPADDRTABLE *) malloc(sizeof (MIB_IPADDRTABLE));
+
+	pIPAddrTable = (MIB_IPADDRTABLE *) malloc(sizeof(MIB_IPADDRTABLE));
 
 	if (pIPAddrTable) {
 		// Make an initial call to GetIpAddrTable to get the
@@ -666,17 +659,16 @@ get_all_ips(char *hostname, char *msg_buf, size_t msg_buf_len)
 		if (GetIpAddrTable(pIPAddrTable, &dwSize, 0) == ERROR_INSUFFICIENT_BUFFER) {
 			free(pIPAddrTable);
 			pIPAddrTable = (MIB_IPADDRTABLE *) malloc(dwSize);
-
 		}
 		if (pIPAddrTable == NULL) {
 			strncpy(msg_buf, "Memory allocation failed for GetIpAddrTable", msg_buf_len);
 			free(nodenames);
-			return NULL;	
+			return NULL;
 		}
 	}
 	// Make a second call to GetIpAddrTable to get the
 	// actual data we want
-	if ( (dwRetVal = GetIpAddrTable( pIPAddrTable, &dwSize, 0 )) != NO_ERROR ) { 
+	if ((dwRetVal = GetIpAddrTable(pIPAddrTable, &dwSize, 0)) != NO_ERROR) {
 		strncpy(msg_buf, "GetIpAddrTable failed", msg_buf_len);
 		free(pIPAddrTable);
 		free(nodenames);
@@ -687,7 +679,7 @@ get_all_ips(char *hostname, char *msg_buf, size_t msg_buf_len)
 		int hlen;
 		IPAddr.S_un.S_addr = (u_long) pIPAddrTable->table[i].dwAddr;
 		sprintf(buf, "%s", inet_ntoa(IPAddr));
-		hlen = strlen (buf);
+		hlen = strlen(buf);
 		tmp = realloc(nodenames, len + hlen + 2); /* 2 for comma and null char */
 		if (!tmp) {
 			strncpy(msg_buf, "Out of memory", msg_buf_len);
@@ -710,7 +702,7 @@ get_all_ips(char *hostname, char *msg_buf, size_t msg_buf_len)
 		pIPAddrTable = NULL;
 	}
 
-#endif 
+#endif
 
 	return nodenames;
 }

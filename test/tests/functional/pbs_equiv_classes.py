@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 
@@ -47,10 +50,10 @@ class TestEquivClass(TestFunctional):
     def setUp(self):
         TestFunctional.setUp(self)
         a = {'resources_available.ncpus': 8}
-        self.server.create_vnodes('vnode', a, 1, self.mom, usenatvnode=True)
-        self.scheduler.set_sched_config({'log_filter': 2048})
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
         # capture the start time of the test for log matching
-        self.t = int(time.time())
+        self.t = time.time()
 
     def submit_jobs(self, num_jobs=1,
                     attrs={'Resource_List.select': '1:ncpus=1'},
@@ -390,6 +393,42 @@ class TestEquivClass(TestFunctional):
         self.scheduler.log_match("Number of job equivalence classes: 3",
                                  starttime=self.t)
 
+    def test_user_queue_without_limits(self):
+        """
+        Test that jobs from different users submitted to a queue without
+        a user limit set, will not create a multiple equivalence classes.
+        """
+
+        self.server.manager(MGR_CMD_SET, SERVER,
+                            {'scheduling': 'False'})
+
+        self.server.manager(MGR_CMD_SET, QUEUE,
+                            {'max_run': '[u:PBS_GENERIC=4]'}, id='workq')
+
+        # Eat up all the resources, this job will make first equiv class
+        a = {'Resource_List.select': '1:ncpus=8'}
+        J = Job(TEST_USER, attrs=a)
+        self.server.submit(J)
+
+        # Create a new queue and submit jobs to this queue
+        a = {'queue_type': 'e', 'started': 'True', 'enabled': 'True'}
+        self.server.manager(MGR_CMD_CREATE, QUEUE, a, id='workq2')
+
+        a = {'Resource_List.select': '1:ncpus=1', ATTR_q: 'workq2'}
+        jids1 = self.submit_jobs(3, user=TEST_USER, attrs=a)
+        jids2 = self.submit_jobs(3, user=TEST_USER2, attrs=a)
+        a = {'Resource_List.select': '1:ncpus=1'}
+        J3 = Job(TEST_USER3, attrs=a)
+        self.server.submit(J3)
+
+        self.server.manager(MGR_CMD_SET, SERVER,
+                            {'scheduling': 'True'})
+
+        # Three equivalence classes.  One for the resource eating job and
+        # one for all jobs in workq2 and one for TEST_USER3
+        self.scheduler.log_match("Number of job equivalence classes: 3",
+                                 starttime=self.t)
+
     def test_user_queue_soft(self):
         """
         Test to see that jobs from different users fall into different
@@ -416,6 +455,39 @@ class TestEquivClass(TestFunctional):
         # Three equivalence classes.  One for the resource eating job and
         # one for each user.
         self.scheduler.log_match("Number of job equivalence classes: 3",
+                                 starttime=self.t)
+
+    def test_user_queue_without_soft_limits(self):
+        """
+        Test that jobs from different users submitted to a queue without
+        a user soft limit set, will not create a multiple equivalence classes.
+        """
+
+        self.server.manager(MGR_CMD_SET, SERVER,
+                            {'scheduling': 'False'})
+
+        self.server.manager(MGR_CMD_SET, QUEUE,
+                            {'max_run_soft': '[u:PBS_GENERIC=4]'}, id='workq')
+
+        # Eat up all the resources, this job will make first equiv class
+        a = {'Resource_List.select': '1:ncpus=8'}
+        J = Job(TEST_USER, attrs=a)
+        self.server.submit(J)
+
+        # Create a new queue and submit jobs to this queue
+        a = {'queue_type': 'e', 'started': 't', 'enabled': 't'}
+        self.server.manager(MGR_CMD_CREATE, QUEUE, a, id='workq2')
+
+        a = {'Resource_List.select': '1:ncpus=1', ATTR_q: 'workq2'}
+        jids1 = self.submit_jobs(3, user=TEST_USER, attrs=a)
+        jids2 = self.submit_jobs(3, user=TEST_USER2, attrs=a)
+
+        self.server.manager(MGR_CMD_SET, SERVER,
+                            {'scheduling': 'True'})
+
+        # Two equivalence classes.  One for the resource eating job and
+        # one for all jobs in workq2.
+        self.scheduler.log_match("Number of job equivalence classes: 2",
                                  starttime=self.t)
 
     def test_group(self):
@@ -447,6 +519,7 @@ class TestEquivClass(TestFunctional):
         self.scheduler.log_match("Number of job equivalence classes: 2",
                                  starttime=self.t)
 
+    @skipOnShasta
     def test_group_old(self):
         """
         Test to see that jobs from different groups fall into different
@@ -478,6 +551,7 @@ class TestEquivClass(TestFunctional):
         self.scheduler.log_match("Number of job equivalence classes: 3",
                                  starttime=self.t)
 
+    @skipOnShasta
     def test_group_server(self):
         """
         Test to see that jobs from different groups fall into different
@@ -509,6 +583,7 @@ class TestEquivClass(TestFunctional):
         self.scheduler.log_match("Number of job equivalence classes: 3",
                                  starttime=self.t)
 
+    @skipOnShasta
     def test_group_server_soft(self):
         """
         Test to see that jobs from different groups fall into different
@@ -540,6 +615,7 @@ class TestEquivClass(TestFunctional):
         self.scheduler.log_match("Number of job equivalence classes: 3",
                                  starttime=self.t)
 
+    @skipOnShasta
     def test_group_queue(self):
         """
         Test to see that jobs from different groups fall into different
@@ -574,6 +650,7 @@ class TestEquivClass(TestFunctional):
         self.scheduler.log_match("Number of job equivalence classes: 3",
                                  starttime=self.t)
 
+    @skipOnShasta
     def test_group_queue_soft(self):
         """
         Test to see that jobs from different groups fall into different
@@ -860,7 +937,7 @@ class TestEquivClass(TestFunctional):
         """
 
         a = {'resources_available.ncpus': 8}
-        self.server.create_vnodes('vnode', a, 2, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 2, usenatvnode=True)
 
         self.server.manager(MGR_CMD_CREATE, QUEUE,
                             {'queue_type': 'e', 'started': 'True',
@@ -869,9 +946,9 @@ class TestEquivClass(TestFunctional):
         self.server.manager(MGR_CMD_CREATE, QUEUE,
                             {'queue_type': 'e', 'started': 'True',
                              'enabled': 'True'}, id='nodes_queue')
-
+        vn = self.mom.shortname + '[0]'
         self.server.manager(MGR_CMD_SET, NODE,
-                            {'queue': 'nodes_queue'}, id='vnode[0]')
+                            {'queue': 'nodes_queue'}, id=vn)
 
         self.server.manager(MGR_CMD_SET, QUEUE,
                             {'Priority': 120}, id='workq')
@@ -1201,7 +1278,7 @@ class TestEquivClass(TestFunctional):
         time.sleep(20)
 
         # Submit another job
-        self.t = int(time.time())
+        self.t = time.time()
         jid3 = self.submit_jobs(1, user=TEST_USER3)
 
         # Look at the job equivalence classes again
@@ -1265,7 +1342,7 @@ e.job.Resource_List["cput"] = 20
                                  starttime=self.t)
 
         # Alter a queued job
-        self.t = int(time.time())
+        self.t = time.time()
         self.server.alterjob(jid3[2], {ATTR_N: "test"})
 
         self.server.manager(MGR_CMD_SET, SERVER,
@@ -1291,7 +1368,7 @@ e.job.Resource_List["cput"] = 20
         # Create vnodes
         a = {'resources_available.ncpus': 4,
              'resources_available.foo_str': "foo,bar,buba"}
-        self.server.create_vnodes('vnode', a, 4, self.mom)
+        self.mom.create_vnodes(a, 4)
 
         # Add resources to sched_config
         self.scheduler.add_resource("foo_str")
@@ -1350,7 +1427,7 @@ else:
                                  starttime=self.t)
 
         # Submit another job
-        self.t = int(time.time())
+        self.t = time.time()
         j = Job(TEST_USER,
                 attrs={'Resource_List.select': '1:ncpus=8',
                        'Resource_List.walltime': '30'})
@@ -1361,7 +1438,7 @@ else:
                                  starttime=self.t)
 
         # Submit another job
-        self.t = int(time.time())
+        self.t = time.time()
         j = Job(TEST_USER,
                 attrs={'Resource_List.select': '1:ncpus=8',
                        'Resource_List.walltime': '40'})
@@ -1375,7 +1452,7 @@ else:
         self.server.delete(jid1, wait='True')
 
         # Rerun scheduling cycle
-        self.t = int(time.time())
+        self.t = time.time()
         self.server.manager(MGR_CMD_SET, SERVER,
                             {'scheduling': 'True'})
 
@@ -1387,7 +1464,7 @@ else:
         self.server.delete(jid2, wait='true')
 
         # Rerun scheduling cycle
-        self.t = int(time.time())
+        self.t = time.time()
         self.server.manager(MGR_CMD_SET, SERVER,
                             {'scheduling': 'True'})
 
@@ -1400,7 +1477,7 @@ else:
 
         time.sleep(1)  # adding delay to avoid race condition
         # Rerun scheduling cycle
-        self.t = int(time.time())
+        self.t = time.time()
         self.server.manager(MGR_CMD_SET, SERVER,
                             {'scheduling': 'True'})
 
@@ -1426,29 +1503,33 @@ else:
         # Set queue limit
         a = {
             'max_run': '[o:PBS_ALL=100],[g:PBS_GENERIC=20],\
-                       [u:PBS_GENERIC=20],[g:tstgrp01 = 8],[u:pbsuser1=10]'}
+                       [u:PBS_GENERIC=20],[g:%s = 8],[u:%s=10]' %
+                       (str(TSTGRP1), str(TEST_USER1))}
         self.server.manager(MGR_CMD_SET, QUEUE,
                             a, id='workq2')
 
         a = {'max_run_res.ncpus':
              '[o:PBS_ALL=100],[g:PBS_GENERIC=50],\
-             [u:PBS_GENERIC=20],[g:tstgrp01=13],[u:pbsuser1=12]'}
+             [u:PBS_GENERIC=20],[g:%s=13],[u:%s=12]' %
+             (str(TSTGRP1), str(TEST_USER1))}
         self.server.manager(MGR_CMD_SET, QUEUE, a, id='workq2')
 
         a = {'max_run_res_soft.ncpus':
              '[o:PBS_ALL=100],[g:PBS_GENERIC=30],\
-             [u:PBS_GENERIC=10],[g:tstgrp01=10],[u:pbsuser1=10]'}
+             [u:PBS_GENERIC=10],[g:%s=10],[u:%s=10]' %
+             (str(TSTGRP1), str(TEST_USER1))}
         self.server.manager(MGR_CMD_SET, QUEUE, a, id='workq2')
 
         # Create server limits
         a = {
             'max_run': '[o:PBS_ALL=100],[g:PBS_GENERIC=50],\
-            [u:PBS_GENERIC=20],[g:tstgrp01=13],[u:pbsuser1=13]'}
+            [u:PBS_GENERIC=20],[g:%s=13],[u:%s=13]' %
+            (str(TSTGRP1), str(TEST_USER1))}
         self.server.manager(MGR_CMD_SET, SERVER, a)
 
         a = {'max_run_soft':
              '[o:PBS_ALL=50],[g:PBS_GENERIC=25],[u:PBS_GENERIC=10],\
-             [g:tstgrp01=10],[u:pbsuser1=10]'}
+             [g:%s=10],[u:%s=10]' % (str(TSTGRP1), str(TEST_USER1))}
         self.server.manager(MGR_CMD_SET, SERVER, a)
 
         # Turn scheduling off
@@ -1494,7 +1575,7 @@ else:
              'group_list': TSTGRP3, ATTR_q: 'workq'}
         jid8 = self.submit_jobs(10, a, TEST_USER2)
 
-        self.t = int(time.time())
+        self.t = time.time()
 
         # Run only one cycle
         self.server.manager(MGR_CMD_SET, MGR_OBJ_SERVER,
@@ -1519,7 +1600,7 @@ else:
         """
 
         a = {'resources_available.ncpus': 1}
-        self.server.create_vnodes('vnode', a, 4, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 4, usenatvnode=True)
 
         a = {'queue_type': 'e', 'started': 't',
              'enabled': 't', 'Priority': 150}
@@ -1571,11 +1652,14 @@ else:
         """
 
         a = {'resources_available.ncpus': 1}
-        self.server.create_vnodes('vnode', a, 4, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 4, usenatvnode=True)
 
         a = {'queue_type': 'e', 'started': 't',
              'enabled': 't', 'Priority': 150}
         self.server.manager(MGR_CMD_CREATE, QUEUE, a, id='expressq')
+
+        a = {'preempt_sort': 'min_time_since_start'}
+        self.server.manager(MGR_CMD_SET, SCHED, a)
 
         (jid1,) = self.submit_jobs(1)
         self.server.expect(JOB, {'job_state': 'R'}, id=jid1)
@@ -1627,12 +1711,15 @@ else:
 
         # Create 1 vnode with 3 ncpus
         a = {'resources_available.ncpus': 3}
-        self.server.create_vnodes('vnode', a, 1, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
 
         # Create expressq
         a = {'queue_type': 'execution', 'started': 'true',
              'enabled': 'true', 'Priority': 150}
         self.server.manager(MGR_CMD_CREATE, QUEUE, a, id='expressq')
+
+        a = {'preempt_sort': 'min_time_since_start'}
+        self.server.manager(MGR_CMD_SET, SCHED, a)
 
         # Submit 3 jobs with delay of 1 sec
         # Delay of 1 sec will preempt jid3 and then jid2.
@@ -1668,7 +1755,7 @@ else:
 
         self.scheduler.log_match("Number of job equivalence classes: 2",
                                  starttime=self.t)
-        self.t = int(time.time())
+        self.t = time.time()
 
         # Preempt jid2, check no new equivalence class is created
         Je2 = Job(TEST_USER, attrs=a)
@@ -1748,7 +1835,7 @@ else:
 
         # Create vnode with 4 ncpus
         a = {'resources_available.ncpus': 4}
-        self.server.create_vnodes('vnode', a, 1, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
 
         # Create a expressq
         a = {'queue_type': 'execution', 'started': 'true',
@@ -1802,7 +1889,7 @@ else:
 
         self.scheduler.log_match("Number of job equivalence classes: 3",
                                  starttime=self.t)
-        self.t = int(time.time())
+        self.t = time.time()
 
         # Resume the jobs suspended by qsig
         # 1 second delay is added so that time of next logging moves ahead.
@@ -1814,7 +1901,7 @@ else:
         # On resume check that there are same number of equivalence classes
         self.scheduler.log_match("Number of job equivalence classes: 3",
                                  starttime=self.t)
-        self.t = int(time.time())
+        self.t = time.time()
 
         # delete the expressq jobs and check that the suspended jobs
         # go back to running state. equivalence classes=2 again
@@ -1836,7 +1923,7 @@ else:
         """
 
         a = {'resources_available.ncpus': 1}
-        self.server.create_vnodes('vnode', a, 1, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
 
         a = {'Resource_List.select': '1:ncpus=1', ATTR_h: None}
         J1 = Job(TEST_USER, attrs=a)
@@ -1859,7 +1946,7 @@ else:
         """
 
         a = {'resources_available.ncpus': 2}
-        self.server.create_vnodes('vnode', a, 1, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
 
         attrs = {'queue_type': 'Execution', 'started': 'True',
                  'enabled': 'True', 'resources_available.ncpus': 1,
@@ -1998,8 +2085,8 @@ else:
         suspended.
         """
         a = {'resources_available.ncpus': 2}
-        self.server.create_vnodes('vnode', a, 2, self.mom,
-                                  attrfunc=self.change_res)
+        self.mom.create_vnodes(a, 2,
+                               attrfunc=self.change_res)
 
         # Create an express queue
         a = {'queue_type': 'execution', 'started': 'true',
@@ -2025,14 +2112,18 @@ else:
         (jidh, ) = self.submit_jobs(1, a)
 
         # Turn on scheduling
+        st = time.time()
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
         self.server.expect(JOB, {'job_state': 'S'}, id=jid1)
         self.server.expect(JOB, {'job_state': 'R'}, id=jidh)
 
         # make sure that the second job ran in the same cycle as the high
         # priority job
-        c = self.scheduler.cycles(lastN=3)
+        c = self.scheduler.cycles(start=st)
+        found = False
         for sched_cycle in c:
             if jidh.split('.')[0] in sched_cycle.sched_job_run:
+                found = True
                 break
+        self.assertTrue(found, "%s didn't found in any sched cycle" % jidh)
         self.assertIn(jid2.split('.')[0], sched_cycle.sched_job_run)

@@ -1,40 +1,43 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
+#include <pbs_config.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,13 +49,13 @@
  *	return the reallocated chunk of memory to hold range of ip addresses,
  *
  * @return	pntPBS_IP_RANGE
- * @retval	reallocated memory 	
+ * @retval	reallocated memory
  *
  */
 pntPBS_IP_RANGE
 create_pbs_range(void)
 {
-	return ((pntPBS_IP_RANGE)calloc(CHUNK, sizeof(PBS_IP_RANGE)));
+	return ((pntPBS_IP_RANGE) calloc(CHUNK, sizeof(PBS_IP_RANGE)));
 }
 
 /**
@@ -69,14 +72,13 @@ pntPBS_IP_LIST
 resize_pbs_iplist(pntPBS_IP_LIST list)
 {
 	pntPBS_IP_RANGE temp;
-	temp = (pntPBS_IP_RANGE)realloc(list->li_range, ((CHUNK + list->li_totalsize)* sizeof(PBS_IP_RANGE)));
+	temp = (pntPBS_IP_RANGE) realloc(list->li_range, ((CHUNK + list->li_totalsize) * sizeof(PBS_IP_RANGE)));
 	if (temp != NULL) {
 		list->li_range = temp;
-		memset(((char *)list->li_range + (list->li_totalsize * sizeof(PBS_IP_RANGE))), 0, CHUNK * sizeof(PBS_IP_RANGE));
+		memset(((char *) list->li_range + (list->li_totalsize * sizeof(PBS_IP_RANGE))), 0, CHUNK * sizeof(PBS_IP_RANGE));
 		list->li_totalsize += CHUNK;
 		return list;
-	}
-	else {
+	} else {
 		delete_pbs_iplist(list);
 		return NULL;
 	}
@@ -94,10 +96,10 @@ resize_pbs_iplist(pntPBS_IP_LIST list)
 pntPBS_IP_LIST
 create_pbs_iplist(void)
 {
-	pntPBS_IP_LIST list= (pntPBS_IP_LIST)calloc(1, sizeof(PBS_IP_LIST));
+	pntPBS_IP_LIST list = (pntPBS_IP_LIST) calloc(1, sizeof(PBS_IP_LIST));
 	if (list) {
 		list->li_range = create_pbs_range();
-		if (! list->li_range) {
+		if (!list->li_range) {
 			free(list);
 			return NULL;
 		}
@@ -124,7 +126,6 @@ delete_pbs_iplist(pntPBS_IP_LIST list)
 	return;
 }
 
-
 /**
  * @brief
  *	searches the the key value in list.
@@ -149,8 +150,7 @@ search_location(pntPBS_IP_LIST list, T key, int *location)
 		if (key == IPLIST_GET_LOW(list, middle)) {
 			*location = middle;
 			return middle;
-		}
-		else if (key < IPLIST_GET_LOW(list, middle))
+		} else if (key < IPLIST_GET_LOW(list, middle))
 			top = middle - 1;
 		else
 			bottom = middle + 1;
@@ -170,7 +170,7 @@ search_location(pntPBS_IP_LIST list, T key, int *location)
  * @param[in] key - key value
  *
  * @return      int
- * @retval      0	insertion of key successful        
+ * @retval      0	insertion of key successful
  * @retval      !0	insertion of key  failed
  *
  */
@@ -203,30 +203,29 @@ insert_iplist_element(pntPBS_IP_LIST list, T key)
 
 	if (IPLIST_IS_CONTINUOUS_ROW(list, location, key)) {
 		IPLIST_SET_HIGH(list, location, IPLIST_GET_HIGH(list, location) + 1);
-		if (IPLIST_IS_CONTINUOUS_ROW(list, location, IPLIST_GET_LOW(list, location +1))) {
+		if (IPLIST_IS_CONTINUOUS_ROW(list, location, IPLIST_GET_LOW(list, location + 1))) {
 			IPLIST_SET_HIGH(list, location, IPLIST_GET_HIGH(list, location) + 1 + IPLIST_GET_HIGH(list, location + 1));
 			/** memove rows up , decrement nrowsused, memset one row with INIT_VALUE **/
 			list->li_nrowsused--;
-			if (IPLIST_SHIFT_ALL_UP_BY_ONE(list, location +1, list->li_nrowsused - (location +1)) == NULL) {
+			if (IPLIST_SHIFT_ALL_UP_BY_ONE(list, location + 1, list->li_nrowsused - (location + 1)) == NULL) {
 				list->li_nrowsused++;
 				return IPLIST_INSERT_FAILURE;
 			}
-			memset(list->li_range + list->li_nrowsused, 0 , sizeof(PBS_IP_RANGE));
+			memset(list->li_range + list->li_nrowsused, 0, sizeof(PBS_IP_RANGE));
 		}
 	} else {
 		if (first_row)
 			location--;
-		if (IPLIST_IS_CONTINUOUS(key, IPLIST_GET_LOW(list, location +1))) {
+		if (IPLIST_IS_CONTINUOUS(key, IPLIST_GET_LOW(list, location + 1))) {
 			IPLIST_SET_LOW(list, location + 1, key);
 			IPLIST_SET_HIGH(list, location + 1, IPLIST_GET_HIGH(list, location + 1) + 1);
-		}
-		else {
-			if (IPLIST_GET_LOW(list, location +1) == INIT_VALUE) {
-				IPLIST_SET_LOW(list, location+1, key);
+		} else {
+			if (IPLIST_GET_LOW(list, location + 1) == INIT_VALUE) {
+				IPLIST_SET_LOW(list, location + 1, key);
 				list->li_nrowsused++;
 			} else {
 				/** Add new Row **/
-				if (IPLIST_SHIFT_ALL_DOWN_BY_ONE(list, location + 1, list->li_nrowsused - (location +1)) == NULL)
+				if (IPLIST_SHIFT_ALL_DOWN_BY_ONE(list, location + 1, list->li_nrowsused - (location + 1)) == NULL)
 					return IPLIST_INSERT_FAILURE;
 				IPLIST_SET_LOW(list, location + 1, key);
 				IPLIST_SET_HIGH(list, location + 1, INIT_VALUE);
@@ -266,28 +265,27 @@ delete_iplist_element(pntPBS_IP_LIST list, T key)
 	if (search_location(list, key, &location) == -1)
 		return IPLIST_DELETE_FAILURE;
 	if ((IPLIST_GET_LOW(list, location) == key) && list->li_nrowsused) { /** If the Lower IP of range **/
-		if (IPLIST_GET_HIGH(list, location)==INIT_VALUE) {
-			if (IPLIST_SHIFT_ALL_UP_BY_ONE(list, location, list->li_nrowsused - (location +1)) == NULL) {
+		if (IPLIST_GET_HIGH(list, location) == INIT_VALUE) {
+			if (IPLIST_SHIFT_ALL_UP_BY_ONE(list, location, list->li_nrowsused - (location + 1)) == NULL) {
 				list->li_nrowsused++;
 				return IPLIST_DELETE_FAILURE;
 			}
 			list->li_nrowsused--;
-			memset(list->li_range + list->li_nrowsused , 0 , sizeof(PBS_IP_RANGE));
-		}
-		else {
-			IPLIST_SET_LOW(list, location, IPLIST_GET_LOW(list, location)+1);
-			IPLIST_SET_HIGH(list, location, IPLIST_GET_HIGH(list, location)-1);
+			memset(list->li_range + list->li_nrowsused, 0, sizeof(PBS_IP_RANGE));
+		} else {
+			IPLIST_SET_LOW(list, location, IPLIST_GET_LOW(list, location) + 1);
+			IPLIST_SET_HIGH(list, location, IPLIST_GET_HIGH(list, location) - 1);
 		}
 	} else if ((IPLIST_GET_LOW(list, location) + IPLIST_GET_HIGH(list, location)) == key) { /** Is the biggest IP of range **/
-		IPLIST_SET_HIGH(list, location, IPLIST_GET_HIGH(list, location)-1);
+		IPLIST_SET_HIGH(list, location, IPLIST_GET_HIGH(list, location) - 1);
 	} else { /** Lies somewhere in between LOW & HIGH **/
 		/* temp = IPLIST_GET_HIGH(list,location); */
 		high = IPLIST_GET_LOW(list, location) + IPLIST_GET_HIGH(list, location);
-		IPLIST_SET_HIGH(list, location, key-IPLIST_GET_LOW(list, location) -1);
-		if (IPLIST_SHIFT_ALL_DOWN_BY_ONE(list, location + 1, list->li_nrowsused - (location +1)) == NULL)
+		IPLIST_SET_HIGH(list, location, key - IPLIST_GET_LOW(list, location) - 1);
+		if (IPLIST_SHIFT_ALL_DOWN_BY_ONE(list, location + 1, list->li_nrowsused - (location + 1)) == NULL)
 			return IPLIST_DELETE_FAILURE;
-		IPLIST_SET_LOW(list, location+1, key+1);
-		IPLIST_SET_HIGH(list, location+1, high-IPLIST_GET_LOW(list, location+1));
+		IPLIST_SET_LOW(list, location + 1, key + 1);
+		IPLIST_SET_HIGH(list, location + 1, high - IPLIST_GET_LOW(list, location + 1));
 		list->li_nrowsused++;
 	}
 	return IPLIST_DELETE_SUCCESS;

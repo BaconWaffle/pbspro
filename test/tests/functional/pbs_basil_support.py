@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 from string import Template
@@ -146,7 +149,7 @@ class TestBasilQuery(TestFunctional):
                              "Cray compute node %s doesn't exist on pbs server"
                              % (name))
 
-        for rsc, xval in vnode.iteritems():
+        for rsc, xval in vnode.items():
             if rsc != 'current_aoe':
                 resource = 'resources_available.' + rsc
             else:
@@ -184,8 +187,8 @@ class TestBasilQuery(TestFunctional):
             hbm_size_mb = node.attrib["hbm_size_mb"]
             hbm_cache_pct = node.attrib["hbm_cache_pct"]
 
-            if role == 'batch' and state == 'up' and numa_cfg is not ""\
-               and hbm_size_mb is not "" and hbm_cache_pct is not "":
+            if role == 'batch' and state == 'up' and numa_cfg != ""\
+               and hbm_size_mb != "" and hbm_cache_pct != "":
                 # derived values from XML
                 knl_info['current_aoe'] = numa_cfg + '_' + hbm_cache_pct
                 knl_info['hbmem'] = hbm_size_mb + 'mb'
@@ -217,7 +220,7 @@ class TestBasilQuery(TestFunctional):
         if len(kvnl) == 0:
             self.skipTest(reason='No KNL vnodes present')
         else:
-            klist = kvnl.values()[0]
+            klist = list(kvnl.values())[0]
             self.logger.info("KNL vnode list: %s" % (klist))
         return klist
 
@@ -350,7 +353,7 @@ type=\"ENGINE\"/>" % (self.basil_version[1])
         # List of resources to be ignored while comparing.
         ignr_rsc = ['license', 'last_state_change_time']
 
-        for rsc, val in pbs_node.iteritems():
+        for rsc, val in pbs_node.items():
             if rsc in ignr_rsc:
                 continue
             self.assertTrue(rsc in cray_login_node,
@@ -385,7 +388,7 @@ type=\"ENGINE\"/>" % (self.basil_version[1])
 
         # Check that exec_vnode is a KNL vnode.`
         self.server.status(JOB, 'exec_vnode', id=job_id)
-        evnode = job.execvnode()[0].keys()[0]
+        evnode = list(job.execvnode()[0].keys())[0]
         nid = evnode.split('_')[1]
         if nid in knl_vnodes.keys():
             self.logger.info("exec_vnode %s is a KNL vnode." % (evnode))
@@ -545,7 +548,7 @@ type=\"ENGINE\"/>" % (self.basil_version[1])
             self.logger.info("KNL vnode list: %s" % (knl_vnodes))
 
         # Check for PBS ALPS Inventory Hook message.
-        now = int(time.time())
+        now = time.time()
         rv = self.mom.log_match("ALPS Inventory Check: PBS and ALPS"
                                 " are in sync",
                                 starttime=now, interval=5)

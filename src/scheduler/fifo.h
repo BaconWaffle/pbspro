@@ -1,74 +1,97 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
-#ifndef	_FIFO_H
-#define	_FIFO_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
-#include  <limits.h>
+#ifndef _FIFO_H
+#define _FIFO_H
+
+#include <string>
+
+#include <limits.h>
 #include "data_types.h"
-int connector;
+#include "sched_cmds.h"
+
+/**
+ * @brief Gets the Scheduler Command sent by the Server
+ *
+ * @param[in]     sock - secondary connection to the server
+ * @param[in,out] cmd  - pointer to sched cmd to be filled with received cmd
+ *
+ * @return	int
+ * @retval	0	: for EOF
+ * @retval	+1	: for success
+ * @retval	-1	: for error
+ */
+int get_sched_cmd(int sock, sched_cmd *cmd);
+
+/**
+ * @brief This is non-blocking version of get_sched_cmd()
+ *
+ * @param[in]     sock - secondary connection to the server
+ * @param[in,out] cmd  - pointer to sched cmd to be filled with received cmd
+ *
+ * @return	int
+ * @retval	0	no super high priority command
+ * @retval	+1	for success
+ * @retval	-1	for error
+ * @retval	-2	for EOF
+ *
+ * @note this function uses different return code (-2) for EOF than get_sched_cmd() (-1)
+ */
+int get_sched_cmd_noblk(int sock, sched_cmd *cmd);
 
 /*
  *      schedinit - initialize conf struct and parse conf files
  */
-int schedinit(void);
-
-/*
- *      schedule - this function gets called to start each scheduling cycle
- *                 It will handle the difference cases that caused a
- *                 scheduling cycle
- */
-int schedule(int cmd, int sd, char *runjobid);
+int schedinit(int nthreads);
 
 /*
  *	intermediate_schedule - responsible for starting/restarting scheduling
  *				cycle
  */
 
-int intermediate_schedule(int sd, char *jobid);
+int intermediate_schedule(int sd, const sched_cmd *cmd);
 
 /*
  *      scheduling_cycle - the controling function of the scheduling cycle
  */
 
-int scheduling_cycle(int sd, char *jobid);
+int scheduling_cycle(int sd, const sched_cmd *cmd);
 
 /*
  *	init_scheduling_cycle - run things that need to be set up every
@@ -93,11 +116,6 @@ int init_scheduling_cycle(status *policy, int pbs_sd, server_info *sinfo);
 resource_resv *next_job(status *policy, server_info *sinfo, int flag);
 
 /*
- *      update_last_running - update the last_running job array
- */
-int update_last_running(server_info *sinfo);
-
-/*
  *      find_runnable_job_ind - find the index of the next runnable job in a job array
  *  		Jobs are runnable if:
  *	   	in state 'Q'
@@ -109,21 +127,16 @@ int update_last_running(server_info *sinfo);
 int find_runnable_resresv_ind(resource_resv **resresv_arr, int start_index);
 
 /*
- *	find_non_normal_job_ind - find the index of the next runnable express,preempted,starving job
+ *	find_non_normal_job_ind - find the index of the next runnable express,preempted
  */
-int find_non_normal_job_ind(resource_resv **resresv_arr, int start_index);
-
-/*
- *      update_backfill_on_run - update information needed for backfilling
- *                               when a job is run
- */
-void update_backfill_on_run(server_info *sinfo, resource_resv *resresv, nspec **ns);
+int find_non_normal_job_ind(resource_resv **jobs, int start_index);
 
 /*
  *
  *      sim_run_update_resresv - simulate the running of a job
  */
-int sim_run_update_resresv(status *policy, resource_resv *resresv, nspec **ns_arr, unsigned int flags);
+bool sim_run_update_resresv(status *policy, resource_resv *resresv, std::vector<nspec *> &ns_arr, unsigned int flags);
+bool sim_run_update_resresv(status *policy, resource_resv *resresv, unsigned int flags);
 
 /*
  *
@@ -145,10 +158,12 @@ int sim_run_update_resresv(status *policy, resource_resv *resresv, nspec **ns_ar
  *	return -1 on error
  *
  */
-int
-run_update_resresv(status *policy, int pbs_sd, server_info *sinfo, queue_info *qinfo,
-	resource_resv *rresv, nspec **ns_arr, unsigned int flags, schd_error *err);
+bool run_update_job(status *policy, int pbs_sd, server_info *sinfo, queue_info *qinfo,
+		    resource_resv *resresv, std::vector<nspec *> &nspec_arr, unsigned int flags, schd_error *err);
 
+bool
+run_update_job(status *policy, int pbs_sd, server_info *sinfo, queue_info *qinfo,
+	       resource_resv *rr, unsigned int flags, schd_error *err);
 
 /*
  *	update_job_can_not_run - do post job 'can't run' processing
@@ -174,7 +189,7 @@ int add_job_to_calendar(int pbs_sd, status *policy, server_info *sinfo, resource
  *	       first move it to the local server and then run it.
  *	       if it's a local job, just run it.
  */
-int run_job(int pbs_sd, resource_resv *rjob, char *execvnode, int throughput, schd_error *err);
+int run_job(int pbs_sd, resource_resv *rjob, char *execvnode, schd_error *err);
 
 /*
  *	should_backfill_with_job - should we call add_job_to_calendar() with job
@@ -194,8 +209,7 @@ int should_backfill_with_job(status *policy, server_info *sinfo, resource_resv *
  *	return nothing
  *
  */
-void update_cycle_status(struct status *policy, time_t current_time);
-
+void update_cycle_status(status &policy, time_t current_time);
 
 /*
  *
@@ -223,10 +237,12 @@ int main_sched_loop(status *policy, int sd, server_info *sinfo, schd_error **rer
  */
 int scheduler_simulation_task(int pbs_sd, int debug);
 
-int update_svr_schedobj(int connector, int cmd, int alarm_time);
+int set_validate_sched_attrs(int);
 
+int validate_running_user(char *exename);
 
-#ifdef	__cplusplus
-}
-#endif
-#endif	/* _FIFO_H */
+int send_run_job(int virtual_sd, int has_runjob_hook, const std::string &jobid, char *execvnode);
+
+struct batch_status *send_statsched(int virtual_fd, struct attrl *attrib, char *extend);
+
+#endif /* _FIFO_H */

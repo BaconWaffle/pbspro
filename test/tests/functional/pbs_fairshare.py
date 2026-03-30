@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 
@@ -56,9 +59,9 @@ class TestFairshare(TestFunctional):
         self.scheduler.add_to_resource_group(TEST_USER1, 12, 'group1', 50)
         self.scheduler.add_to_resource_group(TEST_USER2, 21, 'group2', 60)
         self.scheduler.add_to_resource_group(TEST_USER3, 22, 'group2', 40)
-        self.scheduler.set_fairshare_usage(TEST_USER, 100)
-        self.scheduler.set_fairshare_usage(TEST_USER1, 100)
-        self.scheduler.set_fairshare_usage(TEST_USER3, 1000)
+        self.scheduler.fairshare.set_fairshare_usage(TEST_USER, 100)
+        self.scheduler.fairshare.set_fairshare_usage(TEST_USER1, 100)
+        self.scheduler.fairshare.set_fairshare_usage(TEST_USER3, 1000)
 
     def test_formula_keyword(self):
         """
@@ -93,7 +96,7 @@ class TestFairshare(TestFunctional):
         """
 
         self.set_up_resource_group()
-        self.scheduler.set_sched_config({'log_filter': 2048})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
         self.server.manager(MGR_CMD_SET, SERVER,
@@ -120,7 +123,7 @@ class TestFairshare(TestFunctional):
         """
 
         self.set_up_resource_group()
-        self.scheduler.set_sched_config({'log_filter': 2048})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
         self.server.manager(MGR_CMD_SET, SERVER,
@@ -149,7 +152,7 @@ class TestFairshare(TestFunctional):
         """
 
         self.set_up_resource_group()
-        self.scheduler.set_sched_config({'log_filter': 2048})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
         formula = 'pow(2,-(fairshare_tree_usage/fairshare_perc))'
 
@@ -163,7 +166,7 @@ class TestFairshare(TestFunctional):
         jid3 = self.server.submit(J3)
         J4 = Job(TEST_USER1)
         jid4 = self.server.submit(J4)
-        t = int(time.time())
+        t = time.time()
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
         msg = ';Formula Evaluation = '
         self.scheduler.log_match(str(jid1) + msg + '0.3816')
@@ -185,7 +188,7 @@ class TestFairshare(TestFunctional):
         """
 
         self.set_up_resource_group()
-        self.scheduler.set_sched_config({'log_filter': 2048})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
         formula = 'fairshare_factor'
 
@@ -200,7 +203,7 @@ class TestFairshare(TestFunctional):
         jid3 = self.server.submit(J3)
         J4 = Job(TEST_USER1)
         jid4 = self.server.submit(J4)
-        t = int(time.time())
+        t = time.time()
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
         msg = ';Formula Evaluation = '
         self.scheduler.log_match(str(jid1) + msg + '0.3816')
@@ -222,7 +225,8 @@ class TestFairshare(TestFunctional):
         """
 
         self.set_up_resource_group()
-        a = {'log_filter': 2048, 'fair_share': "True ALL"}
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
+        a = {'fair_share': "True ALL"}
         self.scheduler.set_sched_config(a)
 
         formula = 'fairshare_factor'
@@ -238,7 +242,7 @@ class TestFairshare(TestFunctional):
         jid3 = self.server.submit(J3)
         J4 = Job(TEST_USER1, {'Resource_List.cput': 40})
         jid4 = self.server.submit(J4)
-        t = int(time.time())
+        t = time.time()
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
         msg = ';Formula Evaluation = '
         self.scheduler.log_match(str(jid1) + msg + '0.3816')
@@ -261,7 +265,7 @@ class TestFairshare(TestFunctional):
         """
 
         self.set_up_resource_group()
-        self.scheduler.set_sched_config({'log_filter': 2048})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
         formula = 'fairshare_factor + (walltime/ncpus)'
 
@@ -280,7 +284,7 @@ class TestFairshare(TestFunctional):
         J4 = Job(TEST_USER1, {'Resource_List.ncpus': 4,
                               'Resource_List.walltime': "00:02:00"})
         jid4 = self.server.submit(J4)
-        t = int(time.time())
+        t = time.time()
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
         msg = ';Formula Evaluation = '
         self.scheduler.log_match(str(jid1) + msg + '60.3816')
@@ -305,7 +309,7 @@ class TestFairshare(TestFunctional):
         self.scheduler.add_to_resource_group(TEST_USER1, 12, 'root', 10)
         self.scheduler.set_sched_config({'fair_share': 'True'})
 
-        self.scheduler.set_fairshare_usage(TEST_USER, 100)
+        self.scheduler.fairshare.set_fairshare_usage(TEST_USER, 100)
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
         J1 = Job(TEST_USER)
@@ -313,8 +317,7 @@ class TestFairshare(TestFunctional):
         J2 = Job(TEST_USER1)
         jid2 = self.server.submit(J2)
 
-        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
-        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        self.scheduler.run_scheduling_cycle()
 
         c = self.scheduler.cycles(lastN=1)[0]
         job_order = [jid2, jid1]
@@ -337,15 +340,14 @@ class TestFairshare(TestFunctional):
         self.scheduler.add_to_resource_group(TEST_USER1, 12, 'root', 10)
         self.scheduler.set_sched_config({'fair_share': 'True'})
 
-        self.scheduler.set_fairshare_usage(TEST_USER1, 50)
+        self.scheduler.fairshare.set_fairshare_usage(TEST_USER1, 50)
 
         J3 = Job(TEST_USER)
         jid3 = self.server.submit(J3)
         J4 = Job(TEST_USER1)
         jid4 = self.server.submit(J4)
 
-        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
-        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        self.scheduler.run_scheduling_cycle()
 
         c = self.scheduler.cycles(lastN=1)[0]
         job_order = [jid3, jid4]
@@ -357,21 +359,102 @@ class TestFairshare(TestFunctional):
         Test that fairshare decay doesn't reduce the usage below 1
         """
         self.scheduler.set_sched_config({'fair_share': 'True'})
-        self.scheduler.set_sched_config({'log_filter': 0})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 4095})
         self.scheduler.add_to_resource_group(TEST_USER, 10, 'root', 50)
-        self.scheduler.set_fairshare_usage(TEST_USER, 1)
+        self.scheduler.fairshare.set_fairshare_usage(TEST_USER, 1)
         self.scheduler.set_sched_config({"fairshare_decay_time": "00:00:02"})
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
 
-        t = int(time.time())
-        time.sleep(2)
+        t = time.time()
+        time.sleep(3)
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
         self.scheduler.log_match("Decaying Fairshare Tree", starttime=t)
 
         # Check that TEST_USER's usage is 1
-        fs = self.scheduler.query_fairshare(name=str(TEST_USER))
+        fs = self.scheduler.fairshare.query_fairshare(name=str(TEST_USER))
         fs_usage = int(fs.usage)
-        self.assertEquals(fs_usage, 1,
-                          "Fairshare usage %d not equal to 1" % fs_usage)
+        self.assertEqual(fs_usage, 1,
+                         "Fairshare usage %d not equal to 1" % fs_usage)
+
+    def test_fairshare_topjob(self):
+        """
+        Test that jobs are run in the augmented fairshare order after a topjob
+        is added to the calendar
+        """
+        self.scheduler.set_sched_config({'fair_share': 'True'})
+        self.scheduler.set_sched_config({'fairshare_usage_res': 'ncpus'})
+        self.scheduler.set_sched_config({'strict_ordering': 'True'})
+        self.scheduler.add_to_resource_group(TEST_USER, 11, 'root', 10)
+        self.scheduler.add_to_resource_group(TEST_USER1, 12, 'root', 10)
+        self.scheduler.add_to_resource_group(TEST_USER2, 13, 'root', 10)
+        a = {'resources_available.ncpus': 5}
+        self.mom.create_vnodes(a, 1)
+        a = {'Resource_List.select': '5:ncpus=1'}
+        j1 = Job(TEST_USER, attrs=a)
+        jid1 = self.server.submit(j1)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+
+        j2 = Job(TEST_USER1, attrs=a)
+        jid2 = self.server.submit(j2)
+        j3 = Job(TEST_USER1, attrs=a)
+        jid3 = self.server.submit(j3)
+        j4 = Job(TEST_USER2, attrs=a)
+        jid4 = self.server.submit(j4)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        self.scheduler.log_match(jid2 + ';Job is a top job and will run at')
+        c = self.scheduler.cycles(lastN=1)[0]
+        jorder = [jid2, jid4, jid3]
+        jorder = [j.split('.')[0] for j in jorder]
+        msg = 'Jobs ran out of order'
+        self.assertEqual(jorder, c.political_order, msg)
+
+    def test_fairshare_acct_name(self):
+        """
+        Test fairshare with fairshare_entity as Account_Name
+        """
+        self.scheduler.set_sched_config({'fair_share': 'True'})
+        self.scheduler.set_sched_config({'fairshare_usage_res': 'ncpus'})
+        self.scheduler.set_sched_config({'fairshare_entity': ATTR_A})
+
+        self.scheduler.add_to_resource_group('acctA', 11, 'root', 10)
+        self.scheduler.fairshare.set_fairshare_usage('acctA', 1)
+        self.scheduler.add_to_resource_group('acctB', 12, 'root', 25)
+        self.scheduler.fairshare.set_fairshare_usage('acctB', 1)
+
+        self.server.manager(MGR_CMD_SET, SCHED, {'scheduling': False})
+        self.server.manager(MGR_CMD_SET, NODE,
+                            {'resources_available.ncpus': 1},
+                            id=self.mom.shortname)
+        a = {ATTR_A: 'acctA'}
+        j1 = Job(attrs=a)
+        j1.set_sleep_time(15)
+        jid1 = self.server.submit(j1)
+
+        a = {ATTR_A: 'acctB'}
+        j2 = Job(attrs=a)
+        j2.set_sleep_time(15)
+        jid2 = self.server.submit(j2)
+
+        j3 = Job(attrs=a)
+        j3.set_sleep_time(15)
+        jid3 = self.server.submit(j3)
+
+        j4 = Job(attrs=a)
+        j4.set_sleep_time(15)
+        jid4 = self.server.submit(j4)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': True})
+
+        # acctB has 2/3s of the shares, so 2 of its jobs will run before acctA
+        # a second cycle has to be kicked between jobs to make sure the
+        # scheduler acumulates the fairshare usage.
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid2)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': True})
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid3, offset=15)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': True})
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid1, offset=15)

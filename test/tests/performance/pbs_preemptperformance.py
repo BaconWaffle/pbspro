@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.performance import *
 from ptl.utils.pbs_logutils import PBSLogUtils
@@ -51,16 +54,6 @@ class TestPreemptPerformance(TestPerformance):
         # set poll cycle to a high value because mom spends a lot of time
         # in gathering job's resources used. We don't need that in this test
         self.mom.add_config({'$min_check_poll': 7200, '$max_check_poll': 9600})
-        abort_script = """#!/bin/bash
-kill $1
-exit 0
-"""
-        self.abort_file = self.du.create_temp_file(body=abort_script)
-        self.du.chmod(path=self.abort_file, mode=0755)
-        self.du.chown(path=self.abort_file, uid=0, gid=0, runas=ROOT_USER)
-        c = {'$action': 'checkpoint_abort 30 !' + self.abort_file + ' %sid'}
-        self.mom.add_config(c)
-        self.platform = self.du.get_platform()
 
     def create_workload_and_preempt(self):
         a = {
@@ -147,7 +140,7 @@ exit 0
         """
         a = {'resources_available.ncpus': 4800,
              'resources_available.mem': '2800mb'}
-        self.server.create_vnodes('vn', a, 1, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
         p = '"express_queue, normal_jobs, server_softlimits, queue_softlimits"'
         a = {'preempt_prio': p}
         self.server.manager(MGR_CMD_SET, SCHED, a, runas=ROOT_USER)
@@ -164,7 +157,7 @@ exit 0
         """
         a = {'resources_available.ncpus': 4800,
              'resources_available.mem': '1500mb'}
-        self.server.create_vnodes('vn', a, 1, self.mom, usenatvnode=True)
+        self.mom.create_vnodes(a, 1, usenatvnode=True)
         p = '"express_queue, normal_jobs, server_softlimits, queue_softlimits"'
         a = {'preempt_prio': p}
         self.server.manager(MGR_CMD_SET, SCHED, a, runas=ROOT_USER)
@@ -186,21 +179,15 @@ exit 0
 
         a = {ATTR_rescavail + ".qlist": "list1",
              ATTR_rescavail + ".ncpus": "8"}
-        self.server.create_vnodes(
-            "vn1", a, 400, self.mom, additive=True, fname="vnodedef1")
+        self.mom.create_vnodes(
+            a, 400, self.mom, additive=True, fname="vnodedef1")
 
         a = {ATTR_rescavail + ".qlist": "list2",
              ATTR_rescavail + ".ncpus": "1"}
-        self.server.create_vnodes(
-            "vn2", a, 1, self.mom, additive=True, fname="vnodedef2")
+        self.mom.create_vnodes(
+            a, 1, self.mom, additive=True, fname="vnodedef2")
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
-
-        a = {ATTR_l + '.select': '1:ncpus=1:qlist=list1'}
-        for _ in range(3200):
-            j = Job(TEST_USER, attrs=a)
-            j.set_sleep_time(3000)
-            self.server.submit(j)
 
         a = {ATTR_l + '.select': '1:ncpus=1:qlist=list2'}
         j = Job(TEST_USER, attrs=a)
@@ -208,10 +195,16 @@ exit 0
 
         # Add qlist to the resources scheduler checks for
         self.scheduler.add_resource('qlist')
-        self.server.manager(MGR_CMD_UNSET, SCHED, 'preempt_sort',
-                            runas=ROOT_USER)
 
         jid = self.server.submit(j)
+        time.sleep(1)
+
+        a = {ATTR_l + '.select': '1:ncpus=1:qlist=list1'}
+        for _ in range(3200):
+            j = Job(TEST_USER, attrs=a)
+            j.set_sleep_time(3000)
+            self.server.submit(j)
+
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
         self.server.expect(JOB, {'job_state=R': 3201}, interval=20,
@@ -250,6 +243,8 @@ exit 0
         self.logger.info(res_str)
         self.logger.info('#' * 80)
         self.logger.info('#' * 80)
+        self.perf_test_result(time_diff,
+                              "preempt_time_nonconsumable_resc", "sec")
 
     @timeout(3600)
     @tags('sched', 'scheduling_policy')
@@ -266,26 +261,20 @@ exit 0
 
         a = {ATTR_rescavail + ".qlist": "list1",
              ATTR_rescavail + ".ncpus": "8"}
-        self.server.create_vnodes(
-            "vn1", a, 400, self.mom, additive=True, fname="vnodedef1")
+        self.mom.create_vnodes(
+            a, 400, additive=True, fname="vnodedef1")
 
         a = {ATTR_rescavail + ".qlist": "list2",
              ATTR_rescavail + ".ncpus": "1"}
-        self.server.create_vnodes(
-            "vn2", a, 1, self.mom, additive=True, fname="vnodedef2")
+        self.mom.create_vnodes(
+            a, 1, additive=True, fname="vnodedef2")
 
         a = {ATTR_rescavail + ".qlist": "list3",
              ATTR_rescavail + ".ncpus": "1"}
-        self.server.create_vnodes(
-            "vn3", a, 1, self.mom, additive=True, fname="vnodedef3")
+        self.mom.create_vnodes(
+            a, 1, additive=True, fname="vnodedef3")
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
-
-        a = {ATTR_l + '.select': '1:ncpus=1:qlist=list1'}
-        for _ in range(3200):
-            j = Job(TEST_USER, attrs=a)
-            j.set_sleep_time(3000)
-            self.server.submit(j)
 
         a = {ATTR_l + '.select': '1:ncpus=1:qlist=list2'}
         j = Job(TEST_USER, attrs=a)
@@ -297,11 +286,16 @@ exit 0
 
         # Add qlist to the resources scheduler checks for
         self.scheduler.add_resource('qlist')
-        self.server.manager(MGR_CMD_UNSET, SCHED, 'preempt_sort',
-                            runas=ROOT_USER)
 
         jid = self.server.submit(j)
         jid2 = self.server.submit(j2)
+
+        a = {ATTR_l + '.select': '1:ncpus=1:qlist=list1'}
+        for _ in range(3200):
+            j = Job(TEST_USER, attrs=a)
+            j.set_sleep_time(3000)
+            self.server.submit(j)
+
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
         self.server.expect(JOB, {'job_state=R': 3202}, interval=20,
@@ -341,6 +335,9 @@ exit 0
         self.logger.info(res_str)
         self.logger.info('#' * 80)
         self.logger.info('#' * 80)
+        self.perf_test_result(time_diff,
+                              "preempt_time_multiplenonconsumable_resc",
+                              "sec")
 
     @timeout(3600)
     @tags('sched', 'scheduling_policy')
@@ -356,28 +353,27 @@ exit 0
         self.server.manager(MGR_CMD_CREATE, RSC, a, id='foo')
 
         a = {ATTR_rescavail + ".ncpus": "8"}
-        self.server.create_vnodes(
-            "vn1", a, 401, self.mom, additive=True, fname="vnodedef1")
+        self.mom.create_vnodes(
+            a, 401, additive=True, fname="vnodedef1")
 
         # Make resource foo available on server
         a = {ATTR_rescavail + ".foo": 50, 'scheduling': 'False'}
         self.server.manager(MGR_CMD_SET, SERVER, a)
+
+        # Add foo to the resources scheduler checks for
+        self.scheduler.add_resource('foo')
+
+        a = {ATTR_l + '.select': '1:ncpus=1', ATTR_l + '.foo': 25}
+        j = Job(TEST_USER, attrs=a)
+        j.set_sleep_time(3000)
+        jid = self.server.submit(j)
+        time.sleep(1)
 
         a = {ATTR_l + '.select': '1:ncpus=1'}
         for _ in range(3200):
             j = Job(TEST_USER, attrs=a)
             j.set_sleep_time(3000)
             self.server.submit(j)
-
-        # Add foo to the resources scheduler checks for
-        self.scheduler.add_resource('foo')
-        self.server.manager(MGR_CMD_UNSET, SCHED, 'preempt_sort',
-                            runas=ROOT_USER)
-
-        a = {ATTR_l + '.select': '1:ncpus=1', ATTR_l + '.foo': 25}
-        j = Job(TEST_USER, attrs=a)
-        j.set_sleep_time(3000)
-        jid = self.server.submit(j)
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
         self.server.expect(JOB, {'job_state=R': 3201}, interval=20,
@@ -416,6 +412,7 @@ exit 0
         self.logger.info(res_str)
         self.logger.info('#' * 80)
         self.logger.info('#' * 80)
+        self.perf_test_result(time_diff, "High_priority_preemption", "sec")
 
     @timeout(7200)
     def test_preemption_basic(self):
@@ -425,8 +422,8 @@ exit 0
         """
 
         a = {ATTR_rescavail + ".ncpus": "8"}
-        self.server.create_vnodes(
-            "vn1", a, 400, self.mom, additive=True, fname="vnodedef1")
+        self.mom.create_vnodes(
+            a, 400, additive=True, fname="vnodedef1")
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
 
@@ -479,21 +476,24 @@ exit 0
             self.logger.info('#' * 80)
             ncpus *= 3
             S_jobs += ncpus
+            self.perf_test_result(time_diff, "preemption_time", "sec")
 
     @timeout(3600)
-    def test_preemption_with_soft_limits(self):
+    def test_preemption_with_unrelated_soft_limits(self):
         """
-        Measure the time scheduler takes to preempt when the high priority
-        job hits soft limits under a considerable amount of workload.
+        Measure the time scheduler takes to preempt when there are user
+        soft limits in the system and preemptor and preemptee jobs are
+        submitted as different user.
         """
         a = {'resources_available.ncpus': 4,
              'resources_available.mem': '6400mb'}
-        self.server.create_vnodes('vn', a, 500, self.mom, usenatvnode=False)
+        self.mom.create_vnodes(a, 500, usenatvnode=False,
+                               sharednode=False)
         p = "express_queue, normal_jobs, server_softlimits, queue_softlimits"
         a = {'preempt_prio': p}
         self.server.manager(MGR_CMD_SET, SCHED, a)
 
-        a = {'max_run_res_soft.ncpus': "[u:" + str(TEST_USER)+"=1]"}
+        a = {'max_run_res_soft.ncpus': "[u:" + str(TEST_USER) + "=1]"}
         self.server.manager(MGR_CMD_SET, QUEUE, a, 'workq')
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
 
@@ -513,38 +513,129 @@ exit 0
         self.server.manager(MGR_CMD_CREATE, QUEUE, a, qname)
 
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
-        a = {ATTR_l + '.select=1:ncpus': 1, ATTR_q: qname}
-        fjid = None
-        for _ in range(2000):
-            j = Job(TEST_USER2, attrs=a)
-            j.set_sleep_time(3000)
-            if fjid is None:
-                fjid = self.server.submit(j)
-            else:
-                ljid = self.server.submit(j)
+        a = {ATTR_l + '.select=2000:ncpus': 1, ATTR_q: qname}
+        j = Job(TEST_USER3, attrs=a)
+        j.set_sleep_time(3000)
+        hjid = self.server.submit(j)
         scycle = time.time()
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
-        (_, str1) = self.scheduler.log_match(fjid + ";Considering job to run")
+        (_, str1) = self.scheduler.log_match(hjid + ";Considering job to run")
 
         date_time1 = str1.split(";")[0]
         epoch1 = self.lu.convert_date_time(date_time1)
         # make sure 2000 jobs were suspended
         self.server.expect(JOB, {'job_state=S': 2000}, interval=10, offset=5,
                            max_attempts=100)
-        # record the start time of last high priority job
-        (_, str2) = self.scheduler.log_match(ljid + ";Job run",
-                                             n='ALL',
-                                             max_attempts=1, interval=2)
+
+        # check when server received the request
+        (_, req_svr) = self.server.log_match(";Type 93 request received",
+                                             starttime=epoch1)
+        date_time_svr = req_svr.split(";")[0]
+        epoch_svr = self.lu.convert_date_time(date_time_svr)
+        # check when scheduler gets first reply from server
+        (_, resp_sched) = self.scheduler.log_match(";Job preempted ",
+                                                   starttime=epoch1)
+        date_time_sched = resp_sched.split(";")[0]
+        epoch_sched = self.lu.convert_date_time(date_time_sched)
+        svr_delay = epoch_sched - epoch_svr
+
+        # record the start time of high priority job
+        (_, str2) = self.scheduler.log_match(hjid + ";Job run",
+                                             n='ALL', interval=2)
         date_time2 = str2.split(";")[0]
         epoch2 = self.lu.convert_date_time(date_time2)
         time_diff = epoch2 - epoch1
         self.logger.info('#' * 80)
         self.logger.info('#' * 80)
-        res_str = "RESULT: THE TIME TAKEN IS : " + str(time_diff) + " SECONDS"
+        res_str = "RESULT: TOTAL PREEMPTION TIME: " + \
+                  str(time_diff) + " SECONDS, SERVER TOOK: " + \
+                  str(svr_delay) + " , SCHED TOOK: " + \
+                  str(time_diff - svr_delay)
         self.logger.info(res_str)
         self.logger.info('#' * 80)
         self.logger.info('#' * 80)
+
+    @timeout(3600)
+    def test_preemption_with_user_soft_limits(self):
+        """
+        Measure the time scheduler takes to preempt when there are user
+        soft limits in the system for one user and only some preemptee jobs
+        are submitted as that user.
+        """
+        a = {'resources_available.ncpus': 4,
+             'resources_available.mem': '6400mb'}
+        self.mom.create_vnodes(a, 500, usenatvnode=False,
+                               sharednode=False)
+        p = "express_queue, normal_jobs, server_softlimits, queue_softlimits"
+        a = {'preempt_prio': p}
+        self.server.manager(MGR_CMD_SET, SCHED, a)
+
+        a = {'max_run_res_soft.ncpus': "[u:" + str(TEST_USER) + "=1]"}
+        self.server.manager(MGR_CMD_SET, QUEUE, a, 'workq')
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+
+        # submit a bunch of jobs as different users
+        a = {ATTR_l + '.select=1:ncpus': 1}
+        usr_list = [TEST_USER, TEST_USER2, TEST_USER3, TEST_USER4]
+        num_usr = len(usr_list)
+        for ind in range(2000):
+            j = Job(usr_list[ind % num_usr], attrs=a)
+            j.set_sleep_time(3000)
+            self.server.submit(j)
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+        self.server.expect(JOB, {'job_state=R': 2000}, interval=10, offset=5,
+                           max_attempts=100)
+
+        qname = 'highp'
+        a = {'queue_type': 'execution', 'priority': '200',
+             'started': 'True', 'enabled': 'True'}
+        self.server.manager(MGR_CMD_CREATE, QUEUE, a, qname)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
+        a = {ATTR_l + '.select=2000:ncpus': 1, ATTR_q: qname}
+        j = Job(TEST_USER5, attrs=a)
+        j.set_sleep_time(3000)
+        hjid = self.server.submit(j)
+        scycle = time.time()
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+
+        (_, str1) = self.scheduler.log_match(hjid + ";Considering job to run")
+
+        date_time1 = str1.split(";")[0]
+        epoch1 = self.lu.convert_date_time(date_time1)
+        # make sure 2000 jobs were suspended
+        self.server.expect(JOB, {'job_state=S': 2000}, interval=10, offset=5,
+                           max_attempts=100)
+
+        # check when server received the request
+        (_, req_svr) = self.server.log_match(";Type 93 request received",
+                                             starttime=epoch1)
+        date_time_svr = req_svr.split(";")[0]
+        epoch_svr = self.lu.convert_date_time(date_time_svr)
+        # check when scheduler gets first reply from server
+        (_, resp_sched) = self.scheduler.log_match(";Job preempted ",
+                                                   starttime=epoch1)
+        date_time_sched = resp_sched.split(";")[0]
+        epoch_sched = self.lu.convert_date_time(date_time_sched)
+        svr_delay = epoch_sched - epoch_svr
+
+        # record the start time of high priority job
+        (_, str2) = self.scheduler.log_match(hjid + ";Job run",
+                                             n='ALL', interval=2)
+        date_time2 = str2.split(";")[0]
+        epoch2 = self.lu.convert_date_time(date_time2)
+        time_diff = epoch2 - epoch1
+        self.logger.info('#' * 80)
+        self.logger.info('#' * 80)
+        res_str = "RESULT: TOTAL PREEMPTION TIME: " + \
+                  str(time_diff) + " SECONDS, SERVER TOOK: " + \
+                  str(svr_delay) + " , SCHED TOOK: " + \
+                  str(time_diff - svr_delay)
+        self.logger.info(res_str)
+        self.logger.info('#' * 80)
+        self.logger.info('#' * 80)
+        self.perf_test_result(time_diff, "preempt_time_soft_limits", "sec")
 
     def tearDown(self):
         TestPerformance.tearDown(self)

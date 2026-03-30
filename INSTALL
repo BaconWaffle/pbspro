@@ -1,64 +1,125 @@
 
 --------------------------------------------------------------------
 
-How to install PBS Pro using the configure script.
+How to install PBS using the configure script.
 
-1. Install the prerequisite packages for building PBS Pro.
+0. Disable SELinux.
 
-  For CentOS systems you should run the following command as root:
+  OpenPBS does not support SELinux. With SELinux enabled, initial start fails
+    with datastore permission error. You can also define proper policy but it is
+    out of scope of this guide.
+
+1. Install the prerequisite packages for building PBS.
+
+  For CentOS-8 systems you should configure and enable powertools
+  repo for hwloc-devel and libedit-devel packages.
+
+  You should run the following commands as root:
+
+    dnf install -y dnf-plugins-core
+    dnf config-manager --set-enabled powertools
+
+    dnf install -y gcc make rpm-build libtool hwloc-devel \
+      libX11-devel libXt-devel libedit-devel libical-devel \
+      ncurses-devel perl postgresql-devel postgresql-contrib python3-devel tcl-devel \
+      tk-devel swig expat-devel openssl-devel libXext libXft \
+      autoconf automake gcc-c++ cjson-devel
+
+  For CentOS-7 systems you should run the following command as root:
 
     yum install -y gcc make rpm-build libtool hwloc-devel \
       libX11-devel libXt-devel libedit-devel libical-devel \
-      ncurses-devel perl postgresql-devel postgresql-contrib python-devel tcl-devel \
+      ncurses-devel perl postgresql-devel postgresql-contrib python3-devel tcl-devel \
       tk-devel swig expat-devel openssl-devel libXext libXft \
-      autoconf automake
+      autoconf automake gcc-c++
 
   For openSUSE systems you should run the following command as root:
 
     zypper install gcc make rpm-build libtool hwloc-devel \
       libX11-devel libXt-devel libedit-devel libical-devel \
-      ncurses-devel perl postgresql-devel postgresql-contrib python-devel tcl-devel \
+      ncurses-devel perl postgresql-devel postgresql-contrib python3-devel tcl-devel \
       tk-devel swig libexpat-devel libopenssl-devel libXext-devel \
-      libXft-devel fontconfig autoconf automake
+      libXft-devel fontconfig autoconf automake gcc-c++ cJSON-devel
 
   For Debian systems you should run the following command as root:
 
-    sudo apt-get install gcc make libtool libhwloc-dev libx11-dev \
+    apt-get install gcc make libtool libhwloc-dev libx11-dev \
       libxt-dev libedit-dev libical-dev ncurses-dev perl \
-      postgresql-server-dev-all postgresql-contrib python-dev tcl-dev tk-dev swig \
+      postgresql-server-dev-all postgresql-contrib python3-dev tcl-dev tk-dev swig \
       libexpat-dev libssl-dev libxext-dev libxft-dev autoconf \
-      automake
+      automake g++ libcjson-dev
 
-2. Install the prerequisite packages for running PBS Pro. In addition
+  For Ubuntu-18.04 systems you should run the following command as root:
+
+    apt install gcc make libtool libhwloc-dev libx11-dev \
+      libxt-dev libedit-dev libical-dev ncurses-dev perl \
+      postgresql-server-dev-all postgresql-contrib python3-dev tcl-dev tk-dev swig \
+      libexpat-dev libssl-dev libxext-dev libxft-dev autoconf \
+      automake g++
+
+  For Ubuntu-24.04 systems you should run the following command as root:
+
+    apt install gcc make libtool libhwloc-dev libx11-dev \
+      libxt-dev libedit-dev libical-dev ncurses-dev perl \
+      postgresql-server-dev-all postgresql-contrib python3-dev tcl-dev tk-dev swig \
+      libexpat-dev libssl-dev libxext-dev libxft-dev autoconf \
+      automake g++ libcjson-dev
+
+  For macOS systems using MacPorts you should run the following command as root:
+
+    port install autoconf automake libtool pkgconfig \
+      expat hwloc libedit libical openssl postgresql14 python310 \
+      swig-python tcl tk xorg-libX11 xorg-libXt
+
+2. Install the prerequisite packages for running PBS. In addition
   to the commands below, you should also install a text editor of
   your choosing (vim, emacs, gedit, etc.).
 
   For CentOS systems you should run the following command as root:
 
-    yum install -y expat libedit postgresql-server postgresql-contrib python \
-      sendmail sudo tcl tk libical
+    yum install -y expat libedit postgresql-server postgresql-contrib python3 \
+      sendmail sudo tcl tk libical chkconfig cjson
 
   For openSUSE systems you should run the following command as root:
 
-    zypper install expat libedit postgresql-server postgresql-contrib python \
-      sendmail sudo tcl tk libical1
+    zypper install expat libedit postgresql-server postgresql-contrib python3 \
+      sendmail sudo tcl tk libical1 libcjson1
 
   For Debian (jessie) systems you should run the following command as root:
 
-    apt-get install expat libedit2 postgresql python postgresql-contrib sendmail-bin \
+    apt-get install expat libedit2 postgresql python3 postgresql-contrib sendmail-bin \
       sudo tcl tk libical1a
 
   For Debian (stretch) systems you should run the following command as root:
 
-    apt-get install expat libedit2 postgresql python postgresql-contrib sendmail-bin \
+    apt-get install expat libedit2 postgresql python3 postgresql-contrib sendmail-bin \
       sudo tcl tk libical2
 
+  For Debian (buster) systems you should run the following command as root:
 
-3. Open a terminal as a normal (non-root) user, unpack the PBS Pro
+    apt-get install expat libedit2 postgresql python3 postgresql-contrib sendmail-bin \
+      sudo tcl tk libical3 libcjson1
+
+  For Ubuntu-18.04 systems you should run the following command as root:
+
+    apt install expat libedit2 postgresql python3 postgresql-contrib sendmail-bin \
+      sudo tcl tk libical3 postgresql-server-dev-all
+
+  For Ubuntu-24.04 systems you should run the following command as root:
+
+    apt install expat libedit2 postgresql python3 postgresql-contrib sendmail-bin \
+      sudo tcl tk libical3 postgresql-server-dev-all
+
+  For macOS systems using MacPorts you should run the following command as root:
+
+    port install expat libedit libical openssl postgresql14-server python310 \
+      tcl tk
+
+3. Open a terminal as a normal (non-root) user, unpack the PBS
   tarball, and cd to the package directory.
 
-    tar -xpvf pbspro-18.1.0.tar.gz
-    cd pbspro-18.1.0
+    tar -xpvf openpbs-20.0.0.tar.gz
+    cd openpbs-20.0.0
 
 4. Generate the configure script and Makefiles. (See note 1 below)
 
@@ -81,11 +142,17 @@ How to install PBS Pro using the configure script.
 
     ./configure --prefix=/opt/pbs --libexecdir=/opt/pbs/libexec
 
-  If PTL needs to be installed along with pbspro use the option 
+  For macOS systems using MacPorts you should run the following commands:
+
+    export CPATH=/opt/local/include/postgresql14:/opt/local/include
+    export LIBRARY_PATH=/opt/local/lib/postgresql14:/opt/local/lib
+    ./configure --with-swig=/opt/local --with-tcl=/opt/local
+
+  If PTL needs to be installed along with PBS use the option
   "--enable-ptl" (see note 5 below)
     eg ./configure --prefix=/opt/pbs --enable-ptl
 
-7. Build PBS Pro by running "make". (See note 4 below)
+7. Build PBS by running "make". (See note 4 below)
 
     make
 
@@ -93,16 +160,16 @@ How to install PBS Pro using the configure script.
   root. Refer to the online manual pages for sudo, sudoers, and
   visudo.
 
-9. Install PBS Pro. Use sudo to run the command as root.
+9. Install PBS. Use sudo to run the command as root.
 
     sudo make install
 
-10. Configure PBS Pro by executing the post-install script.
+10. Configure PBS by executing the post-install script.
 
     sudo /opt/pbs/libexec/pbs_postinstall
 
-11. Edit /etc/pbs.conf to configure the PBS Pro services that
-  should be started. If you are installing PBS Pro on only
+11. Edit /etc/pbs.conf to configure the PBS services that
+  should be started. If you are installing PBS on only
   one system, you should change the value of PBS_START_MOM
   from zero to one. If you use vi as your editor, you would
   run:
@@ -113,13 +180,13 @@ How to install PBS Pro using the configure script.
 
     sudo chmod 4755 /opt/pbs/sbin/pbs_iff /opt/pbs/sbin/pbs_rcp
 
-13. Start the PBS Pro services.
+13. Start the PBS services.
 
     sudo /etc/init.d/pbs start
 
 14. All configured PBS services should now be running. Update
   your PATH and MANPATH variables by sourcing the appropriate
-  PBS Pro profile or logging out and back in.
+  PBS profile or logging out and back in.
 
   For Bourne shell (or similar) run the following:
     . /etc/profile.d/pbs.sh
@@ -127,7 +194,7 @@ How to install PBS Pro using the configure script.
   For C shell (or similar) run the following:
     source /etc/profile.d/pbs.csh
 
-15. You should now be able to run PBS Pro commands to submit
+15. You should now be able to run PBS commands to submit
   and query jobs. Some examples follow.
 
 bash$ qstat -B
@@ -148,7 +215,7 @@ host1
      resources_assigned.accelerator_memory = 0kb
      resources_assigned.mem = 0kb
      resources_assigned.naccelerators = 0
-     resources_assigned.ncpus = 0     
+     resources_assigned.ncpus = 0
      resources_assigned.vmem = 0kb
      resv_enable = True
      sharing = default_shared
@@ -201,14 +268,14 @@ Note 4: You need to use a POSIX (or nearly POSIX) make. GNU make
   is not guaranteed to work. Don't be surprised if the first thing
   that make does is call configure again.
 
-Note 5: PTL gets installed in the parent directory of where PBS Professional
-  is installed. For example if you have given install prefix=/opt/pbs, then 
-  you can find PTL installation in the directory /opt/ptl . You may need to 
+Note 5: PTL gets installed in the parent directory of where PBS
+  is installed. For example if you have given install prefix=/opt/pbs, then
+  you can find PTL installation in the directory /opt/ptl . You may need to
   log out and log in from the terminal for PATH and PYTHONPATH to update.
 
 
 
-Using valgrind with PBS Professional.
+Using valgrind with PBS.
 -------------------------------------
 Here is a set of steps to detect memory errors/leaks within PBS code.
 
@@ -223,21 +290,20 @@ Here is a set of steps to detect memory errors/leaks within PBS code.
    make; make install
 
 
-3. Compile PBS Professional with the special python and in debug mode as follows:
+3. Compile PBS with the special python and in debug mode as follows:
 
    ./configure --prefix=<installdir> --with-python=<python-dir>  CFLAGS="-g -DPy_DEBUG -DDEBUG -Wall -Werror"
 
-   
+
 4. Run pbs daemons under valgrind.
-   
-   a) To detect memory errors (not leaks) run pbs daemons as follows: 
-	
+
+   a) To detect memory errors (not leaks) run pbs daemons as follows:
+
    export LD_LIBRARY_PATH=/opt/pbs/pgsql/lib:/opt/pbs/lib:$LD_LIBRARY_PATH
    valgrind --tool=memcheck --log-file=/tmp/val.out /opt/pbs/sbin/pbs_server.bin
 
 
-   b) To detect memory leaks use the supplied leaks suppression file valgrind.supp, as follows: 
-   
+   b) To detect memory leaks use the supplied leaks suppression file valgrind.supp, as follows:
+
    export LD_LIBRARY_PATH=/opt/pbs/pgsql/lib:/opt/pbs/lib:$LD_LIBRARY_PATH
    valgrind --tool=memcheck --log-file=/tmp/val.out --suppressions=./valgrind.supp --leak-check=full --track-origins=yes /opt/pbs/sbin/pbs_server.bin
-

@@ -1,40 +1,43 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import getopt
 import logging
@@ -145,19 +148,20 @@ def usage():
     msg += ['           Note that -t option will be ignored\n']
     msg += ['--version: print version number and exit\n']
 
-    print "".join(msg)
+    print("".join(msg))
 
 
 def process_config(hosts, process_obj, conf_file=None, type='default',
                    delqueues=False, delhooks=False):
     for host in hosts:
+        svr_obj = Server(host)
         if MGR_OBJ_SCHED in process_obj:
             if type == 'default':
-                Scheduler(host).revert_to_defaults()
+                Scheduler(svr_obj, host).revert_to_defaults()
             elif type == 'load':
-                Scheduler(host).load_configuration(conf_file)
+                Scheduler(svr_obj, host).load_configuration(conf_file)
             elif type == 'save':
-                Scheduler(host).save_configuration(conf_file)
+                Scheduler(svr_obj, host).save_configuration(conf_file)
         if MGR_OBJ_SERVER in process_obj:
             if type == 'default':
                 Server(host).revert_to_defaults(delhooks=delhooks,
@@ -168,11 +172,11 @@ def process_config(hosts, process_obj, conf_file=None, type='default',
                 Server(host).save_configuration(conf_file)
         if MGR_OBJ_NODE in process_obj:
             if type == 'default':
-                MoM(host).revert_to_defaults()
+                MoM(svr_obj, host).revert_to_defaults()
             elif type == 'load':
-                MoM(host).load_configuration(conf_file)
+                MoM(svr_obj, host).load_configuration(conf_file)
             elif type == 'save':
-                MoM(host).save_configuration(conf_file)
+                MoM(svr_obj, host).save_configuration(conf_file)
 
 
 def process_attributes(attrs):
@@ -192,7 +196,7 @@ def common_users_groups_ops():
     g_create = []
     u_create = []
     gm_expected = {}
-    gm_actual = du.group_memberships(map(lambda g: str(g), PBS_GROUPS))
+    gm_actual = du.group_memberships([str(g) for g in PBS_GROUPS])
     for g in PBS_GROUPS:
         gm_expected[g] = g.users
     for k, v in gm_expected.items():
@@ -214,11 +218,11 @@ def check_users_groups():
     if ((len(g_create) > 0) or (len(u_create) > 0)):
         out = ['Expected (format is <group name>: <user> [, <user2>...) ']
         for k, v in gm_expected.items():
-            out += [str(k) + ': ' + ', '.join(map(lambda u:str(u), v))]
+            out += [str(k) + ': ' + ', '.join([str(u) for u in v])]
         out += ['\n', 'Actual: ']
         for k, v in gm_actual.items():
             out += [k + ': ' + ', '.join(v)]
-        print '\n'.join(out)
+        print('\n'.join(out))
         return False
     else:
         return True
@@ -417,7 +421,7 @@ if __name__ == '__main__':
         elif o == '--switch-version':
             switchversion = val
         elif o == '--version':
-            print ptl.__version__
+            print(ptl.__version__)
             sys.exit(0)
         else:
             sys.stderr.write("Unrecognized option " + o + "\n")
@@ -465,8 +469,8 @@ if __name__ == '__main__':
                        delqueues=delqueues, delhooks=delhooks)
     elif saveconf:
         if os.path.isfile(saveconf):
-            answer = raw_input('file ' + saveconf + ' exists, overwrite? '
-                               '[y]/n: ')
+            answer = input('file ' + saveconf + ' exists, overwrite? '
+                           '[y]/n: ')
             if answer == 'n':
                 sys.exit(1)
         if not process_obj:
@@ -477,16 +481,18 @@ if __name__ == '__main__':
         if filename:
             vdef = BatchUtils().file_to_vnodedef(filename)
             if vdef:
-                MoM(hostname, pbsconf_file=conf_file).insert_vnode_def(vdef)
+                svr_obj = Server(hostname, pbsconf_file=conf_file)
+                MoM(svr_obj, hostname,
+                    pbsconf_file=conf_file).insert_vnode_def(vdef)
         elif num_vnodes is None:
             logging.error('A number of vnodes to create is required\n')
             sys.exit(1)
         else:
             nattrs = process_attributes(attrs)
             for hostname in hosts:
-                s = Server(hostname)
-                m = MoM(hostname, pbsconf_file=conf_file)
-                s.create_vnodes(vnodeprefix, nattrs, num_vnodes, m,
+                svr_obj = Server(hostname, pbsconf_file=conf_file)
+                m = MoM(svr_obj, hostname, pbsconf_file=conf_file)
+                m.create_vnodes(nattrs, num_vnodes,
                                 additive, sharedhost, restart, delall,
                                 natvnode, usenatvnode, fname=vdefname,
                                 vnodes_per_host=vnodes_per_host)

@@ -1,120 +1,71 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
-
-/**
- * @file	entlim.c
- * @brief
- * 	entlim functions - This file contains functions to deal will adding to,
- *	finding in, and removing from entities limits from a data structure.
- *
- *	We will attempt to hide the details of the fgc holding structure,
- *	which for this implementation will be an AVL tree.
- *
- * More to come.....
- */
+#include <pbs_config.h>
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "avltree.h"
 #include "pbs_entlim.h"
-#ifdef WIN32
-#include <windows.h>
-#include <win.h>
-#endif
 
+/* entlim iteration context structure, opaque to caller */
+typedef struct _entlim_ctx {
+	void *idx;
+	void *idx_ctx;
+} entlim_ctx;
 
-static size_t maxkeylen = 0;
-static size_t defkeylen = 0;
 /**
  * @brief
  * 	entlim_initialize_ctx - initialize the data context structure
- *	For now it an AVL Tree
- *
  */
-
 void *
 entlim_initialize_ctx(void)
 {
-	AVL_IX_DESC *ctx;
-	ctx = (AVL_IX_DESC *)malloc(sizeof(AVL_IX_DESC));
-	if (ctx != NULL) {
-		avl_create_index(ctx, AVL_NO_DUP_KEYS, 0);
-		if (maxkeylen == 0) {
-			defkeylen = sizeof(AVL_IX_REC);
-			maxkeylen = defkeylen;
-		}
-	}
-	return ((void *)ctx);
-}
-
-/**
- * @brief
- * 	entlim_create_key - create a key to hold the key string used for indexing
- *
- * @param[in] keystr - key string
- *
- * @return	pbs_entlim_key_t*
- * @retval	pointer to key info	success
- * @retval	NULL			error
- *
- */
-
-static pbs_entlim_key_t *
-entlim_create_key(const char *keystr)
-{
-	size_t		 keylen;
-	pbs_entlim_key_t *pkey;
-
-	if ((keystr != NULL) && (*keystr != '\0')) {
-		keylen = defkeylen + strlen(keystr) + 1;
-		if (keylen > maxkeylen)
-			maxkeylen = keylen;
-	} else {
-		keylen = maxkeylen;
-	}
-	pkey = (pbs_entlim_key_t *)malloc(keylen);
-	if (pkey == NULL)
+	entlim_ctx *pctx = malloc(sizeof(entlim_ctx));
+	if (pctx == NULL)
 		return NULL;
-	memset((void *)pkey, 0, keylen);
-	if ((keystr != NULL) && (*keystr != '\0'))
-		strcpy(pkey->key, keystr);
-	return (pkey);
+	pctx->idx_ctx = NULL;
+	pctx->idx = pbs_idx_create(0, 0);
+	if (pctx->idx == NULL) {
+		free(pctx);
+		return NULL;
+	}
+	return (void *) pctx;
 }
 
 /**
@@ -122,7 +73,7 @@ entlim_create_key(const char *keystr)
  * 	entlim_get - get record whose key is built from the given key-string
  *
  * @param[in] keystr - key string whose key is to be built
- * @param[in] ctx - pointer to avl descending order tree info
+ * @param[in] ctx - pointer to context
  *
  * @return	void text
  * @retval	key		success
@@ -133,20 +84,11 @@ entlim_create_key(const char *keystr)
 void *
 entlim_get(const char *keystr, void *ctx)
 {
-	pbs_entlim_key_t *pkey;
-	void	         *rtn;
+	void *rtn;
 
-	pkey =  entlim_create_key(keystr);
-	if (pkey == NULL)
-		return NULL;
-	if (avl_find_key((AVL_IX_REC *)pkey, (AVL_IX_DESC *)ctx) == AVL_IX_OK) {
-		rtn = pkey->recptr;
-		free(pkey);
-		return (rtn);
-	} else {
-		free(pkey);
-		return NULL;
-	}
+	if (pbs_idx_find(((entlim_ctx *) ctx)->idx, (void **) &keystr, &rtn, NULL) == PBS_IDX_RET_OK)
+		return rtn;
+	return NULL;
 }
 
 /**
@@ -155,7 +97,7 @@ entlim_get(const char *keystr, void *ctx)
  *
  * @param[in] keystr - key string whose key is to be built
  * @param[in] recptr - pointer to record
- * @param[in] ctx - pointer to avl descending order tree info
+ * @param[in] ctx - pointer to context
  *
  * @return	int
  * @retval	0	success, record added
@@ -164,20 +106,9 @@ entlim_get(const char *keystr, void *ctx)
 int
 entlim_add(const char *keystr, const void *recptr, void *ctx)
 {
-	pbs_entlim_key_t *pkey;
-
-	pkey = entlim_create_key(keystr);
-	if (pkey == NULL)
-		return -1;
-
-	pkey->recptr = (AVL_RECPOS)recptr;
-
-	if (avl_add_key((AVL_IX_REC *)pkey, (AVL_IX_DESC *)ctx) == AVL_IX_OK) {
-		free(pkey);
+	if (pbs_idx_insert(((entlim_ctx *) ctx)->idx, (void *) keystr, (void *) recptr) == PBS_IDX_RET_OK)
 		return 0;
-	} else {
-		return -1;
-	}
+	return -1;
 }
 
 /**
@@ -188,7 +119,7 @@ entlim_add(const char *keystr, const void *recptr, void *ctx)
  *
  * @param[in] keystr - key string whose key is to be built
  * @param[in] recptr - pointer to record
- * @param[in] ctx - pointer to avl descending order tree info
+ * @param[in] ctx - pointer to context
  * @param[in] free_leaf() - function called to delete data record when removing
  *			    exiting record.
  *
@@ -197,41 +128,23 @@ entlim_add(const char *keystr, const void *recptr, void *ctx)
  * @retval	-1	change failed
  */
 int
-entlim_replace(const char *keystr, void *recptr, void *ctx,
-	void fr_leaf(void *))
+entlim_replace(const char *keystr, void *recptr, void *ctx, void fr_leaf(void *))
 {
-	pbs_entlim_key_t *pkey;
-	int		  rc;
+	void *olddata;
+	entlim_ctx *pctx = (entlim_ctx *) ctx;
 
-	pkey = entlim_create_key(keystr);
-	if (pkey == NULL)
-		return -1;
-	pkey->recptr = recptr;
-	if (avl_add_key((AVL_IX_REC *)pkey, (AVL_IX_DESC *)ctx) == AVL_IX_OK) {
-		free(pkey);
+	if (pbs_idx_insert(pctx->idx, (void *) keystr, recptr) == PBS_IDX_RET_OK)
 		return 0;
-	} else {
-		/* record with key may already exist, try deleting it */
-		rc = avl_find_key((AVL_IX_REC *)pkey, (AVL_IX_DESC *)ctx);
-		if (rc == AVL_IX_OK) {
-			void *olddata = pkey->recptr;
-			rc = avl_delete_key((AVL_IX_REC *)pkey, (AVL_IX_DESC *)ctx);
-			if (rc == AVL_IX_OK) {
+	else {
+		if (pbs_idx_find(pctx->idx, (void **) &keystr, &olddata, NULL) == PBS_IDX_RET_OK) {
+			if (pbs_idx_delete(pctx->idx, (void *) keystr) == PBS_IDX_RET_OK) {
 				fr_leaf(olddata);
-				free(pkey);
-				pkey = entlim_create_key(keystr);
-				if (pkey == NULL)
-					return -1;
-				pkey->recptr = recptr;
-				rc = avl_add_key((AVL_IX_REC *)pkey, (AVL_IX_DESC *)ctx);
+				if (pbs_idx_insert(pctx->idx, (void *) keystr, recptr) == PBS_IDX_RET_OK)
+					return 0;
 			}
 		}
-		free(pkey);
-		if (rc == AVL_IX_OK)
-			return 0;
-		else
-			return -1;
 	}
+	return -1;
 }
 
 /**
@@ -240,7 +153,7 @@ entlim_replace(const char *keystr, void *recptr, void *ctx,
  *
  * @param[in] keystr - key string whose key is to be built
  * @param[in] recptr - pointer to record
- * @param[in] ctx - pointer to avl descending order tree info
+ * @param[in] ctx - pointer to context
  * @param[in] free_leaf() - function to free the data structure associated
  *			    with the key.
  *
@@ -251,22 +164,15 @@ entlim_replace(const char *keystr, void *recptr, void *ctx,
 int
 entlim_delete(const char *keystr, void *ctx, void free_leaf(void *))
 {
-	pbs_entlim_key_t *pkey;
-	int               rc;
-	void 		 *prec;
+	void *prec;
 
-	pkey = entlim_create_key(keystr);
-	if (pkey == NULL)
-		return -1;
-
-	rc =  avl_delete_key((AVL_IX_REC *)pkey, (AVL_IX_DESC *)ctx);
-	prec = pkey->recptr;
-	free(pkey);
-	if (rc == AVL_IX_OK) {
-		free_leaf(prec);
-		return 0;
-	} else
-		return -1;
+	if (pbs_idx_find(((entlim_ctx *) ctx)->idx, (void **) &keystr, &prec, NULL) == PBS_IDX_RET_OK) {
+		if (pbs_idx_delete(((entlim_ctx *) ctx)->idx, (void *) keystr) == PBS_IDX_RET_OK) {
+			free_leaf(prec);
+			return 0;
+		}
+	}
+	return -1;
 }
 
 /**
@@ -276,7 +182,7 @@ entlim_delete(const char *keystr, void *ctx, void free_leaf(void *))
  *	the first entry; otherwise it returns the next entry.
  *
  * @param[in] keystr - key string whose key is to be built
- * @param[in] ctx - pointer to avl descending order tree info
+ * @param[in] ctx - pointer to context
  *
  * @return	structure handle
  * @retval	key info		success
@@ -284,32 +190,39 @@ entlim_delete(const char *keystr, void *ctx, void free_leaf(void *))
  *		Returns NULL following the last entry or when no entry found
  *		The key needs to be freed by the caller when all is said and done.
  */
-pbs_entlim_key_t *
-entlim_get_next(pbs_entlim_key_t *pkey, void *ctx)
+void *
+entlim_get_next(void *ctx, void **key)
 {
 
-	if (ctx == NULL)
+	entlim_ctx *pctx = (entlim_ctx *) ctx;
+	void *data;
+
+	if (pctx == NULL || pctx->idx == NULL)
 		return NULL;
-	if (pkey == NULL) {
-		pkey = entlim_create_key(NULL);
-		if (pkey == NULL)
+
+	if (key != NULL && *key != NULL) {
+		if (pctx->idx_ctx == NULL)
 			return NULL;
-		avl_first_key((AVL_IX_DESC *)ctx);
+	} else {
+		if (pctx->idx_ctx != NULL)
+			pbs_idx_free_ctx(pctx->idx_ctx);
+		pctx->idx_ctx = NULL;
 	}
 
-	if (avl_next_key(pkey, (AVL_IX_DESC *)ctx) == AVL_IX_OK) {
-		return pkey;
-	} else {
-		free(pkey);
-		return NULL;
-	}
+	if (pbs_idx_find(pctx->idx, key, &data, &pctx->idx_ctx) == PBS_IDX_RET_OK)
+		return data;
+
+	pbs_idx_free_ctx(pctx->idx_ctx);
+	pctx->idx_ctx = NULL;
+	*key = NULL;
+	return NULL;
 }
 
 /**
  * @brief
  * 	entlim_free_ctx - free the data structure including all keys and records
  *
- * @param[in] ctx - pointer to avl descending order tree info
+ * @param[in] ctx - pointer to context
  * @param[in] free_leaf() - function called to delete data record when removing
  *                          exiting record.
  *
@@ -321,20 +234,18 @@ entlim_get_next(pbs_entlim_key_t *pkey, void *ctx)
 int
 entlim_free_ctx(void *ctx, void free_leaf(void *))
 {
-	pbs_entlim_key_t *leaf;
-	int		 rc;
+	void *leaf;
+	entlim_ctx *pctx = (entlim_ctx *) ctx;
 
-	leaf = entlim_create_key(NULL);	/* alloc space for max sized key */
-	if (leaf == NULL)
-		return -1;
-	avl_first_key((AVL_IX_DESC *)ctx);
-
-	while ((rc = avl_next_key((AVL_IX_REC *)leaf, (AVL_IX_DESC *)ctx)) == AVL_IX_OK) {
-		free_leaf(leaf->recptr);
+	if (pctx->idx_ctx != NULL)
+		pbs_idx_free_ctx(pctx->idx_ctx);
+	pctx->idx_ctx = NULL;
+	while (pbs_idx_find(pctx->idx, NULL, &leaf, &pctx->idx_ctx) == PBS_IDX_RET_OK) {
+		free_leaf(leaf);
 	}
-	free(leaf);
-	avl_destroy_index((AVL_IX_DESC *)ctx);
-	free(ctx);
+	pbs_idx_free_ctx(pctx->idx_ctx);
+	pbs_idx_destroy(pctx->idx);
+	free(pctx);
 	return 0;
 }
 
@@ -355,8 +266,8 @@ static char *
 entlim_mk_keystr(enum lim_keytypes kt, const char *entity, const char *resc)
 {
 	size_t keylen;
-	char  *pkey;
-	char   ktyl;
+	char *pkey;
+	char ktyl;
 
 	if (kt == LIM_USER)
 		ktyl = 'u';
@@ -367,12 +278,12 @@ entlim_mk_keystr(enum lim_keytypes kt, const char *entity, const char *resc)
 	else if (kt == LIM_OVERALL)
 		ktyl = 'o';
 	else
-		return NULL; 	/* invalid entity key type */
+		return NULL; /* invalid entity key type */
 
 	keylen = 2 + strlen(entity);
 	if (resc)
 		keylen += 1 + strlen(resc);
-	pkey = malloc(keylen+1);
+	pkey = malloc(keylen + 1);
 
 	if (pkey) {
 		if (resc)
@@ -419,12 +330,11 @@ entlim_mk_reskey(enum lim_keytypes kt, const char *entity, const char *resc)
 	return entlim_mk_keystr(kt, entity, resc);
 }
 
-
 /**
  * @brief
  * 	entlim_entity_from_key - obtain the entity name from a key
  *
- * @param[in] pk - pointer to key info
+ * @param[in] key - pointer to key info
  * @param[in] rtnname - a buffer large enought to hold the max entity name +1
  * @param[in] ln      - the size of that buffer
  *
@@ -433,21 +343,21 @@ entlim_mk_reskey(enum lim_keytypes kt, const char *entity, const char *resc)
  * @retval	-1	entity name would not fit
  */
 int
-entlim_entity_from_key(pbs_entlim_key_t *pk, char *rtnname, size_t ln)
+entlim_entity_from_key(char *key, char *rtnname, size_t ln)
 {
 	char *pc;
-	int   sz = 0;
+	int sz = 0;
 
-	pc = pk->key+2;
+	pc = key + 2;
 	while (*pc && (*pc != ';')) {
 		++sz;
 		++pc;
 	}
-	if ((size_t)sz < ln) {
-		(void)strncpy(rtnname, pk->key+2, sz);
-		*(rtnname+sz) = '\0';
+	if ((size_t) sz < ln) {
+		(void) strncpy(rtnname, key + 2, sz);
+		*(rtnname + sz) = '\0';
 		return 0;
-	} else
+	}
 	return -1;
 }
 
@@ -456,7 +366,7 @@ entlim_entity_from_key(pbs_entlim_key_t *pk, char *rtnname, size_t ln)
  * 	entlim_resc_from_key - obtain the resource name from a key if it
  *	includes one.
  *
- * @param[in] pk - pointer to key info
+ * @param[in] key - pointer to key info
  * @param[in] rtnname - a buffer large enought to hold the max entity name +1
  * @param[in] ln      - the size of that buffer
  *
@@ -467,11 +377,11 @@ entlim_entity_from_key(pbs_entlim_key_t *pk, char *rtnname, size_t ln)
  *
  */
 int
-entlim_resc_from_key(pbs_entlim_key_t *pk, char *rtnresc, size_t ln)
+entlim_resc_from_key(char *key, char *rtnresc, size_t ln)
 {
 	char *pc;
 
-	pc = strchr(pk->key, (int)';');
+	pc = strchr(key, (int) ';');
 	if (pc) {
 		if (strlen(++pc) < ln) {
 			strcpy(rtnresc, pc);

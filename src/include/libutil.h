@@ -1,51 +1,58 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 #ifndef _HAVE_LIB_UTIL_H
 #define _HAVE_LIB_UTIL_H
-#ifdef  __cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
-
 #include <time.h>
 #include <stdio.h>
+#include <stdbool.h>
+#include <netinet/in.h>
+
+#include "pbs_ifl.h"
 
 /* misc_utils specific */
+
+#define IS_EMPTY(str) (!str || str[0] == '\0')
 
 /* replace - Replace sub-string  with new pattern in string */
 void replace(char *, char *, char *, char *);
@@ -106,7 +113,7 @@ struct map {
 };
 
 /* Compress a delimited string into a dictionary compressed representation */
-char *condense_execvnode_seq(char *);
+char *condense_execvnode_seq(const char *);
 
 /* Decompress a compress string into an array of words (strings) indexed by
  * their associated indices */
@@ -120,7 +127,6 @@ int get_execvnodes_count(char *);
 
 /* Free the memory allocated to an unrolled string */
 void free_execvnode_seq(char **ptr);
-
 
 /* pbs_ical specific */
 
@@ -166,8 +172,7 @@ void set_ical_zoneinfo(char *path);
 /*
  * values for the vnode 'sharing' attribute
  */
-enum vnode_sharing
-{
+enum vnode_sharing {
 	VNS_UNSET,
 	VNS_DFLT_SHARED,
 	VNS_DFLT_EXCL,
@@ -191,15 +196,31 @@ enum vnode_sharing str_to_vnode_sharing(char *vn_str);
  * concatenate two strings by expanding target string as needed.
  * 	  Operation: strbuf += str
  */
-char *pbs_strcat(char **strbuf, int *ssize, char *str);
+char *pbs_strcat(char **strbuf, int *ssize, const char *str);
 
+/*
+ * like strcpy, but returns pointer to end of copied data
+ * useful for chain copies instead of sprintf which is very
+ * slow
+ *
+ */
+char *pbs_strcpy(char *dest, const char *src);
+
+/*
+ * general purpose strncpy function that will make sure to
+ * copy '\0' at the end of the buffer.
+ */
+char *pbs_strncpy(char *dest, const char *src, size_t n);
+
+int pbs_extendable_line(char *buf);
 char *pbs_fgets(char **pbuf, int *pbuf_size, FILE *fp);
 char *pbs_fgets_extend(char **pbuf, int *pbuf_size, FILE *fp);
 
 /*
  * Internal asprintf() implementation for use on all platforms
  */
-int pbs_asprintf(char **dest, const char *fmt, ...);
+extern int pbs_asprintf(char **dest, const char *fmt, ...);
+extern char *pbs_asprintf_format(int len, const char *fmt, va_list args);
 
 /*
  * calculate the number of digits to the right of the decimal point in
@@ -212,41 +233,28 @@ int pbs_asprintf(char **dest, const char *fmt, ...);
  */
 int float_digits(double fl, int digits);
 
-/* munge related routines, no win32 */
-#ifndef WIN32
-int pbs_munge_validate(void *auth_data, int *fromsvr, char *ebuf, int ebufsz);
-char *pbs_get_munge_auth_data(int fromsvr, char *ebuf, int ebufsz);
-#endif
-
-/* callback routines from TPP to handle all types of external authentication, available on all platforms */
-void *get_ext_auth_data(int auth_type, int *data_len, char *ebuf, int ebufsz);
-int validate_ext_auth_data(int auth_type, void *data, int data_len, char *ebuf, int ebufsz);
-
 /* Various helper functions in hooks processing */
 int starts_with_triple_quotes(char *str);
 int ends_with_triple_quotes(char *str, int strip_quotes);
 
 /* Special symbols for copy_file_internal() */
 
-#define COPY_FILE_BAD_INPUT	1
-#define COPY_FILE_BAD_SOURCE	2
-#define COPY_FILE_BAD_DEST	3
-#define	COPY_FILE_BAD_WRITE	4
+#define COPY_FILE_BAD_INPUT 1
+#define COPY_FILE_BAD_SOURCE 2
+#define COPY_FILE_BAD_DEST 3
+#define COPY_FILE_BAD_WRITE 4
 
-
-#define LOCK_RETRY_DEFAULT	2
+#define LOCK_RETRY_DEFAULT 2
 int
-lock_file(FILE *fp, int op, char *filename, int lock_retry,
-	char *err_msg, size_t err_msg_len);
+lock_file(int fd, int op, char *filename, int lock_retry,
+	  char *err_msg, size_t err_msg_len);
 
 /* RSHD/RCP related */
 /* Size of the buffer used in communication with rshd deamon */
 #define RCP_BUFFER_SIZE 65536
 
-
 #define MAXBUFLEN 1024
 #define BUFFER_GROWTH_RATE 2
-
 
 /*
  *      break_comma_list - break apart a comma delimited string into an array
@@ -263,12 +271,17 @@ char **break_delimited_str(char *list, char delim);
 /*
  * find index of str in strarr
  */
-int find_string_idx(char **strarr, char *str);
+int find_string_idx(char **strarr, const char *str);
 
 /*
  *	is_string_in_arr - Does a string exist in the given array?
  */
-int is_string_in_arr(char **strarr, char *str);
+int is_string_in_arr(char **strarr, const char *str);
+
+/*
+ * Make copy of string array
+ */
+char **dup_string_arr(char **strarr);
 
 /*
  *      free_string_array - free an array of strings with NULL as sentinel
@@ -276,12 +289,22 @@ int is_string_in_arr(char **strarr, char *str);
 void free_string_array(char **arr);
 
 /*
- *      Escape every occurrence of 'delim' in 'str' with 'esc'
+ * ensure_string_not_null - if string is NULL, allocate an empty string
  */
-char * escape_delimiter(char *str, char *delim, char esc);
+void ensure_string_not_null(char **str);
+
+/*
+ * convert_string_to_lowercase - convert string to lower case
+ */
+char *convert_string_to_lowercase(char *str);
+
+/*
+ * Escape every occurrence of 'delim' in 'str' with 'esc'
+ */
+char *escape_delimiter(char *str, char *delim, char esc);
 
 #ifdef HAVE_MALLOC_INFO
-char * get_mem_info(void);
+char *get_mem_info(void);
 #endif
 
 /* Size of time buffer */
@@ -292,33 +315,68 @@ char * get_mem_info(void);
  * 	convert_duration_to_str - Convert a duration to HH:MM:SS format string
  *
  */
-void convert_duration_to_str(time_t duration, char* buf, int bufsize);
+void convert_duration_to_str(time_t duration, char *buf, int bufsize);
 
 /**
  * deduce the preemption ordering to be used for a job
  */
-struct preempt_ordering *
-get_preemption_order(struct preempt_ordering *porder, int req, int used);
+struct preempt_ordering *get_preemption_order(struct preempt_ordering *porder, int req, int used);
 
 /**
  * Begin collecting performance stats (e.g. walltime)
  */
-void 
-perf_stat_start(char *instance);
+void perf_stat_start(char *instance);
 
 /**
  * Remove a performance stats entry.
  */
-void 
-perf_stat_remove(char *instance);
+void perf_stat_remove(char *instance);
+
+/**
+ * check delay in client commands
+ */
+void create_query_file(void);
+void delay_query(void);
 
 /**
  * End collecting performance stats (e.g. walltime)
  */
-char *
-perf_stat_stop(char *instance);
+char *perf_stat_stop(char *instance);
 
-#ifdef  __cplusplus
+extern char *netaddr(struct sockaddr_in *);
+extern unsigned long crc_file(char *fname);
+extern int get_fullhostname(char *, char *, int);
+extern char *get_hostname_from_addr(struct in_addr addr);
+extern char *parse_servername(char *, unsigned int *);
+extern int rand_num(void);
+
+extern char *gen_hostkey(char *cluster_key, char *salt, size_t *len);
+extern int validate_hostkey(char *host_key, size_t host_keylen, char **cluster_key);
+void set_rand_str(char *str, int len);
+
+/* thread utils */
+extern int init_mutex_attr_recursive(void *attr);
+
+#ifdef _USRDLL
+#ifdef DLL_EXPORT
+#define DECLDIR __declspec(dllexport)
+#else
+#define DECLDIR __declspec(dllimport)
+#endif
+DECLDIR void encode_SHA(char *, size_t, char **);
+#else
+void encode_SHA(char *, size_t, char **);
+#endif
+
+void set_proc_limits(char *, int);
+int get_index_from_jid(char *jid);
+char *get_range_from_jid(char *jid);
+char *create_subjob_id(char *parent_jid, int sjidx);
+
+#define GET_IP_PORT(x) ((struct sockaddr_in *) (x))->sin_port
+#define IS_VALID_IP(x) (((struct sockaddr_in *)(x))->sin_family == AF_INET)
+
+#ifdef __cplusplus
 }
 #endif
 #endif

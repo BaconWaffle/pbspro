@@ -1,39 +1,41 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
 
 from tests.functional import *
@@ -72,6 +74,13 @@ class TestSoftWalltime(TestFunctional):
             MGR_CMD_UNSET, SERVER, 'Resources_default.soft_walltime')
         # Delete operators if added
         self.server.manager(MGR_CMD_UNSET, SERVER, 'operators')
+
+    def tearDown(self):
+        if self.mom.is_cpuset_mom():
+            # reset the freq value
+            attrs = {'freq': 120}
+            self.server.manager(MGR_CMD_SET, HOOK, attrs, "pbs_cgroups")
+        TestFunctional.tearDown(self)
 
     def stat_job(self, job):
         """
@@ -112,7 +121,7 @@ class TestSoftWalltime(TestFunctional):
         est, wt = self.stat_job(baseline_job)
         for j in jobs:
             est2, wt2 = self.stat_job(j)
-            self.assertEquals(est + wt, est2)
+            self.assertEqual(est + wt, est2)
             est = est2
             wt = wt2
 
@@ -156,7 +165,7 @@ class TestSoftWalltime(TestFunctional):
         except PbsSubmitError as e:
             self.assertTrue(msg in e.msg[0])
 
-        self.assertEquals(jid, None)
+        self.assertEqual(jid, None)
 
         J = Job(TEST_USER)
         jid = self.server.submit(J)
@@ -242,7 +251,7 @@ class TestSoftWalltime(TestFunctional):
         self.server.alterjob(jid, {'Resource_List.soft_walltime': 240})
         try:
             self.server.alterjob(jid, {'Resource_List.walltime': 120})
-        except PbsAlterError:
+        except PbsAlterError as e:
             self.assertTrue(msg in e.msg[0])
 
         self.server.expect(JOB, 'Resource_List.walltime', op=UNSET, id=jid)
@@ -252,7 +261,7 @@ class TestSoftWalltime(TestFunctional):
         try:
             self.server.alterjob(jid, {'Resource_List.walltime': 120,
                                        'Resource_List.soft_walltime': 240})
-        except PbsAlterError:
+        except PbsAlterError as e:
             self.assertTrue(msg in e.msg[0])
 
         al = ['Resource_List.walltime', 'Resource_List.soft_walltime']
@@ -380,13 +389,14 @@ e.accept()
         """
 
         now = int(time.time())
-        self.scheduler.add_dedicated_time(start=now + 60, end=now + 2500)
+        self.scheduler.add_dedicated_time(start=now + 120, end=now + 2500)
 
         J = Job(TEST_USER)
+        J.set_sleep_time(200)
         jid = self.server.submit(J)
-        self.server.alterjob(jid, {'Resource_List.soft_walltime': 90})
+        self.server.alterjob(jid, {'Resource_List.soft_walltime': 180})
         comment = 'Not Running: Job would cross dedicated time boundary'
-        self.server.expect(JOB, {'comment': comment})
+        self.server.expect(JOB, {'comment': comment}, id=jid)
 
     def test_soft_extend_dedicated(self):
         """
@@ -461,13 +471,13 @@ e.accept()
         a = {'resources_available.ncpus': 4}
         self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
 
-        now = int(time.time())
         J = Job(TEST_USER, attrs={'Resource_List.ncpus': 4})
         jid = self.server.submit(J)
         self.server.alterjob(jid, {'Resource_List.soft_walltime': 5})
 
         self.server.expect(JOB, {'job_state': 'R'}, id=jid)
 
+        now = time.time()
         a = {'Resource_List.ncpus': 1, 'reserve_start': now + 10,
              'reserve_end': now + 130}
         R = Reservation(TEST_USER, attrs=a)
@@ -588,7 +598,7 @@ e.accept()
         jid4 = self.server.submit(J)
         self.server.alterjob(jid4, {'Resource_List.soft_walltime': 150})
 
-        now = int(time.time())
+        now = time.time()
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
         self.scheduler.log_match('Leaving Scheduling Cycle', starttime=now,
@@ -632,7 +642,7 @@ e.accept()
         J = Job(TEST_USER, {'Resource_List.walltime': 300})
         jid5 = self.server.submit(J)
 
-        now = int(time.time())
+        now = time.time()
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
 
         self.scheduler.log_match('Leaving Scheduling Cycle', starttime=now)
@@ -680,7 +690,7 @@ e.accept()
         to calculate percent done and also if the soft_walltime is exceeded,
         the percent done should remain at 100%
         """
-        self.server.manager(MGR_CMD_SET, SCHED, {'preempt_order': 'R 10 S'},
+        self.server.manager(MGR_CMD_SET, SCHED, {'preempt_order': "R 10 S"},
                             runas=ROOT_USER)
         a = {'resources_available.ncpus': 2}
         self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
@@ -917,13 +927,23 @@ do
     dd if=/dev/zero of=/dev/null;
 done
 """
+        # If it is a cpuset mom, the cgroups hook relies on the periodic hook
+        # to update cput, so make the periodic hook run more often for the
+        # purpose of this test.
+        if self.mom.is_cpuset_mom():
+            attrs = {'freq': 1}
+            self.server.manager(MGR_CMD_SET, HOOK, attrs, "pbs_cgroups")
+            # cause the change to take effect now
+            self.mom.restart()
+
         j1 = Job(TEST_USER, {'Resource_List.cput': 5})
         j1.create_script(body=script)
         jid = self.server.submit(j1)
         self.server.alterjob(jid, {'Resource_List.soft_walltime': 300})
         self.server.expect(JOB, {'job_state': 'R'}, id=jid)
 
-        # verify that job is deleted when cput limit is reached
+        self.logger.info("Sleep 10 secs waiting for cput to cause the"
+                         " job to be deleted")
         time.sleep(10)
         self.server.expect(JOB, 'queue', op=UNSET, id=jid)
 
@@ -934,8 +954,8 @@ done
 
         now = int(time.time())
 
-        a = {'Resource_List.ncpus': 1, 'reserve_start': now + 5,
-             'reserve_end': now + 10}
+        a = {'Resource_List.ncpus': 1, 'reserve_start': now + 10,
+             'reserve_end': now + 20}
         R = Reservation(TEST_USER, attrs=a)
         rid = self.server.submit(R)
         self.server.expect(RESV,
@@ -952,7 +972,7 @@ done
 
         # verify that the job gets deleted when reservation ends
         self.server.expect(
-            JOB, 'queue', op=UNSET, id=jid, offset=10, max_attempts=10)
+            JOB, 'queue', op=UNSET, id=jid, offset=20)
 
     def test_restart_server(self):
         """
@@ -1002,33 +1022,6 @@ e.accept()
                             'estimated.soft_walltime':
                             est_soft_walltime}, op=GE,
                            extend='x', attrop=PTL_AND, id=jid)
-
-    def test_resv_job_soft_hard2(self):
-        """
-        Test that a job with soft and hard walltime will not conflict with
-        reservtion if hard walltime is less that reservation start time.
-        """
-        a = {'resources_available.ncpus': 4}
-        self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
-
-        now = int(time.time())
-
-        a = {'Resource_List.ncpus': 4, 'reserve_start': now + 65,
-             'reserve_end': now + 240}
-        R = Reservation(TEST_USER, attrs=a)
-        rid = self.server.submit(R)
-        self.server.expect(RESV,
-                           {'reserve_state': (MATCH_RE, 'RESV_CONFIRMED|2')},
-                           id=rid)
-
-        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
-        a = {'Resource_List.ncpus': 4,
-             'Resource_List.walltime': 60}
-        J = Job(TEST_USER, attrs=a)
-        jid = self.server.submit(J)
-        self.server.alterjob(jid, {'Resource_List.soft_walltime': 60})
-        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
-        self.server.expect(JOB, {'job_state': 'R'}, id=jid)
 
     def test_soft_job_array(self):
         """

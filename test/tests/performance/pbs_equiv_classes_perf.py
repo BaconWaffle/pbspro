@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import os
 
@@ -48,19 +51,20 @@ class TestJobEquivClassPerf(TestPerformance):
 
     def setUp(self):
         TestPerformance.setUp(self)
-        self.scheduler.set_sched_config({'log_filter': 2048})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
         # Create vnodes
         a = {'resources_available.ncpus': 1, 'resources_available.mem': '8gb'}
-        self.server.create_vnodes('vnode', a, 10000, self.mom,
-                                  sharednode=False)
+        self.mom.create_vnodes(a, 10000, expect=False,
+                               sharednode=False)
+        self.server.expect(NODE, {'state=free': 10001})
 
     def run_n_get_cycle_time(self):
         """
         Run a scheduling cycle and calculate its duration
         """
 
-        t = int(time.time())
+        t = time.time()
 
         # Run only one cycle
         self.server.manager(MGR_CMD_SET, MGR_OBJ_SERVER,
@@ -114,6 +118,11 @@ class TestJobEquivClassPerf(TestPerformance):
         self.logger.info('Cycle 1: %d Cycle 2: %d Cycle time difference: %d' %
                          (cycle1_time, cycle2_time, cycle1_time - cycle2_time))
         self.assertGreaterEqual(cycle1_time, cycle2_time)
+        time_diff = cycle1_time - cycle2_time
+        self.perf_test_result(cycle1_time, "different_equiv_class", "sec")
+        self.perf_test_result(cycle2_time, "single_equiv_class", "sec")
+        self.perf_test_result(time_diff,
+                              "time_diff_bn_single_diff_equiv_classes", "sec")
 
     @timeout(10000)
     def test_server_queue_limit(self):
@@ -129,30 +138,35 @@ class TestJobEquivClassPerf(TestPerformance):
 
         # Set queue limit
         a = {
-            'max_run': '[o:PBS_ALL=100],[g:PBS_GENERIC=20],\
-                       [u:PBS_GENERIC=20],[g:tstgrp01 = 8],[u:pbsuser1=10]'}
+            'max_run': ('[o:PBS_ALL=100],[g:PBS_GENERIC=20],'
+                        '[u:PBS_GENERIC=20],[g:%s = 8],[u:%s=10]' %
+                        (str(TSTGRP1), str(TEST_USER1)))}
         self.server.manager(MGR_CMD_SET, QUEUE,
                             a, id='workq2')
 
         a = {'max_run_res.ncpus':
              '[o:PBS_ALL=100],[g:PBS_GENERIC=50],\
-             [u:PBS_GENERIC=20],[g:tstgrp01=13],[u:pbsuser1=12]'}
+             [u:PBS_GENERIC=20],[g:%s=13],[u:%s=12]' %
+             (str(TSTGRP1), str(TEST_USER1))}
         self.server.manager(MGR_CMD_SET, QUEUE, a, id='workq2')
 
         a = {'max_run_res_soft.ncpus':
              '[o:PBS_ALL=100],[g:PBS_GENERIC=30],\
-             [u:PBS_GENERIC=10],[g:tstgrp01=10],[u:pbsuser1=10]'}
+             [u:PBS_GENERIC=10],[g:%s=10],[u:%s=10]' %
+             (str(TSTGRP1), str(TEST_USER1))}
         self.server.manager(MGR_CMD_SET, QUEUE, a, id='workq2')
 
         # Set server limits
         a = {
             'max_run': '[o:PBS_ALL=100],[g:PBS_GENERIC=50],\
-            [u:PBS_GENERIC=20],[g:tstgrp01=13],[u:pbsuser1=13]'}
+            [u:PBS_GENERIC=20],[g:%s=13],[u:%s=13]' %
+            (str(TSTGRP1), str(TEST_USER1))}
         self.server.manager(MGR_CMD_SET, SERVER, a)
 
         a = {'max_run_soft':
              '[o:PBS_ALL=50],[g:PBS_GENERIC=25],[u:PBS_GENERIC=10],\
-             [g:tstgrp01=10],[u:pbsuser1=10]'}
+             [g:%s=10],[u:%s=10]' %
+             (str(TSTGRP1), str(TEST_USER1))}
         self.server.manager(MGR_CMD_SET, SERVER, a)
 
         # Turn scheduling off
@@ -265,3 +279,11 @@ class TestJobEquivClassPerf(TestPerformance):
                          "\n700 classes is %d,"
                          "\n800 classes is %d"
                          % (cyc1, cyc2, cyc3, cyc4, cyc5, cyc6, cyc7, cyc8))
+        self.perf_test_result(cyc1, "100_class_time", "sec")
+        self.perf_test_result(cyc2, "200_class_time", "sec")
+        self.perf_test_result(cyc3, "300_class_time", "sec")
+        self.perf_test_result(cyc4, "400_class_time", "sec")
+        self.perf_test_result(cyc5, "500_class_time", "sec")
+        self.perf_test_result(cyc6, "600_class_time", "sec")
+        self.perf_test_result(cyc7, "700_class_time", "sec")
+        self.perf_test_result(cyc8, "800_class_time", "sec")

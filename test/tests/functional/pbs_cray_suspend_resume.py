@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import time
 from tests.functional import *
@@ -80,7 +83,7 @@ at least resid .* is exclusive"
         # Submit a job
         j = Job(TEST_USER, {ATTR_l + '.select': '1:ncpus=1',
                             ATTR_l + '.place': 'excl'})
-        check_after = int(time.time())
+        check_after = time.time()
         jid = self.server.submit(j)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
 
@@ -92,10 +95,8 @@ at least resid .* is exclusive"
 
         self.server.expect(JOB, 'exec_host', id=jid, op=SET)
         job_stat = self.server.status(JOB, id=jid)
-        ehost = job_stat[0]['exec_host'].partition('/')[0]
-        run_mom = self.moms[ehost]
-        s = run_mom.log_match(msg_expected, starttime=check_after, regexp=True,
-                              max_attempts=10)
+        s = self.mom.log_match(msg_expected, starttime=check_after,
+                               regexp=True, max_attempts=10)
         self.assertTrue(s)
 
     @tags('cray')
@@ -103,7 +104,7 @@ at least resid .* is exclusive"
         """
         Test basic admin-suspend funcionality for jobs and array jobs with
         restart on Cray. The restart will test if the node recovers properly
-        in maintenance. After turning off scheduling and a server restart, a
+        in maintenance. After turning off scheduling and a mom restart, a
         subjob is always requeued and node shows up as free.
         """
         j1 = Job(TEST_USER)
@@ -170,9 +171,9 @@ at least resid .* is exclusive"
         self.server.expect(NODE, {'state': 'maintenance'}, id=vname2)
         self.server.expect(NODE, {'maintenance_jobs': jid2})
 
-        # Turn off scheduling and restart server
+        # Turn off scheduling and restart mom
         self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
-        self.server.restart()
+        self.mom.restart()
 
         # Check that nodes are now free
         self.server.expect(NODE, {'state': 'free'}, id=vname1)
@@ -227,7 +228,7 @@ at least resid .* is exclusive"
         try:
             a = {'reserve_state': (MATCH_RE, 'RESV_CONFIRMED|2')}
             d = self.server.expect(RESV, a, id=rid)
-        except PtlExpectError, e:
+        except PtlExpectError as e:
             d = e.rv
         return d
 

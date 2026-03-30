@@ -1,59 +1,53 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import math
 from math import sqrt
 from ptl.utils.pbs_testsuite import *
+import statistics
 
 
 class TestPerformance(PBSTestSuite):
     """
     Base test suite for Performance tests
     """
-
-    def mean(self, lst):
-        """calculates mean"""
-        return sum(lst) / len(lst)
-
-    def stddev(self, lst):
-        """returns the standard deviation of lst"""
-        mn = self.mean(lst)
-        variance = sum([(e - mn) ** 2 for e in lst]) / len(lst)
-        return sqrt(variance)
 
     def check_value(self, res):
         if isinstance(res, list):
@@ -71,13 +65,19 @@ class TestPerformance(PBSTestSuite):
         calculate mean,std_dev,min,max for the list.
         """
         self.check_value(result)
+
         if isinstance(result, list) and len(result) > 1:
-            mean_res = self.mean(result)
+            mean_res = statistics.mean(result)
+            stddev_res = statistics.stdev(result)
+            lowv = mean_res - (stddev_res * 2)
+            uppv = mean_res + (stddev_res * 2)
+            new_result = [x for x in result if x > lowv and x < uppv]
+            if len(new_result) == 0:
+                new_result = result
+            max_res = round(max(new_result), 2)
+            min_res = round(min(new_result), 2)
+            mean_res = statistics.mean(new_result)
             mean_res = round(mean_res, 2)
-            stddev_res = self.stddev(result)
-            stddev_res = round(stddev_res, 2)
-            max_res = round(max(result), 2)
-            min_res = round(min(result), 2)
             trial_no = 1
             trial_data = []
             for trial_result in result:
@@ -91,7 +91,9 @@ class TestPerformance(PBSTestSuite):
                                        "std_dev": stddev_res,
                                        "minimum": min_res,
                                        "maximum": max_res,
-                                       "trials": trial_data}}
+                                       "trials": trial_data,
+                                       "samples_considered": len(new_result),
+                                       "total_samples": len(result)}}
             return self.set_test_measurements(test_data)
         else:
             variance = 0

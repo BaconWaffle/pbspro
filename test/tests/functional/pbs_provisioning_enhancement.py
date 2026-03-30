@@ -1,43 +1,47 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 
 
+@requirements(num_moms=2)
 class TestProvisioningJob_Enh(TestFunctional):
     """
     This testsuite tests newly introduced provisioining capabilities.
@@ -74,6 +78,8 @@ e.reject()
 
     def setUp(self):
 
+        if self.du.get_platform().startswith('cray'):
+            self.skipTest("Test suite only meant to run on non-Cray")
         if len(self.moms) < 2:
             self.skipTest("Provide at least 2 moms while invoking test")
 
@@ -93,9 +99,6 @@ e.reject()
 
         # Remove all nodes
         self.server.manager(MGR_CMD_DELETE, NODE, None, "")
-
-        # Restart PBS
-        self.server.restart()
 
         # Create node
         self.server.manager(MGR_CMD_CREATE, NODE, None, self.hostA)
@@ -129,7 +132,6 @@ e.reject()
         Test application provisioning
         """
         j = Job(TEST_USER1)
-        j.set_sleep_time(5)
         j.set_attributes({'Resource_List.select': '1:aoe=App1'})
         jid = self.server.submit(j)
 
@@ -153,7 +155,6 @@ e.reject()
         """
 
         j = Job(TEST_USER1)
-        j.set_sleep_time(10)
         j.set_attributes({'Resource_List.select': '1:aoe=osimage1'})
         jid = self.server.submit(j)
 
@@ -184,7 +185,6 @@ e.reject()
         j = Job(TEST_USER1)
         j.set_attributes({'Resource_List.select':
                           '1:ncpus=1:aoe=App1+1:ncpus=12'})
-        j.set_sleep_time(5)
         jid = self.server.submit(j)
 
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid)
@@ -208,7 +208,6 @@ e.reject()
         """
         a = {'Resource_List.select': '1:aoe=osimage1+1:ncpus=12'}
         j = Job(TEST_USER1, a)
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         self.server.expect(JOB, ATTR_execvnode, id=jid, op=SET)
         nodes = j.get_vnodes(j.exec_vnode)
@@ -235,7 +234,6 @@ e.reject()
         # and no single node have all the requested resource.
 
         j = Job(TEST_USER1)
-        j.set_sleep_time(5)
         j.set_attributes({"Resource_List.aoe": "App1",
                           "Resource_List.ncpus": 12})
         jid = self.server.submit(j)
@@ -272,7 +270,6 @@ e.reject()
 
         j = Job(TEST_USER1)
         j.set_attributes(a1)
-        j.set_sleep_time(5)
         jid = None
         try:
             jid = self.server.submit(j)
@@ -307,7 +304,6 @@ e.reject()
         j.set_attributes({'Resource_List.select':
                           '1:ncpus=1:aoe=App1+1:ncpus=12',
                           'Resource_List.place': 'pack'})
-        j.set_sleep_time(5)
         jid = self.server.submit(j)
         self.server.expect(JOB, {ATTR_state: 'Q',
                                  ATTR_comment:
@@ -321,7 +317,6 @@ e.reject()
         j.set_attributes({'Resource_List.select':
                           '1:ncpus=1:aoe=App1+1:ncpus=1',
                           'Resource_List.place': 'pack'})
-        j.set_sleep_time(5)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': 'R'}, id=jid)
         self.server.expect(JOB, ATTR_execvnode, id=jid, op=SET)
@@ -334,7 +329,7 @@ e.reject()
         # This was needed since sometime the above job takes longer
         # to finish and release the resources. This causes delay for
         # the next job to start and can probably fail the test.
-        self.server.cleanup_jobs(extend='force')
+        self.server.cleanup_jobs()
 
         # Below job will run on two node with placement set to scatter.
         # even though single node can satisfy both the requested chunks.
@@ -343,7 +338,6 @@ e.reject()
         j.set_attributes({'Resource_List.select':
                           '1:ncpus=1:aoe=App1+1:ncpus=1',
                           'Resource_List.place': 'scatter'})
-        j.set_sleep_time(5)
         jid = self.server.submit(j)
         self.server.expect(JOB, ATTR_execvnode, id=jid, op=SET)
         nodes = j.get_vnodes(j.exec_vnode)
@@ -438,3 +432,44 @@ e.reject()
         self.server.expect(JOB, {'job_state': 'R'}, id=jid3)
         job_state = self.server.status(JOB, id=jid3)
         self.assertEqual(job_state[0]['exec_vnode'], solution)
+
+    def test_multinode_provisioning(self):
+        """
+        Test the effect of max_concurrent_provision
+        If set to 1 and job requests a 4 node provision, the provision should
+        occur 1 node at a time
+        """
+        # Setup provisioning hook with smaller alarm.
+        a = {'event': 'provision', 'enabled': 'True', 'alarm': '5'}
+        rv = self.server.create_import_hook(
+            'fake_prov_hook', a, self.fake_prov_hook, overwrite=True)
+
+        a = {'max_concurrent_provision': 1}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        a = {'resources_available.aoe': 'App1,osimage1',
+             'current_aoe': 'App1',
+             'provision_enable': 'True',
+             'resources_available.ncpus': 1}
+        rv = self.momA.create_vnodes(a, 4,
+                                     sharednode=False)
+        self.assertTrue(rv)
+        j = Job(TEST_USER,
+                attrs={'Resource_List.select': '4:ncpus=1:aoe=osimage1'})
+        jid = self.server.submit(j)
+        self.server.expect(JOB, {'job_state': 'R',
+                                 'substate': 71}, attrop=PTL_AND, id=jid)
+        exp_msg = "Provisioning vnode " + self.momA.shortname
+        exp_msg += r"\[[0-3]\] with AOE osimage1 started"
+        logs = self.server.log_match(msg=exp_msg, regexp=True, allmatch=True)
+
+        # since max_concurrent_provision is 1, there should be only one
+        # log
+        self.assertEqual(len(logs), 1)
+
+        # A node in provisioning state cannot be deleted. In order to make
+        # sure that cleanup happens properly do the following -
+        # sleep for a few seconds so that provisin timesout and the node
+        # is marked offline and then delete all the nodes
+        time.sleep(8)
+        # delete all nodes
+        self.server.manager(MGR_CMD_DELETE, NODE, None, "")

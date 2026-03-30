@@ -1,39 +1,42 @@
-.\" Copyright (C) 1994-2019 Altair Engineering, Inc.
+.\"
+.\" Copyright (C) 1994-2021 Altair Engineering, Inc.
 .\" For more information, contact Altair at www.altair.com.
 .\"
-.\" This file is part of the PBS Professional ("PBS Pro") software.
+.\" This file is part of both the OpenPBS software ("OpenPBS")
+.\" and the PBS Professional ("PBS Pro") software.
 .\"
 .\" Open Source License Information:
 .\"
-.\" PBS Pro is free software. You can redistribute it and/or modify it under the
-.\" terms of the GNU Affero General Public License as published by the Free
-.\" Software Foundation, either version 3 of the License, or (at your option) any
-.\" later version.
+.\" OpenPBS is free software. You can redistribute it and/or modify it under
+.\" the terms of the GNU Affero General Public License as published by the
+.\" Free Software Foundation, either version 3 of the License, or (at your
+.\" option) any later version.
 .\"
-.\" PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-.\" WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-.\" FOR A PARTICULAR PURPOSE.
-.\" See the GNU Affero General Public License for more details.
+.\" OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+.\" ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+.\" FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+.\" License for more details.
 .\"
 .\" You should have received a copy of the GNU Affero General Public License
 .\" along with this program.  If not, see <http://www.gnu.org/licenses/>.
 .\"
-.\" Commercial License Information:  
+.\" Commercial License Information:
 .\"
-.\" For a copy of the commercial license terms and conditions,
-.\" go to: (http://www.pbspro.com/UserArea/agreement.html)
-.\" or contact the Altair Legal Department.
+.\" PBS Pro is commercially licensed software that shares a common core with
+.\" the OpenPBS software.  For a copy of the commercial license terms and
+.\" conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+.\" Altair Legal Department.
 .\"
-.\" Altair’s dual-license business model allows companies, individuals, and
-.\" organizations to create proprietary derivative works of PBS Pro and
+.\" Altair's dual-license business model allows companies, individuals, and
+.\" organizations to create proprietary derivative works of OpenPBS and
 .\" distribute them - whether embedded or bundled with other software -
 .\" under a commercial license agreement.
 .\"
-.\" Use of Altair’s trademarks, including but not limited to "PBS™",
-.\" "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-.\" trademark licensing policies.
+.\" Use of Altair's trademarks, including but not limited to "PBS™",
+.\" "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+.\" subject to Altair's trademark licensing policies.
 .\"
-.TH pbs_mom 8B "12 March 2019" Local "PBS Professional"
+.TH pbs_mom 8B "1 March 2021" Local "PBS Professional"
 .SH NAME
 .B pbs_mom 
 - run the PBS job monitoring and execution daemon
@@ -54,7 +57,7 @@
 [-R <inter-MoM communication port>] 
 [-S <server port>]
 .br
-[-s script_options]
+[-s <options>]
 .RE
 .B pbs_mom
 --version
@@ -78,8 +81,7 @@ runs.
 
 The MoM manages one or more vnodes.  PBS may treat a  host as 
 a set of virtual nodes, in which case one MoM 
-manages all of the host's vnodes.  See the 
-.B PBS Professional Administrator's Guide.
+manages all of the host's vnodes.  
 
 .B Logging
 .br
@@ -98,44 +100,15 @@ The executable for
 is in PBS_EXEC/sbin, and can be run only by root on Linux, and Admin 
 on Windows.
 
-.B Cpusets
-.br
-A cpusetted machine can have a "boot cpuset" defined by the
-administrator.  A boot cpuset contains one or more CPUs and memory
-boards and is used to restrict the default placement of system
-processes, including login.  If defined, the boot cpuset contains
-CPU 0.
 
-Run parallel jobs exclusively within a cpuset for repeatability of
-performance.  HPE SGI states, "Using cpusets on an HPE SGI system improves
-cache locality and memory access times and can substantially improve
-an application's performance and runtime repeatability."
-
-The CPUSET_CPU_EXCLUSIVE flag prevents CPU 0 from being used by
-the MoM in the creation of job cpusets.  This flag is set by default,
-so this is the default behavior.
-
-To find out which cpuset is assigned to a running job, use
-.B qstat
--f
-to see the 
-.I cpuset 
-field in the job's
-.I altid 
-attribute.
-
-.B HPE SGI Machine Running Supported Versions of Performance Software - 
+.B HPE machine Running Supported Versions of Performance Software - 
 Message Passing Interface
 .br
-The cpusets created for jobs are marked cpu-exclusive.
-
-MoM does not use any CPU which was in use at startup.
 
 A PBS job can run across multiple machines that run supported versions 
 of Performance Software - Message Passing Interface.
 
-PBS can run using HPE SGI's MPI (MPT) over InfiniBand.  See the 
-.B PBS Professional Administrator's Guide.
+PBS can run using HPE's MPI (MPT) over InfiniBand.
 .LP
 
 .B Effect on Jobs of Starting MoM
@@ -232,21 +205,6 @@ Cannot be used with the
 option.  
 MoM is not the parent of these jobs.
 
-.RS
-.IP "HPE SGI systems running Performance Software - Message Passing Interface" 5
-The cpuset-enabled
-.B pbs_mom 
-will, if given the 
-.I -p
-flag, use the existing CPU and memory allocations for the /PBSPro
-cpusets.
-The default behavior is to remove these cpusets.
-Should this fail, MoM will exit, asking to be restarted with the
-.I -p
-flag.
-.LP
-.RE
-
 .IP "-r" 10
 Specifies that when starting, MoM should requeue any rerunnable jobs and 
 kill any non-rerunnable jobs that 
@@ -275,62 +233,66 @@ Specifies the port number on which
 .B pbs_mom
 initially contacts the server.  Default: 15001.  Format: integer port number.
 
-.IP "-s <script options>" 5
-This option provides an interface that allows the administrator to
-add, delete, and display MoM's configuration files.  See 
+.IP "-s <file options>" 5
+If you are running the cgroups hook, make sure that the vnode names in any Version 2 
+configuration file exactly match those in the output of pbsnodes -av.
+This option lets you add, delete, and display MoM Version 2 configuration files.  
+See 
 .B CONFIGURATION FILES.  
+Run this command at the host you want to change.
 The 
-.I script options 
+.I file options 
 are used this way:
 .RS
-.IP "-s insert <scriptname> <inputfile>" 5
+.IP "-s insert <Version 2 filename> <inputfile>" 5
 Reads 
 .I inputfile 
-and inserts its contents in a new site-defined
+and copies it to a Version 2 
 .B pbs_mom
 configuration file with the filename 
-.I scriptname.  
-If a
-site-defined configuration file with the name 
-.I scriptname 
+.I Version 2 filename.  
+For example, to create a Version 2 file named "Myhost_V2":
+
+.B pbs_mom -s insert <Myhost_V2> <myhost_v2_input>
+
+If a configuration file with the specified 
+.I Version 2 filename 
 already exists,
-the operation fails, a diagnostic is presented, and 
+the operation fails, and
 .B pbs_mom
-exits with a nonzero status.  Scripts whose names begin with
-the prefix "PBS" are reserved.  An attempt to add a script
-whose name begins with "PBS" will fail.  
-.B pbs_mom will print a diagnostic message and exit
-with a nonzero status.  Example:
-
-.B pbs_mom -s insert <scriptname> <inputfile>
-
-.IP "-s remove <scriptname>" 5
-The configuration file named 
-.I scriptname 
-is removed
-if it exists.  If the given name does not exist or if an
-attempt is made to remove a script with the reserved "PBS"
-prefix, the operation fails, a diagnostic is presented, and
+writes a diagnostic and exits with a nonzero status.  
+Configuration files whose names begin with
+the prefix "PBS" are reserved.  You cannot add a file
+whose name begins with "PBS";
 .B pbs_mom 
-exits with a nonzero status.  Example:
+will print a diagnostic message and exit with a nonzero status.  
 
-.B pbs_mom -s remove <scriptname> 
+.IP "-s remove <Version 2 filename>" 5
+Removes the configuration file named 
+.I Version 2 filename 
+if it exists.  Example:
 
-.IP "-s show <scriptname>" 5
-Causes the contents of the named script to be printed to
-standard output.  If 
-.I scriptname 
+.B pbs_mom -s remove <Version 2 filename> 
+
+If the file does not exist or if you try to remove a file with the reserved "PBS"
+prefix, the operation fails, and
+.B pbs_mom 
+prints a diagnostic and exits with a nonzero status.  
+
+.IP "-s show <Version 2 filename>" 5
+Prints the contents of the named file to standard output.  Example:
+
+.B pbs_mom -s show <Version 2 filename> 
+
+If 
+.I Version 2 filename 
 does not exist, the
-operation fails, a diagnostic is presented, and 
+operation fails, and 
 .B pbs_mom
-exits with a nonzero status.  Example:
-
-.B pbs_mom -s show <scriptname> 
+writes a diagnostic and exits with a nonzero status.  
 
 .IP "-s list" 5
-Causes 
-.B pbs_mom 
-to list the set of PBS-prefixed and site-defined configuration
+MoM lists the PBS-prefixed and site-defined configuration
 files in the order in which they are executed.  Example:
 
 .B pbs_mom -s list
@@ -339,14 +301,14 @@ files in the order in which they are executed.  Example:
 
 .B WINDOWS:
 .RS 5
-Under Windows, the 
+Under Windows, use the 
 .I -N
-option must be used, so that 
+option so that 
 .B pbs_mom 
 will start up as a standalone
 program.  For example:
 
-.B pbs_mom -N -s insert <scriptname> <inputfile>
+.B pbs_mom -N -s insert <Version 2 filename> <inputfile>
 
 or 
 
@@ -385,12 +347,7 @@ The files are processed in this order:
 .br
 
 The contents of a file read later override the contents of a file read earlier.
-For example, to change the cpuset flags, create a script "update_flags"
-containing only
-.RS 4
-.B cpuset_create_flags <new flags>
-.RE
-
+For example, to change flags, create a script "update_flags"
 then use the 
 .I -s insert
 option:
@@ -454,10 +411,7 @@ to create a copy of each site-defined configuration file.
 Configuration files with the following syntax describe vnodes and
 the resources available on them.  They do not contain initialization 
 values for MoM.
-See the 
-.B PBS Professional Administrator's Guide
-for a definition of 
-.I vnodes.
+
 PBS-prefixed configuration files use the following syntax.  Other
 configuration files can use the following syntax.  
 
@@ -540,7 +494,7 @@ entity of type X may be assumed to be smaller (that is, be
 capable of containing fewer vnodes) than one of type Y.  No such
 guarantee is made for specific instances of the types.
 
-For example, on an HPE SGI machine named "HostA", with two vnodes, a natural
+For example, on an HPE machine named "HostA", with two vnodes, a natural
 vnode, four processors and two cbricks, the description would
 look like this:
 .br
@@ -630,8 +584,7 @@ for an event with the site-specified
 .I timeout
 is the time allowed for 
 .I new action 
-to run.  See 
-.B The PBS Professional Administrator's Guide.  
+to run. 
 The 
 .I default action 
 can be one of:
@@ -757,55 +710,6 @@ as "clienthosts" make up a "sisterhood" of machines.  Any one of the
 sisterhood will accept connections from within the
 sisterhood.  The sisterhood must all use the same port number.
 
-.IP "cpuset_create_flags <flags>" 5
-Lists the flags for when MoM does a 
-.B cpusetCreate(3)
-for each job.  
-.I flags 
-is an or-ed list of flags.  Flags for an HPE SGI machine 
-with supported versions of HPE MPI:
-.RS 8
-CPUSET_CPU_EXCLUSIVE 
-.br
-0
-.br
-Default: 0
-.RE
-.IP
-
-.IP "cpuset_destroy_delay <delay>" 5
-MoM waits up to 
-.I delay 
-seconds before destroying a cpuset of a
-just-completed job, but not longer than necessary.  This give s the
-operating system more time to clean up leftover processes after they
-have been killed.  Example:
-.br
-   cpuset_destroy_delay 10
-.br
-Format: Integer
-.br
-Default for HPE SGI systems: 0 
-
-.IP "$cpuset_error_action <action>" 5
-When using a cpuset-enabled MoM, specifies the action taken when 
-a cpuset creation error occurs.  Can take one of the following values:
-.RS 5
-.IP continue 3
-The error is logged and the job is killed and requeued.
-.IP offline 3
-The vnodes on this host for this job are marked
-.I offline,
-and the job is requeued.
-.LP
-.br
-Format: String
-.br
-Allowable values: "continue", "offline"
-.br
-Default: "offline"
-.RE
-
 .IP "$cputmult <factor>" 5
 This sets a 
 .I factor 
@@ -845,8 +749,6 @@ have associated values.  Syntax:
 .br
 .I $enforce <variable name> <value>
 .br
-See 
-.B The PBS Professional Administrator's Guide.
 
 .RS
 .IP "$enforce mem" 5
@@ -950,8 +852,27 @@ does not exist when MoM tries to run a job, MoM will kill the job.
 Path must be owned by root, and permissions must be 1777.  On Windows,
 this directory should have Full Control Permission for the local
 Administrators group.
+.br
+When you set 
+.I $jobdir_root
+to a shared (e.g. NFS) directory, tell MoM it is shared by setting the
+.I shared
+directive after the directory name:
+.br
+.I $jobdir_root <directory name> shared
+.br
+Otherwise sister MoMs can prematurely delete files and directories
+when nodes are released.  This is because when a job�s sandbox
+attribute is set to PRIVATE and $jobdir_root is set to a shared
+directory, PBS can use a shared location for job files.  When sister
+nodes are released, those sister MoMs would normally clean up their
+own files upon release.  So if $jobdir_root is set to a shared
+directory, you need to tell the sister MoMs not to do the cleanup, and
+let the primary execution host MoM clean up when the job is finished.
 .RS
-.IP "Example:" 5
+.IP "Example of a shared directory:" 5
+$jobdir_root /r/shared shared
+.IP "Example of a non-shared directory:" 5
 $jobdir_root /scratch/foo
 .RE
 
@@ -1034,9 +955,7 @@ DEBUG4     0800       Limit-related messages
 
 .IP "$max_check_poll <seconds>" 5
 Maximum time between polling cycles, in seconds.  Minimum recommended
-value: 30 seconds.  See the 
-.B PBS Professional Administrator's Guide
-for usage.  
+value: 30 seconds.  
 
 The interval between each poll starts at 
 .I $min_check_poll 
@@ -1328,10 +1247,10 @@ Default on Windows: value of the
 environment variable 
 
 .IP "$usecp <hostname:source prefix> <destination prefix>" 5
-MoM uses /bin/cp to deliver output files when
-the destination is a network mounted file system, or when
-the source and destination are both on the local host, or when
-the 
+MoM uses /bin/cp or the program specified by PBS_CP to deliver 
+output files when the destination is a network mounted file system, 
+or when the source and destination are both on the local host, or 
+when the 
 .I source prefix 
 can be replaced with the 
 .I destination prefix
@@ -1343,7 +1262,9 @@ and
 .I destination prefix
 are absolute pathnames of directories, not files.  
 
-Overrides 
+Overrides
+.I PBS_CP
+and
 .I PBS_RCP
 and 
 .I PBS_SCP.
@@ -1477,7 +1398,7 @@ daemon fails to start
 If the 
 .I -s insert 
 option is used with an existing 
-.I scriptname
+.I Version 2 filename
 .br
 If the administrator attempts to add a script whose name 
 begins with "PBS"
@@ -1493,8 +1414,6 @@ option on a nonexistent script
 
 
 .SH SEE ALSO
-The
-.B PBS Professional Administrator's Guide, 
 pbs_server(8B), 
 pbs_sched(8B), 
 qstat(1B)

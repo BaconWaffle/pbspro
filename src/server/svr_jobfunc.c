@@ -1,89 +1,51 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
- * @file    svr_jobfunc.c
  *
  * @brief
- * 		svr_jobfunc.c - contains server functions dealing with jobs
+ * 		contains server functions dealing with jobs
  *
- * 	Included public functions are:
- *		svr_enquejob()     - place job in a queue
- *		svr_dequejob()     - remove job from queue
- *		svr_setjobstate()  - set the state/substate of a job
- *		svr_evaljobstate() - evaluate the state of a job based on attributes
- *		chk_resc_limits()  - check job resources vs queue/server limits
- *		svr_chkque()	   - check if job can enter queue
- *		job_set_wait()	   - set event for when job's wait time ends
- *		get_variable()	   - get value of a single environ variable of a job
- *		check_block()      - respond to blocked qsub if JOB_ATR_block is set
- *		prefix_std_file()  - build the fully prefixed default name for std e/o
- *		cat_default_std () - concatenates default std e/o name to input string
-
- *		get_jobowner()	   - get job owner name without @host suffix
- *		set_resc_deflt()   - set unspecified resource_limit to default values
- *		set_statechar()	   - set the job state attribute character value
- *		get_wall ()		   - get the "walltime" for a job if it has one set
- *		get_used_wall ()   - get the "walltime" resourse used for a job
- *      state_char2int()   - returns the state from char form to int form.
- *		uniq_nameANDfile() - creates a unique filename and file for an object
- *		remove_deleted_resvs() - remove reservations marked RESV_FINISHED
- *		set_cpu_licenses_need()- set # of cpu licenses needed by a job
- *		allocate_cpu_licenses()- assign cpu licenses to a job
- *		deallocate_cpu_licenses()     - unassign cpu licenses from a job
- *		clear_and_populate_svr_unlicensedjobs() - empties then adds entries
- *												to svr_unlicensedjobs.
- *		relicense_svr_unlicensedjobs()- relicense jobs in svr_unlicensedjobs
- *      update_eligible_time() - calc eligible time and modify accrue_type
- *		determine_accruetype() - determines accruetype
- *		alter_eligibletime() - resets sampletime of job
- *		eval_chkpnt()	   - insure job checkpoint .ge. queues min. time
- *
- * Private functions
- *		chk_svr_resc_limit() - check job requirements againt queue/server limits
- *		default_std()	   - make the default name for standard out/error
- *		set_deflt_resc()   - set unspecified resource_limit to default values
- *		job_wait_over()	   - event handler for job_set_wait()
  */
-#include <pbs_config.h>   /* the master config generated by configure */
+#include <pbs_config.h> /* the master config generated by configure */
 
-#ifndef WIN32
 #include <unistd.h>
-#endif
 #include <fcntl.h>
 #include <assert.h>
 #include <errno.h>
@@ -98,6 +60,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/poll.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "pbs_ifl.h"
@@ -113,18 +76,13 @@
 #include "work_task.h"
 #include "resv_node.h"
 #include "queue.h"
-#ifdef WIN32
-#include <io.h>
-#include <windows.h>
-#include "win.h"
-#endif
 #include "job.h"
 #include "pbs_sched.h"
 #include "reservation.h"
 #include "pbs_error.h"
 #include "log.h"
 #include "acct.h"
-#include "avltree.h"
+#include "pbs_idx.h"
 #include "pbs_nodes.h"
 #include "svrfunc.h"
 #include "sched_cmds.h"
@@ -132,72 +90,62 @@
 #include "libsec.h"
 #include "pbs_license.h"
 #include "pbs_reliable.h"
-#ifndef WIN32
 #include <sys/wait.h>
-#endif
 
 #define MIN_WALLTIME_LIMIT 0
 #define MAX_WALLTIME_LIMIT 1
-
-
-
 
 char statechars[] = "TQHWREXBMF";
 
 /* Private Functions */
 
-static void default_std(job *, int key, char * to);
-static void Time4reply(struct work_task  *);
-static void Time4resv(struct work_task*);
-static void Time4resv1(struct work_task*);
+static void default_std(job *, int key, char *to);
+static void Time4reply(struct work_task *);
+static void Time4resv(struct work_task *);
+static void Time4resv1(struct work_task *);
 static void resvFinishReply(struct work_task *);
-int  change_enableORstart(resc_resv *, int, char *);
+int change_enableORstart(resc_resv *, int, char *);
 static void handle_qmgr_reply_to_startORenable(struct work_task *);
 static void delete_occurrence_jobs(resc_resv *presv);
 static void Time4occurrenceFinish(resc_resv *);
 static void running_jobs_count(struct work_task *);
-
-
-/** For faster job lookup through AVL tree */
-static void svr_avljob_oper(job *pjob, int delkey);
 
 /* Global Data Items: */
 extern char *msg_noloopbackif;
 extern char *msg_mombadmodify;
 
 extern struct server server;
-extern int  pbs_mom_port;
+extern int pbs_mom_port;
 extern pbs_list_head svr_alljobs;
-extern pbs_list_head svr_unlicensedjobs;
-extern char  *msg_badwait;		/* error message */
-extern char  *msg_daemonname;
-extern char  *msg_also_deleted_job_history;
-extern char   server_name[];
-extern char  *pbs_server_name;
-extern char   server_host[];
+extern char *msg_badwait; /* error message */
+extern char *msg_daemonname;
+extern char *msg_also_deleted_job_history;
+extern char server_name[];
 extern pbs_list_head svr_queues;
-extern int    comp_resc_lt;
-extern int    comp_resc_gt;
+extern int comp_resc_lt;
+extern int comp_resc_gt;
 extern time_t time_now;
-extern char  *resc_in_err;
+extern char *resc_in_err;
 
-extern struct   license_used  usedlicenses;
+extern struct licenses_high_use usedlicenses;
 
 /* For history jobs only */
-extern long 	svr_history_enable;
-extern long 	svr_history_duration;
+extern long svr_history_enable;
+extern long svr_history_duration;
 
 /* Work Task Handlers */
 
 extern void resv_retry_handler(struct work_task *);
+extern long determine_resv_retry(resc_resv *);
 
-/* Global Data Items */
+/* external functions */
+extern void free_job_work_tasks(job *);
 
 /* Private Functions */
 
 #ifndef NDEBUG
 static void correct_ct(pbs_queue *);
-#endif 	/* NDEBUG */
+#endif /* NDEBUG */
 
 /**
  * @brief
@@ -208,16 +156,14 @@ static void correct_ct(pbs_queue *);
 static void
 clear_default_resc(job *pjob)
 {
-	attribute *pattr;
-	resource  *presc;
+	resource *presc;
 
-	pattr = &pjob->ji_wattr[(int)JOB_ATR_resource];
-	if (pattr->at_flags & ATR_VFLAG_SET) {
-		presc = (resource *)GET_NEXT(pattr->at_val.at_list);
+	if (is_jattr_set(pjob, JOB_ATR_resource)) {
+		presc = (resource *) GET_NEXT(get_jattr_list(pjob, JOB_ATR_resource));
 		while (presc) {
 			if (presc->rs_value.at_flags & ATR_VFLAG_DEFLT)
 				presc->rs_defin->rs_free(&presc->rs_value);
-			presc = (resource *)GET_NEXT(presc->rs_link);
+			presc = (resource *) GET_NEXT(presc->rs_link);
 		}
 	}
 }
@@ -236,7 +182,7 @@ clear_default_resc(job *pjob)
 void
 tickle_for_reply(void)
 {
-	(void)set_task(WORK_Timed, time_now + 10, 0, NULL);
+	(void) set_task(WORK_Timed, time_now + 10, 0, NULL);
 }
 
 /**
@@ -244,9 +190,10 @@ tickle_for_reply(void)
  * 		svr_enquejob	-	Enqueue the job into specified queue.
  *
  * @param[in]	pjob	-	The job to be enqueued.
+ * @param[in]	selectspec -	select spec of the job.
  *
  * @return	int
- * @retavl	0	: on success
+ * @retval	0	: on success
  * @retval	PBSE	: specified error number.
  *
  * @par MT-Safe:	no
@@ -256,14 +203,17 @@ tickle_for_reply(void)
  *		Updated default attributes and resources specific to job type.
  */
 int
-svr_enquejob(job *pjob)
+svr_enquejob(job *pjob, char *selectspec)
 {
-	attribute      *pattrjb;
-	attribute_def  *pdef;
-	job	       *pjcur;
-	pbs_queue      *pque;
-	int		rc;
-	pbs_sched	*psched;
+	job *pjcur;
+	pbs_queue *pque;
+	int rc;
+	pbs_sched *psched;
+	int state_num;
+	char *qtype;
+	char hook_msg[HOOK_MSG_SIZE] = {0};
+
+	state_num = get_job_state_num(pjob);
 
 	/* make sure queue is still there, there exist a small window ... */
 
@@ -276,28 +226,18 @@ svr_enquejob(job *pjob)
 		 * 0 (SUCCESS). INFO: The job is not associated with any
 		 * queue as the queue has been already purged.
 		 */
-		if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-			(pjob->ji_qs.ji_state == JOB_STATE_FINISHED)) {
-
+		if ((check_job_state(pjob, JOB_STATE_LTR_MOVED)) ||
+		    (check_job_state(pjob, JOB_STATE_LTR_FINISHED))) {
 			if (is_linked(&svr_alljobs, &pjob->ji_alljobs) == 0) {
+				if (pbs_idx_insert(jobs_idx, pjob->ji_qs.ji_jobid, pjob) != PBS_IDX_RET_OK) {
+					log_joberr(PBSE_INTERNAL, __func__, "Failed add history job in index", pjob->ji_qs.ji_jobid);
+					return PBSE_INTERNAL;
+				}
 				append_link(&svr_alljobs, &pjob->ji_alljobs, pjob);
-				/**
-				 * Add to AVL tree so that find_job() can return
-				 * faster compared to linked list traverse.
-				 */
-				svr_avljob_oper(pjob, 0);
 			}
 			server.sv_qs.sv_numjobs++;
-			server.sv_jobstates[pjob->ji_qs.ji_state]++;
-			if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob) {
-				struct ajtrkhd *ptbl = pjob->ji_ajtrk;
-				if (ptbl) {
-					int indx;
-
-					for (indx = 0; indx < ptbl->tkm_ct; ++indx)
-						set_subjob_tblstate(pjob, indx, pjob->ji_qs.ji_state);
-				}
-			}
+			if (state_num != -1)
+				server.sv_jobstates[state_num]++;
 			return (0);
 		} else {
 			return (PBSE_UNKQUE);
@@ -307,121 +247,88 @@ svr_enquejob(job *pjob)
 	/* add job to server's all job list and update server counts */
 
 #ifndef NDEBUG
-	(void)sprintf(log_buffer, "enqueuing into %s, state %x hop %ld",
-		pque->qu_qs.qu_name, pjob->ji_qs.ji_state,
-		pjob->ji_wattr[(int)JOB_ATR_hopcount].at_val.at_long);
+	(void) sprintf(log_buffer, "enqueuing into %s, state %c hop %ld",
+		       pque->qu_qs.qu_name, get_job_state(pjob),
+		       get_jattr_long(pjob, JOB_ATR_hopcount));
 	log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-		pjob->ji_qs.ji_jobid, log_buffer);
-#endif	/* NDEBUG */
+		  pjob->ji_qs.ji_jobid, log_buffer);
+#endif /* NDEBUG */
 
-	pjcur = (job *)GET_PRIOR(svr_alljobs);
+	if (pbs_idx_insert(jobs_idx, pjob->ji_qs.ji_jobid, pjob) != PBS_IDX_RET_OK) {
+		log_joberr(PBSE_INTERNAL, __func__, "Failed add job in index", pjob->ji_qs.ji_jobid);
+		return PBSE_INTERNAL;
+	}
+
+	pjcur = (job *) GET_PRIOR(svr_alljobs);
 	while (pjcur) {
-		if ((unsigned long)pjob->ji_wattr[(int)JOB_ATR_qrank].
-			at_val.at_long >=
-			(unsigned long)pjcur->ji_wattr[(int)JOB_ATR_qrank].
-			at_val.at_long)
+		if (get_jattr_ll(pjob, JOB_ATR_qrank) >= get_jattr_ll(pjcur, JOB_ATR_qrank))
 			break;
-		pjcur = (job *)GET_PRIOR(pjcur->ji_alljobs);
+		pjcur = (job *) GET_PRIOR(pjcur->ji_alljobs);
 	}
 	if (pjcur == 0) {
 		/* link first in server's list */
 		insert_link(&svr_alljobs, &pjob->ji_alljobs, pjob,
-			LINK_INSET_AFTER);
+			    LINK_INSET_AFTER);
 	} else {
 		/* link after 'current' job in server's list */
 		insert_link(&pjcur->ji_alljobs, &pjob->ji_alljobs, pjob,
-			LINK_INSET_AFTER);
+			    LINK_INSET_AFTER);
 	}
 
-	/**
-	 * Add to AVL tree so that find_job() can return
-	 * faster compared to linked list traverse.
-	 */
-	svr_avljob_oper(pjob, 0);
-
 	server.sv_qs.sv_numjobs++;
-	server.sv_jobstates[pjob->ji_qs.ji_state]++;
+	if (state_num != -1)
+		server.sv_jobstates[state_num]++;
 
 	/* place into queue in order of queue rank starting at end */
 
 	pjob->ji_qhdr = pque;
 
-	pjcur = (job *)GET_PRIOR(pque->qu_jobs);
+	pjcur = (job *) GET_PRIOR(pque->qu_jobs);
 	while (pjcur) {
-		if ((unsigned long)pjob->ji_wattr[(int)JOB_ATR_qrank].
-			at_val.at_long >=
-			(unsigned long)pjcur->ji_wattr[(int)JOB_ATR_qrank].
-			at_val.at_long)
+		if (get_jattr_ll(pjob, JOB_ATR_qrank) >= get_jattr_ll(pjcur, JOB_ATR_qrank))
 			break;
-		pjcur = (job *)GET_PRIOR(pjcur->ji_jobque);
+		pjcur = (job *) GET_PRIOR(pjcur->ji_jobque);
 	}
 	if (pjcur == 0) {
 		/* link first in list */
 		insert_link(&pque->qu_jobs, &pjob->ji_jobque, pjob,
-			LINK_INSET_AFTER);
+			    LINK_INSET_AFTER);
 	} else {
 		/* link after 'current' job in list */
 		insert_link(&pjcur->ji_jobque, &pjob->ji_jobque, pjob,
-			LINK_INSET_AFTER);
+			    LINK_INSET_AFTER);
 	}
 
 	/* update counts: queue and queue by state */
 
 	pque->qu_numjobs++;
-	pque->qu_njstate[pjob->ji_qs.ji_state]++;
+	if (state_num != -1)
+		pque->qu_njstate[state_num]++;
 
-	if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_FINISHED)) {
-		if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob) {
-			int indx;
-			struct ajtrkhd *ptbl = pjob->ji_ajtrk;
-			if (ptbl) {
-				for (indx = 0; indx < ptbl->tkm_ct; ++indx)
-					set_subjob_tblstate(pjob,
-						indx,
-						pjob->ji_qs.ji_state);
-			}
-		}
+	if ((check_job_state(pjob, JOB_STATE_LTR_MOVED)) || (check_job_state(pjob, JOB_STATE_LTR_FINISHED))) {
 		return (0);
 	}
 
 	/* update the current location and type attribute */
+	set_jattr_generic(pjob, JOB_ATR_in_queue, pque->qu_qs.qu_name, NULL, SET);
 
-	pdef    = &job_attr_def[(int)JOB_ATR_in_queue];
-	pattrjb = &pjob->ji_wattr[(int)JOB_ATR_in_queue];
-	pdef->at_free(pattrjb);
-	pdef->at_decode(pattrjb, NULL, NULL, pque->qu_qs.qu_name);
-
-	if (pque->qu_attr[(int)QA_ATR_QType].at_val.at_str == NULL) {
-		sprintf(log_buffer, "queue type must be set for queue `%s`",
-			pque->qu_qs.qu_name);
-		log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_QUEUE, LOG_ERR,
-			pjob->ji_qs.ji_jobid, log_buffer);
+	if ((qtype = get_qattr_str(pque, QA_ATR_QType)) == NULL) {
+		log_eventf(PBSEVENT_ADMIN, PBS_EVENTCLASS_QUEUE, LOG_ERR,
+			   pjob->ji_qs.ji_jobid, "queue type must be set for queue `%s`",
+			   pque->qu_qs.qu_name);
 		return PBSE_NEEDQUET;
 	}
-	pjob->ji_wattr[(int)JOB_ATR_queuetype].at_val.at_char =
-		*pque->qu_attr[(int)QA_ATR_QType].at_val.at_str;
-	pjob->ji_wattr[(int)JOB_ATR_queuetype].at_flags |=
-		ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
+	set_jattr_c_slim(pjob, JOB_ATR_queuetype, *qtype, SET);
 
-	if ((pjob->ji_wattr[(int)JOB_ATR_qtime].at_flags &
-		ATR_VFLAG_SET) == 0) {
-		pjob->ji_wattr[(int)JOB_ATR_qtime].at_val.at_long = time_now;
-		pjob->ji_wattr[(int)JOB_ATR_qtime].at_flags |=
-			ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
-
-		/* issue enqueued accounting record */
-
-		(void)sprintf(log_buffer, "queue=%s", pque->qu_qs.qu_name);
-		account_record(PBS_ACCT_QUEUE, pjob, log_buffer);
-	}
+	if (!is_jattr_set(pjob, JOB_ATR_qtime))
+		set_jattr_l_slim(pjob, JOB_ATR_qtime, time_now, SET);
 
 	/*
 	 * set any "unspecified" resources which have default values,
 	 * first with queue defaults, then with server defaults
 	 */
 
-	rc = set_resc_deflt((void *)pjob, JOB_OBJECT, NULL);
+	rc = set_resc_deflt((void *) pjob, JOB_OBJECT, NULL);
 	if (rc)
 		return rc;
 
@@ -429,18 +336,14 @@ svr_enquejob(job *pjob)
 	 * Ensure that all jobs has JOB_ATR_project set.
 	 * It could be unset if coming from an overlay upgrade.
 	 */
-	if ( (pjob->ji_wattr[(int)JOB_ATR_project].at_flags & \
-							ATR_VFLAG_SET) == 0 ) {
-		job_attr_def[(int)JOB_ATR_project].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_project],
-			NULL, NULL, PBS_DEFAULT_PROJECT);
-	}
+	if (!is_jattr_set(pjob, JOB_ATR_project))
+		set_jattr_str_slim(pjob, JOB_ATR_project, PBS_DEFAULT_PROJECT, NULL);
 
 	/* update any entity count and entity resources usage for the queue */
 
-	if (!(pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) || (server.sv_attr[(int)SRV_ATR_State].at_val.at_long == SV_STATE_INIT)) {
+	if (!(pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) ||
+	    (get_sattr_long(SVR_ATR_State) == SV_STATE_INIT))
 		account_entity_limit_usages(pjob, pque, NULL, INCR, ETLIM_ACC_ALL);
-	}
 
 	/*
 	 * See if we need to do anything special based on type of queue
@@ -459,8 +362,7 @@ svr_enquejob(job *pjob)
 
 		/* check the job checkpoint against the queue's  min */
 
-		eval_chkpnt(&pjob->ji_wattr[(int)JOB_ATR_chkpnt],
-			&pque->qu_attr[(int)QE_ATR_ChkptMim]);
+		eval_chkpnt(pjob, get_qattr(pque, QE_ATR_ChkptMin));
 
 		/*
 		 * do anything needed doing regarding job dependencies,
@@ -468,9 +370,9 @@ svr_enquejob(job *pjob)
 		 * was registered when the job was first enqueued.
 		 */
 
-		if (server.sv_attr[(int)SRV_ATR_State].at_val.at_long != SV_STATE_INIT) {
-			if (pjob->ji_wattr[(int)JOB_ATR_depend].at_flags&ATR_VFLAG_SET) {
-				rc = depend_on_que(&pjob->ji_wattr[(int)JOB_ATR_depend], pjob, ATR_ACTION_NOOP);
+		if (get_sattr_long(SVR_ATR_State) != SV_STATE_INIT) {
+			if (is_jattr_set(pjob, JOB_ATR_depend)) {
+				rc = depend_on_que(get_jattr(pjob, JOB_ATR_depend), pjob, ATR_ACTION_NOOP);
 				if (rc)
 					return rc;
 			}
@@ -478,24 +380,25 @@ svr_enquejob(job *pjob)
 
 		/* set eligible time */
 
-		if (((pjob->ji_wattr[(int)JOB_ATR_etime].at_flags &
-			ATR_VFLAG_SET) == 0) &&
-			(pjob->ji_qs.ji_state == JOB_STATE_QUEUED)) {
-			pjob->ji_wattr[(int)JOB_ATR_etime].at_val.at_long =
-				time_now;
-			pjob->ji_wattr[(int)JOB_ATR_etime].at_flags |=
-				ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
+		if (!is_jattr_set(pjob, JOB_ATR_etime) && check_job_state(pjob, JOB_STATE_LTR_QUEUED)) {
+			set_jattr_l_slim(pjob, JOB_ATR_etime, time_now, SET);
 
 			/* better notify the Scheduler we have a new job */
-
+			if (!selectspec) {
+				if (find_assoc_sched_jid(pjob->ji_qs.ji_jobid, &psched))
+					set_scheduler_flag(SCH_SCHEDULE_NEW, psched);
+				else {
+					sprintf(log_buffer, "Unable to reach scheduler associated with job %s", pjob->ji_qs.ji_jobid);
+					log_err(-1, __func__, log_buffer);
+				}
+			}
 			if (find_assoc_sched_jid(pjob->ji_qs.ji_jobid, &psched))
 				set_scheduler_flag(SCH_SCHEDULE_NEW, psched);
 			else {
 				sprintf(log_buffer, "Unable to reach scheduler associated with job %s", pjob->ji_qs.ji_jobid);
 				log_err(-1, __func__, log_buffer);
 			}
-		} else if (server.sv_attr[SRV_ATR_EligibleTimeEnable].at_val.at_long &&
-			server.sv_attr[SRV_ATR_scheduling].at_val.at_long) {
+		} else if (get_sattr_long(SVR_ATR_EligibleTimeEnable) && get_sattr_long(SVR_ATR_scheduling) && !selectspec) {
 
 			/* notify the Scheduler we have moved a job here */
 
@@ -507,7 +410,6 @@ svr_enquejob(job *pjob)
 			}
 		}
 
-
 	} else if (pque->qu_qs.qu_type == QTYPE_RoutePush) {
 
 		/* start attempts to route job */
@@ -515,6 +417,26 @@ svr_enquejob(job *pjob)
 		pjob->ji_qs.ji_un_type = JOB_UNION_TYPE_ROUTE;
 		pjob->ji_qs.ji_un.ji_routet.ji_quetime = time_now;
 		pjob->ji_qs.ji_un.ji_routet.ji_rteretry = 0;
+	}
+
+	/* start postqueuejob hook */
+
+	struct batch_request *preq;
+	preq = alloc_br(PBS_BATCH_PostQueueJob);
+	if (preq == NULL) {
+		log_err(PBSE_INTERNAL, __func__, "failed to alloc_br for PBS_BATCH_PostQueueJob");
+	} else {
+		preq->rq_ind.rq_postqueuejob.rq_pjob = pjob;
+		strcpy(preq->rq_ind.rq_postqueuejob.rq_jid, pjob->ji_qs.ji_jobid);
+		strncpy(preq->rq_user, pbs_current_user, PBS_MAXUSER);
+		strncpy(preq->rq_host, server_host, PBS_MAXHOSTNAME);
+
+		rc = process_hooks(preq, hook_msg, sizeof(hook_msg), pbs_python_set_interrupt);
+		if (rc == -1) {
+			log_eventf(PBSEVENT_JOB, PBS_EVENTCLASS_JOB, LOG_INFO, pjob->ji_qs.ji_jobid,
+				   "postqueuejob process_hooks call failed: %s", hook_msg);
+		}
+		free_br(preq);
 	}
 	return (0);
 }
@@ -529,25 +451,24 @@ svr_enquejob(job *pjob)
 void
 svr_dequejob(job *pjob)
 {
-	int	   bad_ct = 0;
+	int bad_ct = 0;
 	pbs_queue *pque;
+	int state_num;
 
 	/* remove job from server's all job list and reduce server counts */
 
 	if (is_linked(&svr_alljobs, &pjob->ji_alljobs)) {
+		int state_num;
+
 		delete_link(&pjob->ji_alljobs);
 		delete_link(&pjob->ji_unlicjobs);
-
-		/**
-		 * Remove the key from the AVL tree which was
-		 * added for faster job search i.e. find_job().
-		 */
-		svr_avljob_oper(pjob, 1);
-
+		if (pbs_idx_delete(jobs_idx, pjob->ji_qs.ji_jobid) != PBS_IDX_RET_OK)
+			log_joberr(PBSE_INTERNAL, __func__, "Failed to delete job from index", pjob->ji_qs.ji_jobid);
 		if (--server.sv_qs.sv_numjobs < 0)
 			bad_ct = 1;
 
-		if (--server.sv_jobstates[pjob->ji_qs.ji_state] < 0)
+		state_num = get_job_state_num(pjob);
+		if (state_num != -1 && --server.sv_jobstates[state_num] < 0)
 			bad_ct = 1;
 	}
 
@@ -556,32 +477,32 @@ svr_dequejob(job *pjob)
 		/* update any entity count and entity resources usage at que */
 
 		account_entity_limit_usages(pjob, pque, NULL, DECR,
-				pjob->ji_etlimit_decr_queued ? ETLIM_ACC_ALL_MAX : ETLIM_ACC_ALL);
-
+					    pjob->ji_etlimit_decr_queued ? ETLIM_ACC_ALL_MAX : ETLIM_ACC_ALL);
 
 		if (is_linked(&pque->qu_jobs, &pjob->ji_jobque)) {
 			delete_link(&pjob->ji_jobque);
 			if (--pque->qu_numjobs < 0)
 				bad_ct = 1;
-			if (--pque->qu_njstate[pjob->ji_qs.ji_state] < 0)
+
+			state_num = get_job_state_num(pjob);
+			if (state_num != -1 && --pque->qu_njstate[state_num] < 0)
 				bad_ct = 1;
 		}
 		pjob->ji_qhdr = NULL;
 	}
 
 #ifndef NDEBUG
-	(void)sprintf(log_buffer, "dequeuing from %s, state %x",
-		pque ? pque->qu_qs.qu_name : "", pjob->ji_qs.ji_state);
+	sprintf(log_buffer, "dequeuing from %s, state %c",
+		pque ? pque->qu_qs.qu_name : "", get_job_state(pjob));
 	log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-		pjob->ji_qs.ji_jobid, log_buffer);
-	if (bad_ct) 		/* state counts are all messed up */
+		  pjob->ji_qs.ji_jobid, log_buffer);
+	if (bad_ct) /* state counts are all messed up */
 		correct_ct(pque);
-#endif	/* NDEBUG */
+#endif /* NDEBUG */
 
-	pjob->ji_wattr[(int)JOB_ATR_qtime].at_flags &= ~ATR_VFLAG_SET;
+	mark_jattr_not_set(pjob, JOB_ATR_qtime);
 
-	/* clear any default resource values.		*/
-
+	/* clear any default resource values */
 	clear_default_resc(pjob);
 }
 
@@ -600,9 +521,8 @@ svr_dequejob(job *pjob)
  */
 
 int
-svr_setjobstate(job *pjob, int newstate, int newsubstate)
+svr_setjobstate(job *pjob, char newstate, int newsubstate)
 {
-	int    changed = 0;
 	pbs_queue *pque = pjob->ji_qhdr;
 	pbs_sched *psched;
 
@@ -610,33 +530,38 @@ svr_setjobstate(job *pjob, int newstate, int newsubstate)
 	 * If the job has already finished, then do not make any new changes
 	 * to job state or substate.
 	 */
-	if (pjob->ji_qs.ji_state == JOB_STATE_FINISHED)
+	if (check_job_state(pjob, JOB_STATE_LTR_FINISHED) ||
+	    (check_job_state(pjob, newstate) && (check_job_substate(pjob, newsubstate))))
 		return (0);
+
+	log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_INFO, pjob->ji_qs.ji_jobid,
+		   "Updated job state to %d and substate to %d", newstate, newsubstate);
 
 	/*
 	 * if its is a new job, then don't update counts, svr_enquejob() will
 	 * take care of that, also req_commit() will see that the job is saved.
 	 */
 
-	if (pjob->ji_qs.ji_substate != JOB_SUBSTATE_TRANSICM) {
-		int oldstate;
-
-		/* Not a new job, update the counts and save if needed */
-
-		if (pjob->ji_qs.ji_substate != newsubstate)
-			changed = 1;
+	if (!check_job_substate(pjob, JOB_SUBSTATE_TRANSICM)) {
+		char oldstate = get_job_state(pjob);
 
 		/* if the state is changing, also update the state counts */
 
-		if ((oldstate = pjob->ji_qs.ji_state) != (long)newstate) {
+		if (oldstate != newstate) {
+			int oldstatenum;
+			int newstatenum;
 
-			changed = 1;
-			server.sv_jobstates[oldstate]--;
-			server.sv_jobstates[newstate]++;
+			oldstatenum = state_char2int(oldstate);
+			newstatenum = state_char2int(newstate);
+			if (oldstatenum != -1)
+				server.sv_jobstates[oldstatenum]--;
+			if (newstatenum != -1)
+				server.sv_jobstates[newstatenum]++;
 			if (pque != NULL) {
-
-				pque->qu_njstate[oldstate]--;
-				pque->qu_njstate[newstate]++;
+				if (oldstatenum != -1)
+					pque->qu_njstate[oldstatenum]--;
+				if (newstatenum != -1)
+					pque->qu_njstate[newstatenum]++;
 
 				/*
 				 * if execution queue, and eligability to run
@@ -644,10 +569,7 @@ svr_setjobstate(job *pjob, int newstate, int newsubstate)
 				 */
 
 				if ((pque->qu_qs.qu_type == QTYPE_Execution) &&
-					(newstate == JOB_STATE_QUEUED)) {
-					attribute *etime = &pjob->
-						ji_wattr[(int)JOB_ATR_etime];
-
+				    (newstate == JOB_STATE_LTR_QUEUED)) {
 					if (find_assoc_sched_jid(pjob->ji_qs.ji_jobid, &psched))
 						set_scheduler_flag(SCH_SCHEDULE_NEW, psched);
 					else {
@@ -655,57 +577,41 @@ svr_setjobstate(job *pjob, int newstate, int newsubstate)
 						log_err(-1, __func__, log_buffer);
 					}
 
-					if ((etime->at_flags & ATR_VFLAG_SET)
-						== 0) {
-						etime->at_val.at_long = time_now;
-						etime->at_flags |=
-							ATR_VFLAG_SET|
-						ATR_VFLAG_MODCACHE;
-					}
-					/* clear start time (stime) */
-					job_attr_def[(int)JOB_ATR_stime].
-					at_free(&pjob->
-						ji_wattr[(int)JOB_ATR_stime]);
+					if (!is_jattr_set(pjob, JOB_ATR_etime))
+						set_jattr_l_slim(pjob, JOB_ATR_etime, time_now, SET);
 
-				} else if ((newstate == JOB_STATE_HELD) ||
-					(newstate == JOB_STATE_WAITING)) {
+					/* clear start time (stime) */
+					free_jattr(pjob, JOB_ATR_stime);
+
+				} else if ((newstate == JOB_STATE_LTR_HELD) || (newstate == JOB_STATE_LTR_WAITING)) {
 					/* on hold or wait, clear etime */
-					job_attr_def[(int)JOB_ATR_etime].
-					at_free(&pjob->
-						ji_wattr[(int)JOB_ATR_etime]);
+					free_jattr(pjob, JOB_ATR_etime);
+					/* TODO: remove attr etime from database */
 				}
 			}
 			/* if subjob, update parent Array Job */
 			if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) {
-				update_subjob_state(pjob, newstate);
+				update_sj_parent(pjob->ji_parentaj, pjob, pjob->ji_qs.ji_jobid, oldstate, newstate);
+				chk_array_doneness(pjob->ji_parentaj);
 			}
 		}
 	}
 
 	/* set the states accordingly */
-
-	pjob->ji_qs.ji_state = newstate;
-	pjob->ji_qs.ji_substate = newsubstate;
-	pjob->ji_wattr[(int)JOB_ATR_substate].at_val.at_long = newsubstate;
-	pjob->ji_wattr[(int)JOB_ATR_substate].at_flags |= ATR_VFLAG_MODCACHE;
-
-	set_statechar(pjob);
-	Update_Resvstate_if_resv(pjob);
+	set_job_state(pjob, newstate);
+	set_job_substate(pjob, newsubstate);
 
 	/* eligible_time_enable */
-	if (server.sv_attr[SRV_ATR_EligibleTimeEnable].at_val.at_long == 1) {
+	if (get_sattr_long(SVR_ATR_EligibleTimeEnable) == 1) {
 		long newaccruetype;
 
-		/* determine accrue type */
 		newaccruetype = determine_accruetype(pjob);
-
-		/* calculate eligible time */
-		(void)update_eligible_time(newaccruetype, pjob);
+		update_eligible_time(newaccruetype, pjob);
 	}
 
 	/* update the job file */
 
-	if (newstate == JOB_STATE_RUNNING) {
+	if (newstate == JOB_STATE_LTR_RUNNING) {
 		if (pjob->ji_etlimit_decr_queued == FALSE) {
 			account_entity_limit_usages(pjob, NULL, NULL, DECR, ETLIM_ACC_ALL_QUEUED);
 			account_entity_limit_usages(pjob, pjob->ji_qhdr, NULL, DECR, ETLIM_ACC_ALL_QUEUED);
@@ -713,11 +619,30 @@ svr_setjobstate(job *pjob, int newstate, int newsubstate)
 		}
 	}
 
-	if (pjob->ji_modified)
-		return (job_save(pjob, SAVEJOB_FULL));
-	else if(changed)
-		return (job_save(pjob, SAVEJOB_QUICK));
-	return (0);
+	if (pjob->newobj) {
+		/* object was never saved/loaded before, so new object */
+		return 0;
+	}
+
+	return (job_save_db(pjob));
+}
+
+/**
+ * @brief	Helper function thats re-evaluates job state and sub state.
+ *
+ * @param	jobp - pointer to the job
+ *
+ * @return	void
+ */
+void
+svr_evalsetjobstate(job *jobp)
+{
+	char newstate;
+	int newsub;
+
+	/* force re-eval of job state out of Transit */
+	svr_evaljobstate(jobp, &newstate, &newsub, 1);
+	svr_setjobstate(jobp, newstate, newsub);
 }
 
 /**
@@ -739,10 +664,8 @@ svr_setjobstate(job *pjob, int newstate, int newsubstate)
  * @return	void
  */
 void
-svr_evaljobstate(job *pjob, int *newstate, int *newsub, int forceeval)
+svr_evaljobstate(job *pjob, char *newstate, int *newsub, int forceeval)
 {
-	int	resvstate;
-
 	/*
 	 * A value MUST be assigned to newstate and newsub because
 	 * they may have been passed in uninitialized. We MUST put
@@ -750,85 +673,43 @@ svr_evaljobstate(job *pjob, int *newstate, int *newsub, int forceeval)
 	 * on subsequent cycles and not schedule ANY work. The
 	 * safest thing to do is to hold the job by default.
 	 */
-	*newstate = JOB_STATE_HELD;
+	*newstate = JOB_STATE_LTR_HELD;
 	*newsub = JOB_SUBSTATE_HELD;
 
-	if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_FINISHED)) {
+	if ((check_job_state(pjob, JOB_STATE_LTR_MOVED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_FINISHED))) {
 
 		/* History job, just return state/sub-state. */
-		*newstate = pjob->ji_qs.ji_state;
-		*newsub   = pjob->ji_qs.ji_substate;
+		*newstate = get_job_state(pjob);
+		*newsub = get_job_substate(pjob);
 
 	} else if ((forceeval == 0) &&
-		((pjob->ji_qs.ji_state == JOB_STATE_RUNNING) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_TRANSIT))) {
+		   (check_job_state(pjob, JOB_STATE_LTR_TRANSIT) ||
+		    check_job_state(pjob, JOB_STATE_LTR_RUNNING))) {
 
 		/* Leave as is. */
-		*newstate = pjob->ji_qs.ji_state;
-		*newsub   = pjob->ji_qs.ji_substate;
+		*newstate = get_job_state(pjob);
+		*newsub = get_job_substate(pjob);
+	} else if (get_jattr_long(pjob, JOB_ATR_hold)) {
 
-	} else if (pjob->ji_wattr[(int)JOB_ATR_hold].at_val.at_long) {
-
-		*newstate = JOB_STATE_HELD;
+		*newstate = JOB_STATE_LTR_HELD;
 		/* is the hold due to a dependency? */
-		if ((pjob->ji_qs.ji_substate == JOB_SUBSTATE_SYNCHOLD) ||
-			(pjob->ji_qs.ji_substate == JOB_SUBSTATE_DEPNHOLD)) {
+		if ((check_job_substate(pjob, JOB_SUBSTATE_SYNCHOLD)) ||
+		    (check_job_substate(pjob, JOB_SUBSTATE_DEPNHOLD))) {
 			/* Retain substate. */
-			*newsub   = pjob->ji_qs.ji_substate;
+			*newsub = get_job_substate(pjob);
 		} else {
-			*newsub   = JOB_SUBSTATE_HELD;
+			*newsub = JOB_SUBSTATE_HELD;
 		}
 
-	} else if (pjob->ji_wattr[(int)JOB_ATR_exectime].at_val.at_long > (long)time_now) {
+	} else if (get_jattr_long(pjob, JOB_ATR_exectime) > (long) time_now) {
 
-		*newstate = JOB_STATE_WAITING;
-		*newsub   = JOB_SUBSTATE_WAITING;
+		*newstate = JOB_STATE_LTR_WAITING;
+		*newsub = JOB_SUBSTATE_WAITING;
 
-	} else if (pjob->ji_resvp &&
-		pjob->ji_resvp->ri_qs.ri_type == RESV_JOB_OBJECT) {
+	} else if (is_jattr_set(pjob, JOB_ATR_stagein)) {
 
-		resvstate = pjob->ji_resvp->ri_qs.ri_state;
-		if (resvstate == RESV_UNCONFIRMED) {
-			*newstate = JOB_STATE_HELD;
-			*newsub   = JOB_SUBSTATE_HELD;
-		} else if (pjob->ji_resvp->ri_qs.ri_stime > time_now) {
-			*newstate = JOB_STATE_WAITING;
-			*newsub   = JOB_SUBSTATE_WAITING;
-		} else if (pjob->ji_resvp->ri_qs.ri_etime > time_now) {
-			if (resvstate == RESV_RUNNING ||
-				resvstate == RESV_TIME_TO_RUN) {
-				*newstate = JOB_STATE_QUEUED;
-				if (pjob->ji_wattr[(int)JOB_ATR_stagein]
-					.at_flags & ATR_VFLAG_SET) {
-					if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_StagedIn) {
-						*newsub = JOB_SUBSTATE_STAGECMP;
-					} else {
-						*newsub = JOB_SUBSTATE_PRESTAGEIN;
-					}
-				} else
-					*newsub = JOB_SUBSTATE_QUEUED;
-			} else {
-				*newstate = pjob->ji_qs.ji_state;
-				*newsub   = pjob->ji_qs.ji_substate;
-			}
-		} else {
-			/*
-			 * Just keep current job state and substate.
-			 * Note, reservation state should be one of:
-			 * RESV_BEING_DELETED, RESV_DELETED,
-			 * RESV_FINISHED, RESV_DELETING_JOBS and,
-			 * job state should be JOB_STATE_EXITING with
-			 * substate one of the "job exit processing"
-			 * steps.
-			 */
-			*newstate = pjob->ji_qs.ji_state;
-			*newsub   = pjob->ji_qs.ji_substate;
-		}
-
-	} else if (pjob->ji_wattr[(int)JOB_ATR_stagein].at_flags & ATR_VFLAG_SET) {
-
-		*newstate = JOB_STATE_QUEUED;
+		*newstate = JOB_STATE_LTR_QUEUED;
 		if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_StagedIn) {
 			*newsub = JOB_SUBSTATE_STAGECMP;
 		} else {
@@ -837,97 +718,31 @@ svr_evaljobstate(job *pjob, int *newstate, int *newsub, int forceeval)
 
 	} else {
 
-		if (pjob->ji_qs.ji_svrflags&JOB_SVFLG_ArrayJob) {
+		if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob) {
 			/* This is an array job. */
-			struct ajtrkhd  *ptbl = pjob->ji_ajtrk;
+			ajinfo_t *ptbl = pjob->ji_ajinfo;
 			if (ptbl) {
-				if  (ptbl->tkm_subjsct[JOB_STATE_QUEUED] +
-				       ptbl->tkm_dsubjsct < ptbl->tkm_ct) {
-					*newstate = JOB_STATE_BEGUN;
-					*newsub   = JOB_SUBSTATE_BEGUN;
+				if (ptbl->tkm_subjsct[JOB_STATE_QUEUED] + ptbl->tkm_dsubjsct < ptbl->tkm_ct) {
+					*newstate = JOB_STATE_LTR_BEGUN;
+					*newsub = JOB_SUBSTATE_BEGUN;
 				} else {
 					/* All subjobs are queued. */
-					*newstate = JOB_STATE_QUEUED;
-					*newsub   = JOB_SUBSTATE_QUEUED;
+					*newstate = JOB_STATE_LTR_QUEUED;
+					*newsub = JOB_SUBSTATE_QUEUED;
 				}
 			} else {
 				sprintf(log_buffer, "Array job has no tracking table!");
 				log_event(PBSEVENT_JOB, PBS_EVENTCLASS_JOB, LOG_ERR,
-					pjob->ji_qs.ji_jobid, log_buffer);
-				*newstate = JOB_STATE_HELD;
+					  pjob->ji_qs.ji_jobid, log_buffer);
+				*newstate = JOB_STATE_LTR_HELD;
 				*newsub = JOB_SUBSTATE_HELD;
 			}
 		} else {
-			*newstate = JOB_STATE_QUEUED;
-			*newsub   = JOB_SUBSTATE_QUEUED;
+			*newstate = JOB_STATE_LTR_QUEUED;
+			*newsub = JOB_SUBSTATE_QUEUED;
 		}
-
 	}
 }
-
-
-/**
- * @brief
- * 		cmp_resvStateRelated_attrs - for the object in question,
- * 		compute and set those attributes whose value or existence
- * 		and value can depend on the state of the reservation or
- * 		whether the object belongs to a reservation - e.g. one
- * 		such attribute is the JOB_ATR_exectime on a job
- *
- * @param[in]	pobj	-	pointer to the object based on the type
- * @param[out]	objtype	-	type of the object - job/reservation.
- *
- * @return	None
- */
-void
-cmp_resvStateRelated_attrs(void *pobj, int objtype)
-{
-	job	   *pjob;
-	resc_resv  *presv;
-	attribute  *pats;	/*"ptr to attribute to set"*/
-	attribute  *patu;	/*"ptr to attribute to use"*/
-	attribute  hold;	/*a temporary*/
-
-	int	  (*pf)(attribute *, attribute *, enum batch_op);
-
-
-	if (pobj == NULL)
-		return;
-
-	if (objtype == JOB_OBJECT) {
-		pjob = (job *)pobj;
-		presv = pjob->ji_resvp;
-		if (presv) {
-			pats = &pjob->ji_wattr[JOB_ATR_exectime];
-			patu = &presv->ri_wattr[RESV_ATR_start];
-			pf = resv_attr_def[RESV_ATR_start].at_set;
-			(void)pf(pats, patu, SET);
-		}
-
-	} else if (objtype == RESV_JOB_OBJECT) {
-		presv = (resc_resv *)pobj;
-		pjob = presv->ri_jbp;
-		if (pjob) {
-			pats = &pjob->ji_wattr[JOB_ATR_exectime];
-			patu = &presv->ri_wattr[RESV_ATR_start];
-			pf = resv_attr_def[RESV_ATR_start].at_set;
-			(void)pf(pats, patu, SET);
-
-			hold.at_flags = ATR_VFLAG_SET;
-			hold.at_val.at_long = HOLD_s;
-			pats = &pjob->ji_wattr[JOB_ATR_hold];
-			patu = &hold;
-			pf = job_attr_def[JOB_ATR_hold].at_set;
-			if (presv->ri_qs.ri_state == RESV_UNCONFIRMED)
-				(void)pf(pats, patu, INCR);
-			else if (presv->ri_qs.ri_state == RESV_CONFIRMED)
-				(void)pf(pats, patu, DECR);
-		}
-	} else if (objtype == RESC_RESV_OBJECT) {
-		return;
-	}
-}
-
 
 /**
  * @brief
@@ -946,14 +761,13 @@ get_variable(job *pjob, char *variable)
 {
 	char *pc;
 
-	pc = arst_string(variable, &pjob->ji_wattr[(int)JOB_ATR_variables]);
+	pc = arst_string(variable, get_jattr(pjob, JOB_ATR_variables));
 	if (pc) {
-		if ((pc = strchr(pc, (int)'=')) != 0)
+		if ((pc = strchr(pc, (int) '=')) != 0)
 			pc++;
 	}
 	return (pc);
 }
-
 
 /**
  * @brief
@@ -972,20 +786,16 @@ char *
 lookup_variable(void *pobj, int objtype, char *variable)
 {
 	char *pc;
-	int  idx_var;
-	attribute *objattrs;
+	attribute *objattr;
 
-	if (objtype == JOB_OBJECT) {
-		idx_var = (int)JOB_ATR_variables;
-		objattrs = ((job *)pobj)->ji_wattr;
-	} else {
-		idx_var = (int)RESV_ATR_variables;
-		objattrs = ((resc_resv *)pobj)->ri_wattr;
-	}
+	if (objtype == JOB_OBJECT)
+		objattr = get_jattr((job *) pobj, JOB_ATR_variables);
+	else
+		objattr = get_rattr((resc_resv *) pobj, RESV_ATR_variables);
 
-	pc = arst_string(variable, &objattrs[idx_var]);
+	pc = arst_string(variable, objattr);
 	if (pc) {
-		if ((pc = strchr(pc, (int)'=')) != 0)
+		if ((pc = strchr(pc, (int) '=')) != 0)
 			pc++;
 	}
 	return (pc);
@@ -1007,9 +817,9 @@ lookup_variable(void *pobj, int objtype, char *variable)
 
 static void
 chk_svr_resc_limit(attribute *jobatr, attribute *queatr,
-	attribute *svratr, int qtype)
+		   attribute *svratr, int qtype)
 {
-	int       rc;
+	int rc;
 	resource *jbrc;
 	resource *qurc;
 	resource *svrc;
@@ -1017,23 +827,23 @@ chk_svr_resc_limit(attribute *jobatr, attribute *queatr,
 	static resource_def *noderesc = NULL;
 
 	if (noderesc == NULL) {
-		noderesc = find_resc_def(svr_resc_def, "nodes", svr_resc_size);
+		noderesc = &svr_resc_def[RESC_NODES];
 	}
 	comp_resc_gt = 0;
 	comp_resc_lt = 0;
 
-	jbrc = (resource *)GET_NEXT(jobatr->at_val.at_list);
+	jbrc = (resource *) GET_NEXT(jobatr->at_val.at_list);
 	while (jbrc) {
 		cmpwith = 0;
-		if (jbrc->rs_value.at_flags & ATR_VFLAG_SET) {
+		if (is_attr_set(&jbrc->rs_value)) {
 			qurc = find_resc_entry(queatr, jbrc->rs_defin);
 			if ((qurc == 0) ||
-				((qurc->rs_value.at_flags & ATR_VFLAG_SET)==0)) {
+			    ((is_attr_set(&qurc->rs_value)) == 0)) {
 				/* queue limit not set, check server's */
 
 				svrc = find_resc_entry(svratr, jbrc->rs_defin);
 				if ((svrc != 0) &&
-					(svrc->rs_value.at_flags & ATR_VFLAG_SET)) {
+				    (is_attr_set(&svrc->rs_value))) {
 					cmpwith = svrc;
 				}
 
@@ -1044,14 +854,14 @@ chk_svr_resc_limit(attribute *jobatr, attribute *queatr,
 
 			if ((jbrc->rs_defin != noderesc) && cmpwith) {
 				rc = jbrc->rs_defin->rs_comp(&cmpwith->rs_value,
-					&jbrc->rs_value);
+							     &jbrc->rs_value);
 				if (rc > 0)
 					comp_resc_gt++;
 				else if (rc < 0)
 					comp_resc_lt++;
 			}
 		}
-		jbrc = (resource *)GET_NEXT(jbrc->rs_link);
+		jbrc = (resource *) GET_NEXT(jbrc->rs_link);
 	}
 }
 /**
@@ -1073,14 +883,13 @@ get_wt_limit(attribute *plimit_attr, attribute *wt_attr)
 	if (plimit_attr == NULL || wt_attr == NULL)
 		return 1;
 	/* Check min_walltime if min_or_max == MIN_WALLTIME_LIMIT */
-	wiresc = (resource *)GET_NEXT(plimit_attr->at_val.at_list);
+	wiresc = (resource *) GET_NEXT(plimit_attr->at_val.at_list);
 	while (wiresc != NULL) {
-		if ((strcasecmp(wiresc->rs_defin->rs_name, WALLTIME) == 0)
-			&& (wiresc->rs_value.at_flags & ATR_VFLAG_SET)) {
+		if ((strcasecmp(wiresc->rs_defin->rs_name, WALLTIME) == 0) && (is_attr_set(&wiresc->rs_value))) {
 			*wt_attr = wiresc->rs_value;
 			return 0;
 		}
-		wiresc = (resource *)GET_NEXT(wiresc->rs_link);
+		wiresc = (resource *) GET_NEXT(wiresc->rs_link);
 	}
 	return 1;
 }
@@ -1102,15 +911,14 @@ comp_wt_limits_STF(resource *resc_minmaxwt, attribute limit_attr, int min_or_max
 {
 	int rc = 0;
 
-	if (resc_minmaxwt == NULL || !(resc_minmaxwt->rs_value.at_flags & ATR_VFLAG_SET))
+	if (resc_minmaxwt == NULL || !(is_attr_set(&resc_minmaxwt->rs_value)))
 		return 0;
 
 	/* Check minimum walltime limit if min_or_max == MIN_WALLTIME_LIMIT */
 	if (min_or_max == MIN_WALLTIME_LIMIT) {
 		if ((rc = resc_minmaxwt->rs_defin->rs_comp(&(resc_minmaxwt->rs_value), &limit_attr)) < 0)
 			return (PBSE_EXCQRESC);
-	}
-	else {
+	} else {
 		/* Check maximum walltime limit*/
 		if ((rc = resc_minmaxwt->rs_defin->rs_comp(&(resc_minmaxwt->rs_value), &limit_attr)) > 0)
 			return (PBSE_EXCQRESC);
@@ -1152,10 +960,10 @@ chk_wt_limits_STF(resource *resc_minwt, resource *resc_maxwt, pbs_queue *pque, a
 	 max_walltime <= resources_max.walltime
 	 */
 	/* Check against queue maximum */
-	if (pque && get_wt_limit(&(pque->qu_attr[QA_ATR_ResourceMax]), &wt_max_queue_limit) == 0)
+	if (pque && get_wt_limit(get_qattr(pque, QA_ATR_ResourceMax), &wt_max_queue_limit) == 0)
 		have_max_queue_limit = 1;
 	/* Check server maximum limit only if queue maximum limit is not present */
-	if (!have_max_queue_limit && pque && get_wt_limit(&(server.sv_attr[SRV_ATR_ResourceMax]), &wt_max_server_limit) == 0)
+	if (!have_max_queue_limit && pque && get_wt_limit(get_sattr(SVR_ATR_ResourceMax), &wt_max_server_limit) == 0)
 		have_max_server_limit = 1;
 
 #ifndef NAS /* localmod 026 */
@@ -1163,39 +971,38 @@ chk_wt_limits_STF(resource *resc_minwt, resource *resc_maxwt, pbs_queue *pque, a
 	 * set resource_list.max_walltime on the server/queue to value of resources_max.walltime.
 	 * If resources_max.walltime is set on both server and queue, set resource_list.max_walltime
 	 * to queue's resources_max.walltime. */
-	if (resc_maxwt == NULL && pattr != NULL
-		&& (have_max_queue_limit || have_max_server_limit)) {
-		rscdef = find_resc_def(svr_resc_def, MAX_WALLTIME, svr_resc_size);
-		new_res = add_resource_entry(pattr , rscdef);
+	if (resc_maxwt == NULL && pattr != NULL && (have_max_queue_limit || have_max_server_limit)) {
+		rscdef = &svr_resc_def[RESC_MAX_WALLTIME];
+		new_res = add_resource_entry(pattr, rscdef);
 		if (have_max_queue_limit)
 			new_res->rs_defin->rs_set(&new_res->rs_value, &wt_max_queue_limit, SET);
 		else if (have_max_server_limit)
 			new_res->rs_defin->rs_set(&new_res->rs_value, &wt_max_server_limit, SET);
-		new_res->rs_value.at_flags |= ATR_VFLAG_SET;
+		mark_attr_set(&new_res->rs_value);
 	}
 #endif /* localmod 026 */
 	/* Check against queue maximum */
 	if (have_max_queue_limit) {
 		if (PBSE_EXCQRESC == comp_wt_limits_STF(resc_minwt,
-			wt_max_queue_limit, MAX_WALLTIME_LIMIT)
-			|| PBSE_EXCQRESC == comp_wt_limits_STF(resc_maxwt,
-			wt_max_queue_limit, MAX_WALLTIME_LIMIT))
+							wt_max_queue_limit, MAX_WALLTIME_LIMIT) ||
+		    PBSE_EXCQRESC == comp_wt_limits_STF(resc_maxwt,
+							wt_max_queue_limit, MAX_WALLTIME_LIMIT))
 			return (PBSE_EXCQRESC);
 	}
 	/* Queue limit not present, check against server maximum */
 	else if (have_max_server_limit) {
 		if ((PBSE_EXCQRESC == comp_wt_limits_STF(resc_maxwt,
-			wt_max_server_limit, MAX_WALLTIME_LIMIT)
-			|| PBSE_EXCQRESC == comp_wt_limits_STF(resc_minwt,
-			wt_max_server_limit, MAX_WALLTIME_LIMIT)))
+							 wt_max_server_limit, MAX_WALLTIME_LIMIT) ||
+		     PBSE_EXCQRESC == comp_wt_limits_STF(resc_minwt,
+							 wt_max_server_limit, MAX_WALLTIME_LIMIT)))
 			return (PBSE_EXCQRESC);
 	}
 	/* Check against queue minimum */
-	if (pque && (get_wt_limit(&(pque->qu_attr[QA_ATR_ResourceMin]), &wt_min_queue_limit) == 0)) {
+	if (pque && (get_wt_limit(get_qattr(pque, QA_ATR_ResourceMin), &wt_min_queue_limit) == 0)) {
 		if (PBSE_EXCQRESC == comp_wt_limits_STF(resc_minwt,
-			wt_min_queue_limit, MIN_WALLTIME_LIMIT)
-			|| PBSE_EXCQRESC == comp_wt_limits_STF(resc_maxwt,
-			wt_min_queue_limit, MIN_WALLTIME_LIMIT))
+							wt_min_queue_limit, MIN_WALLTIME_LIMIT) ||
+		    PBSE_EXCQRESC == comp_wt_limits_STF(resc_maxwt,
+							wt_min_queue_limit, MIN_WALLTIME_LIMIT))
 			return (PBSE_EXCQRESC);
 	}
 	return 0;
@@ -1215,37 +1022,36 @@ chk_wt_limits_STF(resource *resc_minwt, resource *resc_maxwt, pbs_queue *pque, a
 int
 chk_resc_limits(attribute *pattr, pbs_queue *pque)
 {
-	resource 	*atresc;
-	resource 	*resc_maxwt = NULL;
-	resource 	*resc_minwt = NULL;
+	resource *atresc;
+	resource *resc_maxwt = NULL;
+	resource *resc_minwt = NULL;
 
 	/* Get resource_list.min_walltime and resource_list.max_walltime if it is a STF job */
-	atresc = (resource *)GET_NEXT(pattr->at_val.at_list);
+	atresc = (resource *) GET_NEXT(pattr->at_val.at_list);
 	while (atresc != NULL) {
 		if ((strcasecmp(atresc->rs_defin->rs_name, MIN_WALLTIME) == 0)) {
 			resc_minwt = atresc;
-		}
-		else if ((strcasecmp(atresc->rs_defin->rs_name, MAX_WALLTIME) == 0)) {
+		} else if ((strcasecmp(atresc->rs_defin->rs_name, MAX_WALLTIME) == 0)) {
 			resc_maxwt = atresc;
 		}
 		/* No need to traverse further if both min_walltime and max_walltime are set */
 		if (resc_minwt && resc_maxwt)
 			break;
-		atresc = (resource *)GET_NEXT(atresc->rs_link);
+		atresc = (resource *) GET_NEXT(atresc->rs_link);
 	}
 
 	/* Check min and max walltime of a STF job against "walltime" resource limit on queue and server */
 	if (resc_minwt != NULL && PBSE_EXCQRESC == chk_wt_limits_STF(resc_minwt, resc_maxwt, pque, pattr))
 		return (PBSE_EXCQRESC);
-	if ((comp_resc(&pque->qu_attr[QA_ATR_ResourceMin], pattr) == -1) ||
-		comp_resc_gt)
+	if ((comp_resc(get_qattr(pque, QA_ATR_ResourceMin), pattr) == -1) ||
+	    comp_resc_gt)
 		return (PBSE_EXCQRESC);
 
 	/* now check individual resources against queue or server maximum */
 	chk_svr_resc_limit(pattr,
-		&pque->qu_attr[QA_ATR_ResourceMax],
-		&server.sv_attr[SRV_ATR_ResourceMax],
-		pque->qu_qs.qu_type);
+			   get_qattr(pque, QA_ATR_ResourceMax),
+			   get_sattr(SVR_ATR_ResourceMax),
+			   pque->qu_qs.qu_type);
 
 	if (comp_resc_lt > 0)
 		return (PBSE_EXCQRESC);
@@ -1257,12 +1063,12 @@ chk_resc_limits(attribute *pattr, pbs_queue *pque)
  * 		svr_chkque - check if job can enter a queue
  *
  * @note
- * 		Note: the following fields must be set in the job structure before
- *	 	calling svr_chkque(): 	ji_wattr[JOB_ATR_job_owner]
+ * 		Note: job owner must be set before calling svr_chkque()
  * 		set_objexid() will be called to set a uid/gid/name if not already set
  *
  * @param[in]	pjob	-	job structure
- * @param[in]	hostname	-	host machine
+ * @param[in]	submithost	-	job's submit machine
+ * @param[in]	hostname	-	host machine issued this check
  * @param[in]	mtype	-	MOVE_TYPE_* type;  see server_limits.h
  *
  * @return	int
@@ -1271,18 +1077,15 @@ chk_resc_limits(attribute *pattr, pbs_queue *pque)
  */
 
 int
-svr_chkque(job *pjob, pbs_queue *pque, char *hostname, int mtype)
+svr_chkque(job *pjob, pbs_queue *pque, char *submithost, char *hostname, int mtype)
 {
 	int i;
 
 	/* if not already set, set up a uid/gid/name */
 
-	if (!(pjob->ji_wattr[(int)JOB_ATR_euser].at_flags &
-		ATR_VFLAG_SET) ||
-		!(pjob->ji_wattr[(int)JOB_ATR_egroup].at_flags &
-		ATR_VFLAG_SET)) {
-		if ((i = set_objexid((void*)pjob, JOB_OBJECT, pjob->ji_wattr)) != 0)
-			return (i);  /* PBSE_BADUSER or GRP */
+	if (!is_jattr_set(pjob, JOB_ATR_euser) || !is_jattr_set(pjob, JOB_ATR_egroup)) {
+		if ((i = set_objexid((void *) pjob, JOB_OBJECT, pjob->ji_wattr)) != 0)
+			return (i); /* PBSE_BADUSER or GRP */
 	}
 
 	/*
@@ -1300,15 +1103,14 @@ svr_chkque(job *pjob, pbs_queue *pque, char *hostname, int mtype)
 
 		/* 1c. cannot have an unknown resource */
 
-		if (find_resc_entry(&pjob->ji_wattr[(int)JOB_ATR_resource],
-			svr_resc_def+svr_resc_unk))
+		if (find_resc_entry(get_jattr(pjob, JOB_ATR_resource),
+				    svr_resc_def + svr_resc_unk))
 			return (PBSE_UNKRESC);
 
 		/* 1d. cannot have an unknown attribute */
 
-		if (pjob->ji_wattr[(int)JOB_ATR_UNKN].at_flags & ATR_VFLAG_SET)
+		if (is_jattr_set(pjob, JOB_ATR_UNKN))
 			return (PBSE_NOATTR);
-
 	}
 
 	/* checks 2, 2a, and 3 are bypassed for a move by manager or qorder */
@@ -1317,90 +1119,81 @@ svr_chkque(job *pjob, pbs_queue *pque, char *hostname, int mtype)
 
 		/* 2. the queue must be enabled and the job limit not exceeded */
 
-		if (pque->qu_attr[QA_ATR_Enabled].at_val.at_long == 0)
+		if (get_qattr_long(pque, QA_ATR_Enabled) == 0)
 			return (PBSE_QUNOENB);
 
-		if (pque->qu_attr[QA_ATR_MaxJobs].at_flags & ATR_VFLAG_SET) {
+		if (is_qattr_set(pque, QA_ATR_MaxJobs)) {
 			int histjobs = 0;
 			if (svr_chk_history_conf()) {
 				/* calculate number of finished and moved jobs */
 				histjobs = pque->qu_njstate[JOB_STATE_MOVED] +
-						pque->qu_njstate[JOB_STATE_FINISHED] +
-						pque->qu_njstate[JOB_STATE_EXPIRED];
+					   pque->qu_njstate[JOB_STATE_FINISHED] +
+					   pque->qu_njstate[JOB_STATE_EXPIRED];
 			}
 			/*
 			 * check number of jobs in queue excluding
 			 * finished and moved jobs
 			 */
-			if ((pque->qu_numjobs - histjobs) >=
-				(pque->qu_attr[QA_ATR_MaxJobs].at_val.at_long))
+			if ((pque->qu_numjobs - histjobs) >= get_qattr_long(pque, QA_ATR_MaxJobs))
 				return (PBSE_MAXQUED);
 		}
 
 		/* 2a. if job array, check for queue max_array_size */
 
-		if (pque->qu_attr[QA_ATR_maxarraysize].at_flags & ATR_VFLAG_SET) {
+		if (is_qattr_set(pque, QA_ATR_maxarraysize)) {
 			if ((pjob->ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob) &&
-				(pjob->ji_ajtrk != NULL)) {
-				if (pjob->ji_ajtrk->tkm_ct > pque->qu_attr[QA_ATR_maxarraysize].at_val.at_long)
+			    (pjob->ji_ajinfo != NULL)) {
+				if (pjob->ji_ajinfo->tkm_ct > get_qattr_long(pque, QA_ATR_maxarraysize))
 					return (PBSE_MaxArraySize);
 			}
-
 		}
 
 		/* 3. If "from_route_only" is true, only local route allowed */
 
-		if ((pque->qu_attr[QA_ATR_FromRouteOnly].at_flags&ATR_VFLAG_SET) &&
-			(pque->qu_attr[QA_ATR_FromRouteOnly].at_val.at_long == 1))
-			if (mtype == MOVE_TYPE_Move)  /* ok if not plain user */
+		if (is_qattr_set(pque, QA_ATR_FromRouteOnly) && get_qattr_long(pque, QA_ATR_FromRouteOnly) == 1)
+			if (mtype == MOVE_TYPE_Move) /* ok if not plain user or scheduler */
 				return (PBSE_QACESS);
 	}
 
 	/* 4. If enabled, check the queue's host ACL */
 
-	if (pque->qu_attr[QA_ATR_AclHostEnabled].at_val.at_long)
-		if (acl_check(&pque->qu_attr[QA_ATR_AclHost],
-			hostname, ACL_Host) == 0)
+	if (get_qattr_long(pque, QA_ATR_AclHostEnabled))
+		if ((acl_check(get_qattr(pque, QA_ATR_AclHost),
+			      submithost, ACL_Host) == 0) &&
+			(acl_check(get_qattr(pque, QA_ATR_AclHost),
+			      hostname, ACL_Host) == 0))
 			if (mtype != MOVE_TYPE_MgrMv) /* ok if mgr */
 				return (PBSE_BADHOST);
 
 	/* 5a. If enabled, check the queue's user ACL */
 
-	if (pque->qu_attr[QA_ATR_AclUserEnabled].at_val.at_long)
-		if (acl_check(&pque->qu_attr[QA_ATR_AclUsers],
-			pjob->ji_wattr[(int)JOB_ATR_job_owner].
-			at_val.at_str, ACL_User) == 0)
+	if (get_qattr_long(pque, QA_ATR_AclUserEnabled))
+		if (acl_check(get_qattr(pque, QA_ATR_AclUsers),
+			      get_jattr_str(pjob, JOB_ATR_job_owner), ACL_User) == 0)
 			if (mtype != MOVE_TYPE_MgrMv) /* ok if mgr */
 				return (PBSE_PERM);
 
 	/* 5b. If enabled, check the queue's group ACL */
 
-	if (pque->qu_attr[QE_ATR_AclGroupEnabled].at_val.at_long)
-		if (acl_check(&pque->qu_attr[QE_ATR_AclGroup],
-#ifdef WIN32
-			pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str,
-#else
-			pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str,
-#endif
-			ACL_Group) == 0)
+	if (get_qattr_long(pque, QE_ATR_AclGroupEnabled))
+		if (acl_check(get_qattr(pque, QE_ATR_AclGroup),
+			      get_jattr_str(pjob, JOB_ATR_euser),
+			      ACL_Group) == 0)
 			if (mtype != MOVE_TYPE_MgrMv) /* ok if mgr */
 				return (PBSE_PERM);
 
 	/* 6. If enabled, check the queue's required cred type */
 
-	if ((pque->qu_attr[QA_ATR_ReqCredEnable].at_flags & ATR_VFLAG_SET) &&
-		pque->qu_attr[QA_ATR_ReqCredEnable].at_val.at_long &&
-		(pque->qu_attr[QA_ATR_ReqCred].at_flags & ATR_VFLAG_SET)) {
-		char	*reqc = pque->qu_attr[QA_ATR_ReqCred].at_val.at_str;
-		char	*jobc = pjob->ji_wattr[(int)JOB_ATR_cred].at_val.at_str;
+	if (is_qattr_set(pque, QA_ATR_ReqCredEnable) &&
+	    get_qattr_long(pque, QA_ATR_ReqCredEnable) &&
+	    is_qattr_set(pque, QA_ATR_ReqCred)) {
+		char *reqc = get_qattr_str(pque, QA_ATR_ReqCred);
+		char *jobc = get_jattr_str(pjob, JOB_ATR_cred);
 		/*
 		 **	The queue requires a cred, if job has none, or
-		 **	it is the wrong one, reject.
+		 **	it is the wrong one, and if not mgr, reject.
 		 */
-		if (((pjob->ji_wattr[(int)JOB_ATR_cred].at_flags &
-			ATR_VFLAG_SET) == 0 ||
-			strcmp(reqc, jobc) != 0) &&
-			(mtype != MOVE_TYPE_MgrMv))	/* ok if mgr */
+		if ((!is_jattr_set(pjob, JOB_ATR_cred) || strcmp(reqc, jobc) != 0) && mtype != MOVE_TYPE_MgrMv)
 			return PBSE_BADCRED;
 	}
 
@@ -1419,8 +1212,8 @@ svr_chkque(job *pjob, pbs_queue *pque, char *hostname, int mtype)
 			return i;
 
 		/* 7b. Check limit on number of jobs per entity in server only if */
-		/*     this is a new job defined by state == JOB_STATE_TRANSIT    */
-		if (pjob->ji_qs.ji_state == JOB_STATE_TRANSIT) {
+		/*     this is a new job defined by state == JOB_STATE_LTR_TRANSIT    */
+		if (check_job_state(pjob, JOB_STATE_LTR_TRANSIT)) {
 			i = check_entity_ct_limit_max(pjob, NULL);
 			if (i != 0)
 				return i;
@@ -1453,7 +1246,7 @@ svr_chkque(job *pjob, pbs_queue *pque, char *hostname, int mtype)
 
 				if (i == 0) {
 					/* 7e.  test old gateing limits */
-					i = chk_resc_limits(&pjob->ji_wattr[(int)JOB_ATR_resource], pque);
+					i = chk_resc_limits(get_jattr(pjob, JOB_ATR_resource), pque);
 				}
 			}
 		}
@@ -1462,14 +1255,146 @@ svr_chkque(job *pjob, pbs_queue *pque, char *hostname, int mtype)
 	/* after check unset defaults & reset based on current queue, if one */
 	if (pjob->ji_qhdr) {
 		clear_default_resc(pjob);
-		(void)set_resc_deflt(pjob, JOB_OBJECT, NULL);
+		(void) set_resc_deflt(pjob, JOB_OBJECT, NULL);
 	}
 
 	if (i != 0)
 		if (mtype != MOVE_TYPE_MgrMv) /* ok if mgr */
 			return (i);
 
-	return (0);	/* all ok, job can enter queue */
+	return (0); /* all ok, job can enter queue */
+}
+
+/**
+ * @brief
+ *		check_block_wt	-	A worktask to reply to the blocked job client
+ *
+ * @param[in]	ptask	-	work_task structure
+ */
+void
+check_block_wt(struct work_task *ptask)
+{
+	struct block_job_reply *blockj = ptask->wt_parm1;
+	struct pollfd fds[1];
+	int rc;
+	pbs_socklen_t len = sizeof(rc);
+	int conn = 0;
+	int ret = 0;
+	int check_error;
+
+	if (blockj->fd == -1) {
+		int sock_flags;
+		struct hostent *hp;
+		struct sockaddr_in remote;
+
+		if ((hp = gethostbyname(blockj->client)) == NULL) {
+			sprintf(log_buffer, "client host %s not found for block job %s",
+				blockj->client, blockj->jobid);
+			goto err;
+		}
+
+		memset(&remote, 0, sizeof(remote));
+		memcpy(&remote.sin_addr, hp->h_addr, hp->h_length);
+		remote.sin_port = htons((unsigned short) blockj->port);
+		remote.sin_family = hp->h_addrtype;
+
+		if ((blockj->fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+			sprintf(log_buffer, "Failed to create socket for job %s", blockj->jobid);
+			goto err;
+		}
+
+		/* Set socket to Non-blocking */
+		sock_flags = fcntl(blockj->fd, F_GETFL, 0);
+		if (fcntl(blockj->fd, F_SETFL, sock_flags | O_NONBLOCK) == -1) {
+			sprintf(log_buffer, "Failed to set non-blocking flag on socket for job %s",
+				blockj->jobid);
+			goto err;
+		}
+
+		conn = connect(blockj->fd, (struct sockaddr *) &remote, sizeof(remote));
+		if ((conn == -1) && !(errno == EINPROGRESS || errno == EWOULDBLOCK)) {
+			goto retry;
+		}
+	}
+
+	while (1) {
+		fds[0].fd = blockj->fd;
+		fds[0].events = POLLOUT;
+		fds[0].revents = 0;
+
+		rc = poll(fds, (nfds_t) 1, 0);
+		if (rc == -1) {
+			if ((errno != EAGAIN) && (errno != EINTR))
+				break;
+		} else
+			break; /* no error */
+	}
+
+	if (rc <= 0)
+		goto retry;
+
+	rc = 0;
+	check_error = getsockopt(fds[0].fd, SOL_SOCKET, SO_ERROR, &rc, &len);
+	if ((rc != 0) || (check_error != 0) || (fds[0].revents != POLLOUT))
+		goto retry;
+
+	rc = CS_server_auth(blockj->fd);
+	if ((rc != CS_SUCCESS) && (rc != CS_AUTH_CHECK_PORT)) {
+		sprintf(log_buffer, "Unable to authenticate with %s:%d", blockj->client, blockj->port);
+		goto err;
+	}
+
+	/*
+	**	All ready to talk... now send the info.
+	*/
+
+	DIS_tcp_funcs();
+	ret = diswsi(blockj->fd, 1); /* version */
+	if (ret != DIS_SUCCESS)
+		goto err;
+	ret = diswst(blockj->fd, blockj->jobid);
+	if (ret != DIS_SUCCESS)
+		goto err;
+	if (blockj->msg == NULL) {
+		ret = diswst(blockj->fd, "");
+	} else {
+		ret = diswst(blockj->fd, blockj->msg);
+	}
+	if (ret != DIS_SUCCESS)
+		goto err;
+	ret = diswsi(blockj->fd, blockj->exitstat);
+	if (ret != DIS_SUCCESS)
+		goto err;
+	(void) dis_flush(blockj->fd);
+
+	sprintf(log_buffer, "%s: Write successful to client %s for job %s ", __func__,
+		blockj->client, blockj->jobid);
+	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_NOTICE, blockj->jobid, log_buffer);
+	dis_destroy_chan(blockj->fd);
+	CS_close_socket(blockj->fd);
+	goto end;
+
+retry:
+	if ((time(0) - blockj->reply_time) < BLOCK_JOB_REPLY_TIMEOUT) {
+		set_task(WORK_Timed, time_now + 10, check_block_wt, blockj);
+		return;
+	} else {
+		sprintf(log_buffer, "Unable to reply to client %s for job %s",
+			blockj->client, blockj->jobid);
+	}
+err:
+	DIS_tcp_funcs();
+	dis_destroy_chan(blockj->fd);
+	if (ret != DIS_SUCCESS) {
+		sprintf(log_buffer, "DIS error while replying to client %s for job %s",
+			blockj->client, blockj->jobid);
+	}
+	log_err(-1, __func__, log_buffer);
+end:
+	if (blockj->fd != -1)
+		close(blockj->fd);
+	free(blockj->msg);
+	free(blockj);
 }
 
 /**
@@ -1482,24 +1407,17 @@ svr_chkque(job *pjob, pbs_queue *pque, char *hostname, int mtype)
 void
 check_block(job *pjob, char *message)
 {
-	int			port;
-	int			ret;
-	char			*phost;
-	char			*jobid = pjob->ji_qs.ji_jobid;
-	struct hostent		*hp;
-#ifdef WIN32
-	struct in_addr		addr;
-#endif
-	int			sock;
-	struct sockaddr_in	remote;
-	short			remote_sin_family;
+	int port;
+	char *phost;
+	char *jobid = pjob->ji_qs.ji_jobid;
+	struct block_job_reply *blockj;
 
-	if ((pjob->ji_wattr[(int)JOB_ATR_block].at_flags & ATR_VFLAG_SET) == 0)
+	if ((is_jattr_set(pjob, JOB_ATR_block)) == 0)
 		return;
-	if ((pjob->ji_wattr[(int) JOB_ATR_block].at_val.at_long) == -1)
+	if ((get_jattr_long(pjob, JOB_ATR_block)) == -1)
 		return;
 
-	port = (int)pjob->ji_wattr[(int)JOB_ATR_block].at_val.at_long;
+	port = (int) get_jattr_long(pjob, JOB_ATR_block);
 	/*
 	 * The blocking attribute of the job needs to be unset . This contains the port number on which the job
 	 * submission host is waiting for the exit status of the job . This is done here i.e check_block() as it is the
@@ -1509,102 +1427,35 @@ check_block(job *pjob, char *message)
 	 * port number to an impossible value instead of clearing it so that the database only contains
 	 * a reference to the fact that a history job was a blocking job . Port number need not be recorded .
 	 */
-	pjob->ji_wattr[(int) JOB_ATR_block].at_val.at_long = -1;
-	pjob->ji_wattr[(int) JOB_ATR_block].at_flags |= ATR_VFLAG_MODCACHE;
-	pjob->ji_modified = 1;
+	set_jattr_l_slim(pjob, JOB_ATR_block, -1, SET);
 
-	phost = get_hostPart(pjob->ji_wattr[(int)JOB_ATR_job_owner].at_val.at_str);
+	phost = get_jattr_str(pjob, JOB_ATR_submit_host);
 	if (port == 0 || phost == NULL) {
 		sprintf(log_buffer, "%s: cannot reply %s:%d", __func__,
 			phost == NULL ? "<no host>" : phost, port);
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE,
-			jobid, log_buffer);
+			  jobid, log_buffer);
 		return;
 	}
-	if ((hp = gethostbyname(phost)) == NULL) {
-		sprintf(log_buffer, "%s: host %s not found", __func__, phost);
+
+	blockj = (struct block_job_reply *) malloc(sizeof(struct block_job_reply));
+	if (blockj == NULL) {
+		sprintf(log_buffer, "%s: Unable to allocate memory for the job %s", __func__, jobid);
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE,
-			jobid, log_buffer);
-		return;
-	}
-	remote_sin_family = hp->h_addrtype;
-	if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		sprintf(log_buffer, "%s: socket %s", __func__, strerror(errno));
-		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE,
-			jobid, log_buffer);
-		return;
-	}
-	memset(&remote, 0, sizeof(remote));
-	memcpy(&remote.sin_addr, hp->h_addr, hp->h_length);
-
-	remote.sin_port = htons((unsigned short)port);
-	remote.sin_family = remote_sin_family;
-	if (connect(sock, (struct sockaddr *)&remote, sizeof(remote)) == -1) {
-		sprintf(log_buffer, "%s: connect %s(%s:%d) %s", __func__, phost,
-			inet_ntoa(remote.sin_addr), port, strerror(errno));
-		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE,
-			jobid, log_buffer);
-#ifdef WIN32
-		closesocket(sock);
-#else
-		close(sock);
-#endif
+			  jobid, log_buffer);
 		return;
 	}
 
-	ret = CS_server_auth(sock);
-	if ((ret != CS_SUCCESS) && (ret != CS_AUTH_CHECK_PORT)) {
+	blockj->msg = strdup(message);
+	strncpy(blockj->client, phost, PBS_MAXHOSTNAME);
+	blockj->client[PBS_MAXHOSTNAME - 1] = '\0';
+	blockj->port = port;
+	blockj->fd = -1;
+	blockj->reply_time = time(NULL);
+	blockj->exitstat = pjob->ji_qs.ji_un.ji_exect.ji_exitstat;
+	strcpy(blockj->jobid, pjob->ji_qs.ji_jobid);
 
-		sprintf(log_buffer,
-			"Unable to authenticate with , %s (%s:%d)", phost,
-			inet_ntoa(remote.sin_addr), remote.sin_port);
-
-		log_joberr(-1, __func__, log_buffer, jobid);
-		goto done;
-	}
-
-	/*
-	 **	All ready to talk... now send the info.
-	 */
-
-	DIS_tcp_setup(sock);
-	ret = diswsi(sock, 1);		/* version */
-	if (ret != DIS_SUCCESS)
-		goto err;
-	ret = diswst(sock, jobid);
-	if (ret != DIS_SUCCESS)
-		goto err;
-	ret = diswst(sock, message);
-	if (ret != DIS_SUCCESS)
-		goto err;
-	ret = diswsi(sock, pjob->ji_qs.ji_un.ji_exect.ji_exitstat);
-	if (ret != DIS_SUCCESS)
-		goto err;
-	(void)DIS_tcp_wflush(sock);
-
-	goto done;
-
-err:
-	sprintf(log_buffer, "%s: write %s(%s:%d) %s", __func__, phost,
-		inet_ntoa(remote.sin_addr), port, dis_emsg[ret]);
-	log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE,
-		jobid, log_buffer);
-
-done:
-	if ((ret = CS_close_socket(sock)) != CS_SUCCESS) {
-
-		sprintf(log_buffer, "Problem closing security context, %s (%s:%d)",
-			phost, inet_ntoa(remote.sin_addr), port);
-
-		log_joberr(-1, __func__, log_buffer, jobid);
-	}
-
-#ifdef WIN32
-	closesocket(sock);
-#else
-	close(sock);
-#endif
-
+	set_task(WORK_Immed, 0, check_block_wt, blockj);
 	return;
 }
 
@@ -1624,26 +1475,25 @@ done:
 static void
 job_wait_over(struct work_task *pwt)
 {
-	int	 newstate;
-	int	 newsub;
-	job     *pjob;
+	char newstate;
+	int newsub;
+	job *pjob;
 
-	pjob = (job *)pwt->wt_parm1;
+	pjob = (job *) pwt->wt_parm1;
 
 	/* If history job, just return from here */
-	if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_FINISHED))
+	if ((check_job_state(pjob, JOB_STATE_LTR_MOVED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_FINISHED)))
 		return;
 
 #ifndef NDEBUG
 	{
 		time_t now = time(NULL);
-		time_t when = ((job *)pjob)->ji_wattr[(int)JOB_ATR_exectime].
-			at_val.at_long;
+		time_t when = get_jattr_long((job *) pjob, JOB_ATR_exectime);
 		struct work_task *ptask;
 
 		if (when > now) {
-			sprintf(log_buffer, msg_badwait, ((job *)pjob)->ji_qs.ji_jobid);
+			sprintf(log_buffer, msg_badwait, ((job *) pjob)->ji_qs.ji_jobid);
 			log_err(-1, "job_wait_over", log_buffer);
 
 			/* recreate the work task entry */
@@ -1651,7 +1501,7 @@ job_wait_over(struct work_task *pwt)
 			ptask = set_task(WORK_Timed, when, job_wait_over, pjob);
 			if (ptask) {
 				append_link(&pjob->ji_svrtask,
-					&ptask->wt_linkobj, ptask);
+					    &ptask->wt_linkobj, ptask);
 			}
 			return;
 		}
@@ -1660,11 +1510,9 @@ job_wait_over(struct work_task *pwt)
 	pjob->ji_qs.ji_svrflags &= ~JOB_SVFLG_HASWAIT;
 
 	/* clear the exectime attribute */
-	job_attr_def[(int)JOB_ATR_exectime].
-	at_free(&pjob->ji_wattr[(int)JOB_ATR_exectime]);
-	pjob->ji_modified = 1;
+	free_jattr(pjob, JOB_ATR_exectime);
 	svr_evaljobstate(pjob, &newstate, &newsub, 0);
-	(void)svr_setjobstate(pjob, newstate, newsub);
+	svr_setjobstate(pjob, newstate, newsub);
 }
 
 /**
@@ -1692,43 +1540,41 @@ int
 job_set_wait(attribute *pattr, void *pjob, int mode)
 {
 	struct work_task *ptask;
-	long		  when;
+	long when;
 
 	/* Return 0 if it is history job */
-	if ((((job *)pjob)->ji_qs.ji_state == JOB_STATE_MOVED) ||
-		(((job *)pjob)->ji_qs.ji_state == JOB_STATE_FINISHED))
+	if (check_job_state((job *) pjob, JOB_STATE_LTR_MOVED) || check_job_state((job *) pjob, JOB_STATE_LTR_FINISHED))
 		return (0);
 
-	if ((pattr->at_flags & ATR_VFLAG_SET) == 0)
+	if (!is_attr_set(pattr))
 		return (0);
-	when  = pattr->at_val.at_long;
-	ptask = (struct work_task *)GET_NEXT(((job *)pjob)->ji_svrtask);
+	when = pattr->at_val.at_long;
+	ptask = (struct work_task *) GET_NEXT(((job *) pjob)->ji_svrtask);
 
 	/* Is there already an entry for this job?  Then reuse it */
 
-	if (((job *)pjob)->ji_qs.ji_svrflags & JOB_SVFLG_HASWAIT) {
+	if (((job *) pjob)->ji_qs.ji_svrflags & JOB_SVFLG_HASWAIT) {
 		while (ptask) {
 			if ((ptask->wt_event == WORK_Timed) &&
-				(ptask->wt_func == job_wait_over) &&
-				(ptask->wt_parm1 == pjob)) {
+			    (ptask->wt_func == job_wait_over) &&
+			    (ptask->wt_parm1 == pjob)) {
 				ptask->wt_event = when;
 				return (0);
 			}
-			ptask = (struct work_task *)GET_NEXT(ptask->wt_linkobj);
+			ptask = (struct work_task *) GET_NEXT(ptask->wt_linkobj);
 		}
 	}
 
 	ptask = set_task(WORK_Timed, when, job_wait_over, pjob);
 	if (ptask == NULL)
 		return (-1);
-	append_link(&((job *)pjob)->ji_svrtask, &ptask->wt_linkobj, ptask);
+	append_link(&((job *) pjob)->ji_svrtask, &ptask->wt_linkobj, ptask);
 
 	/* set JOB_SVFLG_HASWAIT to show job has work task entry */
 
-	((job *)pjob)->ji_qs.ji_svrflags |= JOB_SVFLG_HASWAIT;
+	((job *) pjob)->ji_qs.ji_svrflags |= JOB_SVFLG_HASWAIT;
 	return (0);
 }
-
 
 /**
  * @brief
@@ -1748,22 +1594,21 @@ job_set_wait(attribute *pattr, void *pjob, int mode)
 static void
 default_std(job *pjob, int key, char *to)
 {
-	int   len;
+	int len;
 	char *pd;
 
-
-	pd = strrchr(pjob->ji_wattr[(int)JOB_ATR_jobname].at_val.at_str, '/');
+	pd = strrchr(get_jattr_str(pjob, JOB_ATR_jobname), '/');
 	if (pd)
 		++pd;
 	else
-		pd = pjob->ji_wattr[(int)JOB_ATR_jobname].at_val.at_str;
+		pd = get_jattr_str(pjob, JOB_ATR_jobname);
 	len = strlen(pd);
 
-	(void)strcpy(to, pd);		/* start with the job name */
-	*(to + len++) = '.';            /* the dot        */
-	*(to + len++) = (char)key;	/* the letter     */
-	pd = pjob->ji_qs.ji_jobid;      /* the seq_number */
-	while (isdigit((int)*pd))
+	(void) strcpy(to, pd);	    /* start with the job name */
+	*(to + len++) = '.';	    /* the dot        */
+	*(to + len++) = (char) key; /* the letter     */
+	pd = pjob->ji_qs.ji_jobid;  /* the seq_number */
+	while (isdigit((int) *pd))
 		*(to + len++) = *pd++;
 	*(to + len) = '\0';
 	if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob) {
@@ -1772,7 +1617,6 @@ default_std(job *pjob, int key, char *to)
 		strcat(to, PBS_FILE_ARRAY_INDEX_TAG);
 	}
 }
-
 
 /**
  * @brief
@@ -1790,49 +1634,32 @@ default_std(job *pjob, int key, char *to)
 char *
 prefix_std_file(job *pjob, int key)
 {
-	char	*name = NULL;
-	char	*outputhost;
-	char	*wdir;
+	char *name = NULL;
+	char *outputhost;
+	char *wdir;
 
 	if (pbs_conf.pbs_output_host_name)
 		outputhost = pbs_conf.pbs_output_host_name;
 	else
-		outputhost = get_hostPart(pjob->ji_wattr[(int)JOB_ATR_job_owner].at_val.at_str);
-	wdir     = get_variable(pjob, "PBS_O_WORKDIR");
+		outputhost = get_jattr_str(pjob, JOB_ATR_submit_host);
+	wdir = get_variable(pjob, "PBS_O_WORKDIR");
 	if (outputhost) {
 		int len;
 
 		len = strlen(outputhost) +
-			strlen(pjob->ji_wattr[(int)JOB_ATR_jobname].at_val.at_str)
-		+ PBS_MAXSEQNUM + strlen(PBS_FILE_ARRAY_INDEX_TAG) + 6;
+		      strlen(get_jattr_str(pjob, JOB_ATR_jobname)) + PBS_MAXSEQNUM + strlen(PBS_FILE_ARRAY_INDEX_TAG) + 6;
 		if (wdir)
 			len += strlen(wdir);
 		name = malloc(len);
 		if (name) {
-			strcpy(name, outputhost);	/* the qsub host name	*/
-			strcat(name, ":");	/* the :		*/
+			strcpy(name, outputhost); /* the qsub host name	*/
+			strcat(name, ":");	  /* the :		*/
 			if (wdir) {
-#ifdef WIN32
-				if (IS_UNCPATH(wdir)) {
-					/*
-					 * wdir is UNC path so no need to add
-					 * <hostname:> into std output or error file
-					 */
-					memset(name, 0, len);
-					strncpy(name, wdir, strlen(wdir));
-				} else {
-					strncat(name, wdir, strlen(wdir)); /* the qsub cwd */
-				}
-				 /* add the final / if not there*/
-				if (name[strlen(name) - 1] != '/')
-					strncat(name, "/", 1);
-#else
-				strcat(name, wdir);	/* the qsub cwd		*/
-				strcat(name, "/");	/* the final /		*/
-#endif
+				strcat(name, wdir); /* the qsub cwd		*/
+				strcat(name, "/");  /* the final /		*/
 			}
 			/* now add the rest	*/
-			default_std(pjob, key, name+strlen(name));
+			default_std(pjob, key, name + strlen(name));
 		}
 	}
 	return (name);
@@ -1859,37 +1686,15 @@ void
 cat_default_std(job *pjob, int key, char *in, char **out)
 {
 	char *result;
-	int  len;
+	int len;
 	len = strlen(in) +
-		strlen(pjob->ji_wattr[(int)JOB_ATR_jobname].at_val.at_str) +
-	PBS_MAXSEQNUM + 5 + strlen(PBS_FILE_ARRAY_INDEX_TAG) + 1;
+	      strlen(get_jattr_str(pjob, JOB_ATR_jobname)) +
+	      PBS_MAXSEQNUM + 5 + strlen(PBS_FILE_ARRAY_INDEX_TAG) + 1;
 	if ((result = malloc(len))) {
 		strcpy(result, in);
 		default_std(pjob, key, &result[strlen(result)]);
 	}
 	*out = result;
-}
-
-
-/**
- * @brief
- * 		get_jobowner - copy the basic job owner's name, without the @host suffix.
- *		The "to" buffer must be large enough (PBS_MAXUSER+1).
- *
- * @param[in]	from	-	 basic job owner's name
- * @param[out]	to	-	"to" buffer where name is copied.
- */
-void
-get_jobowner(char *from, char *to)
-{
-	int i;
-
-	for (i=0; i<PBS_MAXUSER; ++i) {
-		if ((*(from+i) == '@') || (*(from+i) == '\0'))
-			break;
-		*(to+i) = *(from+i);
-	}
-	*(to+i) = '\0';
 }
 
 /**
@@ -1905,12 +1710,12 @@ cvrt_fqn_to_name(char *from, char *to)
 {
 	int i;
 
-	for (i=0; i<PBS_MAXUSER; ++i) {
-		if ((*(from+i) == '@') || (*(from+i) == '\0'))
+	for (i = 0; i < PBS_MAXUSER; ++i) {
+		if ((*(from + i) == '@') || (*(from + i) == '\0'))
 			break;
-		*(to+i) = *(from+i);
+		*(to + i) = *(from + i);
 	}
-	*(to+i) = '\0';
+	*(to + i) = '\0';
 }
 
 /**
@@ -1954,21 +1759,21 @@ get_hostPart(char *from)
  *
  * @par MT-safe:	No.
  */
-static int
+int
 set_select_and_place(int objtype, void *pobj, attribute *patr)
 {
-	pbs_list_head     collectresc;
-	static char  *cvt = NULL;
+	pbs_list_head collectresc;
+	static char *cvt = NULL;
 	static size_t cvt_len;
-	char	     *ndspec;
-	resource     *presc;
-	resource     *prescsl;
-	resource     *prescpc;
+	char *ndspec;
+	resource *presc;
+	resource *prescsl;
+	resource *prescpc;
 	resource_def *prdefnd;
 	resource_def *prdefpc;
 	resource_def *prdefsl;
-	int	      rc;
-	extern  int   resc_access_perm;
+	int rc;
+	extern int resc_access_perm;
 
 	if (cvt == NULL) {
 		cvt = malloc(CVT_SIZE);
@@ -1978,10 +1783,10 @@ set_select_and_place(int objtype, void *pobj, attribute *patr)
 			cvt_len = CVT_SIZE;
 	}
 
-	prdefpc = find_resc_def(svr_resc_def, "place", svr_resc_size);
-	prdefnd = find_resc_def(svr_resc_def, "nodes", svr_resc_size);
-	prdefsl = find_resc_def(svr_resc_def, "select", svr_resc_size);
-	presc   = find_resc_entry(patr, prdefnd);
+	prdefpc = &svr_resc_def[RESC_PLACE];
+	prdefnd = &svr_resc_def[RESC_NODES];
+	prdefsl = &svr_resc_def[RESC_SELECT];
+	presc = find_resc_entry(patr, prdefnd);
 
 	/* add "select" and "place" resource */
 
@@ -2000,13 +1805,12 @@ set_select_and_place(int objtype, void *pobj, attribute *patr)
 
 		/* Have a nodes spec, use it  to make select and place */
 
-		if ((rc=cvt_nodespec_to_select(ndspec, &cvt, &cvt_len, patr)) != 0)
+		if ((rc = cvt_nodespec_to_select(ndspec, &cvt, &cvt_len, patr)) != 0)
 			return rc;
 
 		if ((rc = prdefsl->rs_decode(&prescsl->rs_value, NULL, "select", cvt)) != 0)
 			return rc;
 		prescsl->rs_value.at_flags |= ATR_VFLAG_DEFLT;
-
 
 		if (strstr(ndspec, "#excl") != NULL) {
 			prdefpc->rs_decode(&prescpc->rs_value, NULL, "place", "scatter:excl");
@@ -2023,9 +1827,9 @@ set_select_and_place(int objtype, void *pobj, attribute *patr)
 		/* from the resource_List attribute			*/
 
 		if (objtype == JOB_OBJECT)
-			objatrdef = &job_attr_def[(int)JOB_ATR_resource];
+			objatrdef = &job_attr_def[(int) JOB_ATR_resource];
 		else
-			objatrdef = &resv_attr_def[(int)RESV_ATR_resource];
+			objatrdef = &resv_attr_def[(int) RESV_ATR_resource];
 
 		CLEAR_HEAD(collectresc);
 		resc_access_perm = READ_ONLY;
@@ -2033,32 +1837,31 @@ set_select_and_place(int objtype, void *pobj, attribute *patr)
 			svrattrl *psvrl;
 
 			*cvt = '1';
-			*(cvt+1) = '\0';
-			psvrl = (svrattrl *)GET_NEXT(collectresc);
+			*(cvt + 1) = '\0';
+			psvrl = (svrattrl *) GET_NEXT(collectresc);
 			while (psvrl) {
 				resource_def *prdefcopy;
 
-				prdefcopy = find_resc_def(svr_resc_def, psvrl->al_resc,
-					svr_resc_size);
+				prdefcopy = find_resc_def(svr_resc_def, psvrl->al_resc);
 				if (prdefcopy && (prdefcopy->rs_flags & ATR_DFLAG_CVTSLT)) {
 					size_t cvtneed;
 
 					/* how much space is needed in cvt buffer, 	 */
 					/* +5 = one for : = possible quotes and null */
 					cvtneed = strlen(psvrl->al_resc) +
-						strlen(psvrl->al_value) + 5;
+						  strlen(psvrl->al_value) + 5;
 					if ((strlen(cvt) + cvtneed) > cvt_len) {
 						/* double cvt buffer */
 						char *tcvt;
-						tcvt = realloc(cvt, 2*cvt_len);
+						tcvt = realloc(cvt, 2 * cvt_len);
 						if (tcvt) {
 							cvt = tcvt;
 							cvt_len *= 2;
 						} else {
 							log_event(PBSEVENT_ERROR,
-								PBS_EVENTCLASS_SERVER, LOG_ALERT,
-								msg_daemonname,
-								"unable to malloc space");
+								  PBS_EVENTCLASS_SERVER, LOG_ALERT,
+								  msg_daemonname,
+								  "unable to malloc space");
 							return PBSE_SYSTEM;
 						}
 					}
@@ -2067,7 +1870,7 @@ set_select_and_place(int objtype, void *pobj, attribute *patr)
 					strcat(cvt, "=");
 					if (strpbrk(psvrl->al_value, "\"'+:=()")) {
 						char *quotec;
-						if (strchr(psvrl->al_value, (int)'"'))
+						if (strchr(psvrl->al_value, (int) '"'))
 							quotec = "'";
 						else
 							quotec = "\"";
@@ -2078,7 +1881,7 @@ set_select_and_place(int objtype, void *pobj, attribute *patr)
 						strcat(cvt, psvrl->al_value);
 					}
 				}
-				psvrl = (svrattrl *)GET_NEXT(psvrl->al_link);
+				psvrl = (svrattrl *) GET_NEXT(psvrl->al_link);
 			}
 			free_attrlist(&collectresc);
 		} else {
@@ -2088,10 +1891,10 @@ set_select_and_place(int objtype, void *pobj, attribute *patr)
 
 			if (objtype == JOB_OBJECT) { /* set default flg only on jobs */
 				prescsl->rs_value.at_flags |= ATR_VFLAG_DEFLT;
-				if ((prescpc->rs_value.at_flags & (ATR_VFLAG_SET|ATR_VFLAG_DEFLT)) != ATR_VFLAG_SET)
+				if ((prescpc->rs_value.at_flags & (ATR_VFLAG_SET | ATR_VFLAG_DEFLT)) != ATR_VFLAG_SET)
 					if (prdefpc->rs_decode(&prescpc->rs_value, NULL, "place", "pack") == 0)
 
-						if (objtype==JOB_OBJECT) /* set default flg only on jobs */
+						if (objtype == JOB_OBJECT) /* set default flg only on jobs */
 							prescpc->rs_value.at_flags |= ATR_VFLAG_DEFLT;
 			}
 		}
@@ -2115,28 +1918,28 @@ set_select_and_place(int objtype, void *pobj, attribute *patr)
  */
 
 int
-set_chunk_sum(attribute  *pselectattr, attribute *pattr)
+set_chunk_sum(attribute *pselectattr, attribute *pattr)
 {
-	char     *chunk;
-	int       i;
-	int       j;
-	int       nchk;
-	int       nelem;
-	int	  rc;
-	int	  default_flag;
-	int	  total_chunks = 0;
+	char *chunk;
+	int i;
+	int j;
+	int nchk;
+	int nelem;
+	int rc;
+	int default_flag;
+	int total_chunks = 0;
 	struct key_value_pair *pkvp;
-	resource	  *presc;
-	resource_def	  *pdef;
-	static attribute   tmpatr;
+	resource *presc;
+	resource_def *pdef;
+	static attribute tmpatr;
 
 	if ((pselectattr == NULL) || (pattr == NULL))
 		return 0;
 
 	/* first clear the summation table used later */
 
-	for (i=0; svr_resc_sum[i].rs_def; ++i) {
-		(void)memset((char *)&svr_resc_sum[i].rs_attr, 0, sizeof(struct attribute));
+	for (i = 0; svr_resc_sum[i].rs_def; ++i) {
+		(void) memset((char *) &svr_resc_sum[i].rs_attr, 0, sizeof(struct attribute));
 
 		svr_resc_sum[i].rs_set = 0;
 		svr_resc_sum[i].rs_prs = NULL;
@@ -2145,16 +1948,15 @@ set_chunk_sum(attribute  *pselectattr, attribute *pattr)
 	/* now, look through the resource limits specified for the job        */
 	/* if any matches an entry in the table, set the pointer and set flag */
 
-	presc = (resource *)GET_NEXT(pattr->at_val.at_list);
+	presc = (resource *) GET_NEXT(pattr->at_val.at_list);
 	while (presc) {
-		for (i=0; svr_resc_sum[i].rs_def; ++i) {
+		for (i = 0; svr_resc_sum[i].rs_def; ++i) {
 			if (strcmp(presc->rs_defin->rs_name, svr_resc_sum[i].rs_def->rs_name) == 0) {
 				/* found one, save the resource ptr in sum table */
 				svr_resc_sum[i].rs_prs = presc;
-
 			}
 		}
-		presc = (resource *)GET_NEXT(presc->rs_link);
+		presc = (resource *) GET_NEXT(presc->rs_link);
 	}
 
 	/* now, parse the select directive */
@@ -2163,28 +1965,25 @@ set_chunk_sum(attribute  *pselectattr, attribute *pattr)
 	if (rc != 0)
 		return rc;
 	while (chunk) {
-#ifdef NAS /* localmod 082 */
-		if (parse_chunk(chunk, 0, &nchk, &nelem, &pkvp, NULL) == 0)
-#else
-		if (parse_chunk(chunk, &nchk, &nelem, &pkvp, NULL) == 0)
-#endif /* localmod 082 */
-		{
+		if (parse_chunk(chunk, &nchk, &nelem, &pkvp, NULL) == 0) {
 			total_chunks += nchk;
-			for (j=0; j<nelem; ++j) {
-				for (i=0; svr_resc_sum[i].rs_def; ++i) {
+			for (j = 0; j < nelem; ++j) {
+				for (i = 0; svr_resc_sum[i].rs_def; ++i) {
 					if (strcmp(svr_resc_sum[i].rs_def->rs_name, pkvp[j].kv_keyw) == 0) {
 						rc = svr_resc_sum[i].rs_def->rs_decode(&tmpatr, 0,
-							0, pkvp[j].kv_val);
+										       0, pkvp[j].kv_val);
 						if (rc != 0)
 							return rc;
-						else if ((tmpatr.at_flags & ATR_VFLAG_SET) == 0)
-							return PBSE_BADATVAL;	/* illegal null value */
+						else if (!is_attr_set(&tmpatr))
+							return PBSE_BADATVAL; /* illegal null value */
 						if (svr_resc_sum[i].rs_def->rs_type == ATR_TYPE_SIZE)
 							tmpatr.at_val.at_size.atsv_num *= nchk;
+						else if (svr_resc_sum[i].rs_def->rs_type == ATR_TYPE_FLOAT)
+							tmpatr.at_val.at_float *= nchk;
 						else
 							tmpatr.at_val.at_long *= nchk;
 
-						(void)svr_resc_sum[i].rs_def->rs_set(&svr_resc_sum[i].rs_attr, &tmpatr, INCR);
+						(void) svr_resc_sum[i].rs_def->rs_set(&svr_resc_sum[i].rs_attr, &tmpatr, INCR);
 						svr_resc_sum[i].rs_set = 1;
 						break;
 					}
@@ -2207,7 +2006,7 @@ set_chunk_sum(attribute  *pselectattr, attribute *pattr)
 	 * now that we have summed up the chunks, for each one summed (set) ...
 	 * set or reset the corresponding job wide limit
 	 */
-	for (i=0; svr_resc_sum[i].rs_def; ++i) {
+	for (i = 0; svr_resc_sum[i].rs_def; ++i) {
 		if (svr_resc_sum[i].rs_set) {
 
 			if (svr_resc_sum[i].rs_prs) {
@@ -2219,22 +2018,21 @@ set_chunk_sum(attribute  *pselectattr, attribute *pattr)
 				if (presc == NULL)
 					return PBSE_SYSTEM;
 			}
-			(void)svr_resc_sum[i].rs_def->rs_set(&presc->rs_value, &svr_resc_sum[i].rs_attr, SET);
+			(void) svr_resc_sum[i].rs_def->rs_set(&presc->rs_value, &svr_resc_sum[i].rs_attr, SET);
 			presc->rs_value.at_flags |= default_flag;
-
 		}
 	}
 
 	/* set pseudo-resource "nodect" to the number of chunks */
 
-	pdef = find_resc_def(svr_resc_def, "nodect", svr_resc_size);
+	pdef = &svr_resc_def[RESC_NODECT];
 	if (pdef) {
 		presc = find_resc_entry(pattr, pdef);
 		if (presc == NULL)
 			presc = add_resource_entry(pattr, pdef);
 		if (presc) {
 			presc->rs_value.at_val.at_long = total_chunks;
-			presc->rs_value.at_flags |= ATR_VFLAG_SET | ATR_VFLAG_DEFLT | ATR_VFLAG_MODCACHE;
+			presc->rs_value.at_flags |= ATR_VFLAG_DEFLT | ATR_SET_MOD_MCACHE;
 		}
 	}
 	return 0;
@@ -2263,22 +2061,22 @@ set_chunk_sum(attribute  *pselectattr, attribute *pattr)
 
 extern int resc_access_perm;
 
-static int
+int
 make_schedselect(attribute *patrl, resource *pselect,
-	pbs_queue *pque, attribute *psched)
+		 pbs_queue *pque, attribute *psched)
 {
-	int	     rc;
-	char	     *sched_select_out = NULL;
+	int rc;
+	char *sched_select_out = NULL;
 
 	if ((pselect == NULL) || (psched == NULL)) {
 		return (PBSE_SYSTEM);
 	}
 
-	rc = do_schedselect(pselect->rs_value.at_val.at_str, (struct server *)&server, (pbs_queue *)pque, &resc_in_err, &sched_select_out);
+	rc = do_schedselect(pselect->rs_value.at_val.at_str, (struct server *) &server, (pbs_queue *) pque, &resc_in_err, &sched_select_out);
 
 	if (rc == 0) {
 		free_str(psched);
-		(void)decode_str(psched, NULL, NULL, sched_select_out);
+		(void) decode_str(psched, NULL, NULL, sched_select_out);
 		psched->at_flags |= ATR_VFLAG_DEFLT;
 	}
 	return (rc);
@@ -2296,48 +2094,43 @@ make_schedselect(attribute *patrl, resource *pselect,
 static void
 set_deflt_resc(attribute *jb, attribute *dflt, int selflg)
 {
-	resource       *prescjb;
-	resource       *prescdt;
-	resource_def   *seldef;
-	resource_def   *plcdef;
+	resource *prescjb;
+	resource *prescdt;
+	resource_def *seldef;
+	resource_def *plcdef;
 
-	seldef = find_resc_def(svr_resc_def, "select", svr_resc_size);
-	plcdef = find_resc_def(svr_resc_def, "place",  svr_resc_size);
+	seldef = &svr_resc_def[RESC_SELECT];
+	plcdef = &svr_resc_def[RESC_PLACE];
 
-	if (dflt->at_flags & ATR_VFLAG_SET) {
+	if (is_attr_set(dflt)) {
 
 		/* for each resource in the default value list */
 
-		for (prescdt = (resource *)GET_NEXT(dflt->at_val.at_list);
-			prescdt;
-			prescdt = (resource *)GET_NEXT(prescdt->rs_link)) {
+		for (prescdt = (resource *) GET_NEXT(dflt->at_val.at_list);
+		     prescdt;
+		     prescdt = (resource *) GET_NEXT(prescdt->rs_link)) {
 
 			if ((prescdt->rs_defin == seldef) ||
-				(prescdt->rs_defin == plcdef)) {
+			    (prescdt->rs_defin == plcdef)) {
 				if (!selflg)
 					continue; /* dont use select/place */
 			}
 
-			if (prescdt->rs_value.at_flags & ATR_VFLAG_SET) {
+			if (is_attr_set(&prescdt->rs_value)) {
 				/* see if the job already has that resource */
 				prescjb = find_resc_entry(jb, prescdt->rs_defin);
 				if ((prescjb == NULL) ||
-					((prescjb->rs_value.at_flags &
-					ATR_VFLAG_SET) == 0)) {
+				    ((prescjb->rs_value.at_flags &
+				      ATR_VFLAG_SET) == 0)) {
 
 					if (prescjb == NULL)
 						prescjb = add_resource_entry(jb,
-							prescdt->rs_defin);
+									     prescdt->rs_defin);
 					if (prescjb) {
-						if (prescdt->rs_defin->rs_set(
-							&prescjb->rs_value,
-							&prescdt->rs_value,
-							SET) == 0)
-							prescjb->rs_value.at_flags |=
-								(ATR_VFLAG_SET|ATR_VFLAG_DEFLT);
-						jb->at_flags |= ATR_VFLAG_MODCACHE;
+						if (prescdt->rs_defin->rs_set(&prescjb->rs_value, &prescdt->rs_value, SET) == 0)
+							prescjb->rs_value.at_flags |= (ATR_VFLAG_SET | ATR_VFLAG_DEFLT);
+						jb->at_flags |= ATR_MOD_MCACHE;
 					}
-
 				}
 			}
 		}
@@ -2362,152 +2155,87 @@ set_deflt_resc(attribute *jb, attribute *dflt, int selflg)
 int
 set_resc_deflt(void *pobj, int objtype, pbs_queue *pque)
 {
-	static resc_resv  *presv;
-	job	   *pjob;
-	attribute  *pdest = NULL;
-	attribute  *psched = NULL;
-	resource   *presc;
+	static resc_resv *presv;
+	job *pjob;
+	attribute *pdest = NULL;
+	attribute *psched = NULL;
+	resource *presc;
 	resource_def *prdefsl;
 	resource_def *prdefpc;
-	int           rc;
+	int rc;
 
 	switch (objtype) {
-		case	JOB_OBJECT:
-			pjob = (job *)pobj;
+		case JOB_OBJECT:
+			pjob = (job *) pobj;
 			assert(pjob != NULL);
 			if (pque == NULL)
 				pque = pjob->ji_qhdr;
 			assert(pque != NULL);
-			pdest = &pjob->ji_wattr[(int)JOB_ATR_resource];
-			psched = &pjob->ji_wattr[(int)JOB_ATR_SchedSelect];
+			pdest = get_jattr(pjob, JOB_ATR_resource);
+			psched = get_jattr(pjob, JOB_ATR_SchedSelect);
 			break;
 
-		case	RESC_RESV_OBJECT:
-			presv = (resc_resv *)pobj;
+		case RESC_RESV_OBJECT:
+			presv = (resc_resv *) pobj;
 			assert(presv != NULL);
 			pque = NULL;
-			pdest = &presv->ri_wattr[(int)RESV_ATR_resource];
-			psched = &presv->ri_wattr[(int)RESV_ATR_SchedSelect];
-			break;
-
-		case	RESV_JOB_OBJECT:
-			presv = (resc_resv *)pobj;
-			assert(presv != NULL);
-			pjob = presv->ri_jbp;
-			assert(pjob != NULL);
-			pque = pjob->ji_qhdr;
-			assert(pque != NULL);
-			pdest = &presv->ri_wattr[(int)RESV_ATR_resource];
+			pdest = get_rattr(presv, RESV_ATR_resource);
+			psched = get_rattr(presv, RESV_ATR_SchedSelect);
 			break;
 
 		default:
 			break;
 	}
 
-
 	/* set defaults based on the Queue's resources_default */
 	if (pque) {
 		set_deflt_resc(pdest,
-			&pque->qu_attr[(int)QA_ATR_ResourceDefault], 1);
+			       get_qattr(pque, QA_ATR_ResourceDefault), 1);
 	}
 
 	/* set defaults based on the Server' resources_default */
-	set_deflt_resc(pdest,
-		&server.sv_attr[(int)SRV_ATR_resource_deflt], 1);
+	set_deflt_resc(pdest, get_sattr(SVR_ATR_resource_deflt), 1);
 
 	/* set defaults based on the Queue's resources_max */
 	if (pque) {
 		set_deflt_resc(pdest,
-			&pque->qu_attr[(int)QA_ATR_ResourceMax], 0);
+			       get_qattr(pque, QA_ATR_ResourceMax), 0);
 	}
 
 	/* set defaults based on the Server's resources_max */
-	set_deflt_resc(pdest,
-		&server.sv_attr[(int)SRV_ATR_ResourceMax], 0);
-
+	set_deflt_resc(pdest, get_sattr(SVR_ATR_ResourceMax), 0);
 
 	/* if needed, set "select" and "place" from the other resources */
 
-	prdefsl = find_resc_def(svr_resc_def, "select", svr_resc_size);
-	presc   = find_resc_entry(pdest, prdefsl);
+	prdefsl = &svr_resc_def[RESC_SELECT];
+	presc = find_resc_entry(pdest, prdefsl);
 	/* if not set, set select/place */
-	if ((presc == NULL) || ((presc->rs_value.at_flags & ATR_VFLAG_SET)==0))
+	if ((presc == NULL) || ((is_attr_set(&presc->rs_value)) == 0))
 		if ((rc = set_select_and_place(objtype, pobj, pdest)) != 0)
 			return rc;
 
-	prdefpc = find_resc_def(svr_resc_def, "place", svr_resc_size);
+	prdefpc = &svr_resc_def[RESC_PLACE];
 	presc = find_resc_entry(pdest, prdefpc);
 	/* if "place" still not set, force to "free" */
-	if ((presc == NULL) || ((presc->rs_value.at_flags&ATR_VFLAG_SET)==0)) {
+	if ((presc == NULL) || ((is_attr_set(&presc->rs_value)) == 0)) {
 		presc = add_resource_entry(pdest, prdefpc);
 		if (presc == NULL)
 			return PBSE_SYSTEM;
 		if (prdefpc->rs_decode(&presc->rs_value, NULL, "place", "free") == 0)
-			if (objtype == JOB_OBJECT)	/* only for jobs, set DEFLT */
+			if (objtype == JOB_OBJECT) /* only for jobs, set DEFLT */
 				presc->rs_value.at_flags |= ATR_VFLAG_DEFLT;
 	}
 
 	/* now set up the Scheduler's version of select JOB_ATR_SchedSelect */
-	presc   = find_resc_entry(pdest, prdefsl);
+	presc = find_resc_entry(pdest, prdefsl);
 	if (presc) {
-		if ((rc = make_schedselect(pdest, presc , pque, psched)) == 0)
+		if ((rc = make_schedselect(pdest, presc, pque, psched)) == 0)
 			rc = set_chunk_sum(psched, pdest);
 
 	} else
 		rc = PBSE_SYSTEM;
 	return rc;
 }
-
-/**
- * @brief
- * 		set_statechar - set the job state attribute to the letter that corresponds
- *		to its current state.
- *
- * @param[in,out]	pjob	-	job whose state attribute needs to e set.
- */
-
-void
-set_statechar(job *pjob)
-{
-	if (pjob->ji_qs.ji_state == JOB_STATE_RUNNING) {
-		static char suspend = 'S';
-		static char useractive = 'U';
-
-		if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_Suspend)
-			pjob->ji_wattr[JOB_ATR_state].at_val.at_char = suspend;
-		else if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_Actsuspd)
-			pjob->ji_wattr[JOB_ATR_state].at_val.at_char = useractive;
-		else
-			pjob->ji_wattr[JOB_ATR_state].at_val.at_char =
-				*(statechars + pjob->ji_qs.ji_state);
-	} else
-		pjob->ji_wattr[JOB_ATR_state].at_val.at_char =
-			*(statechars + pjob->ji_qs.ji_state);
-	pjob->ji_wattr[JOB_ATR_state].at_flags |= ATR_VFLAG_MODCACHE;
-}
-
-/**
- * @brief
- * 		state_char2int - return the state from character form to int form.
- *
- * @param[in]	stc	-	state in character form
- *
- * @return	state in int form
- * @retval	-1	: failure
- */
-
-int
-state_char2int(char stc)
-{
-	int  i;
-
-	for (i=0; i < strlen(statechars); i++) {
-		if (statechars[i] == stc)
-			return (i);
-	}
-	return (-1);
-}
-
 
 /**
  * @brief
@@ -2520,15 +2248,13 @@ state_char2int(char stc)
  */
 
 void
-eval_chkpnt(attribute *jobckp, attribute *queckp)
+eval_chkpnt(job *pjob, attribute *queckp)
 {
-	char *pv;
+	char *pv = get_jattr_str(pjob, JOB_ATR_chkpnt);
 
-	if (((jobckp->at_flags & ATR_VFLAG_SET) == 0)  ||
-		((queckp->at_flags & ATR_VFLAG_SET) == 0))
-		return;		/* need do nothing */
+	if (!is_jattr_set(pjob, JOB_ATR_chkpnt) || !is_attr_set(queckp))
+		return; /* need do nothing */
 
-	pv = jobckp->at_val.at_str;
 	if ((*pv == 'c') || (*pv == 'w')) {
 		int jobs;
 		char queues[30];
@@ -2539,13 +2265,11 @@ eval_chkpnt(attribute *jobckp, attribute *queckp)
 			pv++;
 		jobs = atoi(pv);
 		if (jobs < queckp->at_val.at_long) {
-			(void)sprintf(queues, "%c=%ld", ckt, queckp->at_val.at_long);
-			free_str(jobckp);
-			(void)decode_str(jobckp, 0, 0, queues);
+			sprintf(queues, "%c=%ld", ckt, queckp->at_val.at_long);
+			set_jattr_generic(pjob, JOB_ATR_chkpnt, queues, NULL, INTERNAL);
 		}
 	}
 }
-
 
 #ifndef NDEBUG
 /**
@@ -2562,198 +2286,55 @@ eval_chkpnt(attribute *jobckp, attribute *queckp)
 static void
 correct_ct(pbs_queue *pqj)
 {
-	int	   i;
-	char	  *pc;
-	job	  *pjob;
+	int i;
+	char *pc;
+	job *pjob;
 	pbs_queue *pque;
 
-
-	(void)sprintf(log_buffer, "Job state counts incorrect, server %d: ",
-		server.sv_qs.sv_numjobs);
+	(void) sprintf(log_buffer, "Job state counts incorrect, server %d: ",
+		       server.sv_qs.sv_numjobs);
 	server.sv_qs.sv_numjobs = 0;
-	for (i=0; i<PBS_NUMJOBSTATE-4; ++i) {
+	for (i = 0; i < PBS_NUMJOBSTATE - 4; ++i) {
 		pc = log_buffer + strlen(log_buffer);
-		(void)sprintf(pc, "%d ", server.sv_jobstates[i]);
+		(void) sprintf(pc, "%d ", server.sv_jobstates[i]);
 		server.sv_jobstates[i] = 0;
 	}
 	if (pqj) {
 		pc = log_buffer + strlen(log_buffer);
-		(void)sprintf(pc, "; queue %s %d: ", pqj->qu_qs.qu_name,
-			pqj->qu_numjobs);
-		for (i=0; i<PBS_NUMJOBSTATE-4; ++i) {
+		(void) sprintf(pc, "; queue %s %d: ", pqj->qu_qs.qu_name,
+			       pqj->qu_numjobs);
+		for (i = 0; i < PBS_NUMJOBSTATE - 4; ++i) {
 			pc = log_buffer + strlen(log_buffer);
-			(void)sprintf(pc, "%d ", pqj->qu_njstate[i]);
+			(void) sprintf(pc, "%d ", pqj->qu_njstate[i]);
 		}
 	}
 	log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_SERVER, LOG_DEBUG,
-		msg_daemonname, log_buffer);
+		  msg_daemonname, log_buffer);
 
-	for (pque = (pbs_queue *)GET_NEXT(svr_queues); pque;
-		pque = (pbs_queue *)GET_NEXT(pque->qu_link)) {
+	for (pque = (pbs_queue *) GET_NEXT(svr_queues); pque;
+	     pque = (pbs_queue *) GET_NEXT(pque->qu_link)) {
 		pque->qu_numjobs = 0;
-		for (i=0; i<PBS_NUMJOBSTATE-4; ++i)
+		for (i = 0; i < PBS_NUMJOBSTATE - 4; ++i)
 			pque->qu_njstate[i] = 0;
 	}
 
-	for (pjob = (job *)GET_NEXT(svr_alljobs); pjob;
-		pjob = (job *)GET_NEXT(pjob->ji_alljobs)) {
+	for (pjob = (job *) GET_NEXT(svr_alljobs); pjob;
+	     pjob = (job *) GET_NEXT(pjob->ji_alljobs)) {
+		int state_num;
+
+		state_num = get_job_state_num(pjob);
 		server.sv_qs.sv_numjobs++;
-		server.sv_jobstates[pjob->ji_qs.ji_state]++;
+		if (state_num != -1)
+			server.sv_jobstates[state_num]++;
 		if (pjob->ji_qhdr) {
 			(pjob->ji_qhdr)->qu_numjobs++;
-			(pjob->ji_qhdr)->qu_njstate[pjob->ji_qs.ji_state]++;
+			if (state_num != -1)
+				(pjob->ji_qhdr)->qu_njstate[state_num]++;
 		}
 	}
 	return;
 }
-#endif 	/* NDEBUG */
-
-
-
-/**
- * @brief
- * 		Update_Resvstate_if_resv - function checks if the job is
- *      a reservation-job and, if so, the reservation "state"
- *		is computed based on:
- *	    current "job state", "job substate", "reservation state"
- *	    and, the "reserve_start"/"reserve_end" times vs current time.
- * @par
- *		The assumption that's made is that "reserve_start",
- *		and "reserve_end" have been computed prior to the calling
- *		of this function -  typically by making a call to function
- *		"start_end_dur_wall ()".
- *
- * @param[in]	pjob	-	job which needs to be checked
- */
-
-void
-Update_Resvstate_if_resv(job *pjob)
-{
-	attribute *ap;
-	resc_resv *presv;
-	int	  beyondStart = 0;
-
-	if (pjob == NULL)
-		return;
-
-	/* Is this job a reservation job ? */
-	if ((presv = pjob->ji_resvp) == NULL)
-		return;
-
-	ap = &pjob->ji_wattr[JOB_ATR_reserve_state];
-
-	/* This is a reservation job, compute reservation state */
-	/* Remark: one thing that might be worth considering is */
-	/* other ways to treat a reservation job if a user has  */
-	/* placed a hold on the reservation and the time window */
-	/* for the reservation has passed.  Maybe we would want */
-	/* the reservation job to transition to an ordinary job */
-	/* and remain in the system				*/
-	/* OR, what if it is decided to ignore the reservation  */
-	/* and qrun the reservation job, ignoring any reservation*/
-	/* window.  Should the job in that setting cease to be  */
-	/* marked as a reservation job?				*/
-
-	if (presv->ri_wattr[RESV_ATR_end]
-		.at_val.at_long > 0) {
-		if (presv->ri_wattr[RESV_ATR_end]
-			.at_val.at_long <= time_now) {
-
-			if (ap->at_val.at_long != RESV_FINISHED) {
-				ap->at_val.at_long = RESV_FINISHED;
-				ap->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				pjob->ji_modified = 1;
-			}
-			return;
-		}
-	}
-
-	if (presv->ri_wattr[RESV_ATR_start]
-		.at_val.at_long <= time_now)
-		beyondStart = 1;
-
-	switch (pjob->ji_qs.ji_state) {
-		case JOB_STATE_TRANSIT:
-			if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_TRANSIN) {
-				ap->at_val.at_long = RESV_UNCONFIRMED;
-				ap->at_flags |= ATR_VFLAG_SET | ATR_VFLAG_MODIFY
-					| ATR_VFLAG_MODCACHE;
-				pjob->ji_modified = 1;
-			}
-			break;
-		case JOB_STATE_HELD:
-			if (ap->at_val.at_long != presv->ri_qs.ri_state) {
-				ap->at_val.at_long = presv->ri_qs.ri_state;
-				ap->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				pjob->ji_modified = 1;
-			}
-			if (beyondStart) {
-				if (presv->ri_qs.ri_state == RESV_CONFIRMED) {
-					if (ap->at_val.at_long != RESV_TIME_TO_RUN) {
-						ap->at_val.at_long = RESV_TIME_TO_RUN;
-						ap->at_flags |= ATR_VFLAG_SET |
-							ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-						pjob->ji_modified = 1;
-					}
-				}
-			}
-			break;
-		case JOB_STATE_WAITING:
-			if (beyondStart) {
-				if (ap->at_val.at_long != RESV_TIME_TO_RUN) {
-					ap->at_val.at_long = RESV_TIME_TO_RUN;
-					ap->at_flags |= ATR_VFLAG_SET |
-						ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-					pjob->ji_modified = 1;
-				}
-			} else if (ap->at_val.at_long != RESV_CONFIRMED) {
-				ap->at_val.at_long = RESV_CONFIRMED;
-				ap->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				pjob->ji_modified = 1;
-			}
-			break;
-		case JOB_STATE_QUEUED:
-			if (beyondStart) {
-				if (ap->at_val.at_long != RESV_TIME_TO_RUN) {
-					ap->at_val.at_long = RESV_TIME_TO_RUN;
-					ap->at_flags |= ATR_VFLAG_SET |
-						ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-					pjob->ji_modified = 1;
-				}
-			} else {
-				if (ap->at_val.at_long != RESV_CONFIRMED) {
-					ap->at_val.at_long = RESV_CONFIRMED;
-					ap->at_flags |= ATR_VFLAG_SET |
-						ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-					pjob->ji_modified = 1;
-				}
-			}
-
-			break;
-		case JOB_STATE_RUNNING:
-			if (beyondStart) {
-				/*operator didn't run the job early*/
-				if (ap->at_val.at_long != RESV_RUNNING) {
-					ap->at_val.at_long = RESV_RUNNING;
-					ap->at_flags |= ATR_VFLAG_SET |
-						ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-					pjob->ji_modified = 1;
-				}
-			}
-			break;
-		case JOB_STATE_EXITING:
-			if (ap->at_val.at_long != RESV_BEING_DELETED) {
-				ap->at_val.at_long = RESV_BEING_DELETED;
-				ap->at_flags |= ATR_VFLAG_SET | ATR_VFLAG_MODIFY |
-					ATR_VFLAG_MODCACHE;
-				pjob->ji_modified = 1;
-			}
-			break;
-	}
-}
+#endif /* NDEBUG */
 
 /**
  * @brief
@@ -2771,19 +2352,19 @@ Update_Resvstate_if_resv(job *pjob)
 int
 get_wall(job *jp)
 {
-	resource_def	*rscdef;
-	resource	*pres;
+	resource_def *rscdef;
+	resource *pres;
 
-	rscdef = find_resc_def(svr_resc_def, "walltime", svr_resc_size);
+	rscdef = &svr_resc_def[RESC_WALLTIME];
 	if (rscdef == 0)
 		return (-1);
-	pres = find_resc_entry(&jp->ji_wattr[JOB_ATR_resource], rscdef);
+	pres = find_resc_entry(get_jattr(jp, JOB_ATR_resource), rscdef);
 	if (pres == 0)
 		return (-1);
-	else if ((pres->rs_value.at_flags & ATR_VFLAG_SET) == 0)
+	else if (!is_attr_set(&pres->rs_value))
 		return (-1);
 	else
-		return pres->rs_value.at_val.at_long;   /*wall time value*/
+		return pres->rs_value.at_val.at_long; /*wall time value*/
 }
 
 /**
@@ -2805,19 +2386,19 @@ get_wall(job *jp)
 int
 get_used_wall(job *jp)
 {
-	resource_def	*rscdef;
-	resource	*pres;
+	resource_def *rscdef;
+	resource *pres;
 
-	rscdef = find_resc_def(svr_resc_def, "walltime", svr_resc_size);
+	rscdef = &svr_resc_def[RESC_WALLTIME];
 	if (rscdef == 0)
 		return (-1);
-	pres = find_resc_entry(&jp->ji_wattr[JOB_ATR_resc_used], rscdef);
+	pres = find_resc_entry(get_jattr(jp, JOB_ATR_resc_used), rscdef);
 	if (pres == 0)
 		return (-1);
-	else if ((pres->rs_value.at_flags & ATR_VFLAG_SET) == 0)
+	else if (!is_attr_set(&pres->rs_value))
 		return (-1);
 	else
-		return pres->rs_value.at_val.at_long;   /*wall time value*/
+		return pres->rs_value.at_val.at_long; /*wall time value*/
 }
 
 /**
@@ -2836,19 +2417,19 @@ get_used_wall(job *jp)
 int
 get_softwall(job *jp)
 {
-	resource_def	*rscdef;
-	resource	*pres;
+	resource_def *rscdef;
+	resource *pres;
 
-	rscdef = find_resc_def(svr_resc_def, "soft_walltime", svr_resc_size);
+	rscdef = &svr_resc_def[RESC_SOFT_WALLTIME];
 	if (rscdef == 0)
 		return (-1);
-	pres = find_resc_entry(&jp->ji_wattr[JOB_ATR_resource], rscdef);
+	pres = find_resc_entry(get_jattr(jp, JOB_ATR_resource), rscdef);
 	if (pres == 0)
 		return (-1);
-	else if ((pres->rs_value.at_flags & ATR_VFLAG_SET) == 0)
+	else if (!is_attr_set(&pres->rs_value))
 		return (-1);
 	else
-		return pres->rs_value.at_val.at_long;   /*wall time value*/
+		return pres->rs_value.at_val.at_long; /*wall time value*/
 }
 
 /**
@@ -2867,19 +2448,19 @@ get_softwall(job *jp)
 int
 get_cput(job *jp)
 {
-	resource_def	*rscdef;
-	resource	*pres;
+	resource_def *rscdef;
+	resource *pres;
 
-	rscdef = find_resc_def(svr_resc_def, "cput", svr_resc_size);
+	rscdef = &svr_resc_def[RESC_CPUT];
 	if (rscdef == 0)
 		return (-1);
-	pres = find_resc_entry(&jp->ji_wattr[JOB_ATR_resource], rscdef);
+	pres = find_resc_entry(get_jattr(jp, JOB_ATR_resource), rscdef);
 	if (pres == 0)
 		return (-1);
-	else if ((pres->rs_value.at_flags & ATR_VFLAG_SET) == 0)
+	else if (!is_attr_set(&pres->rs_value))
 		return (-1);
 	else
-		return pres->rs_value.at_val.at_long;   /*wall time value*/
+		return pres->rs_value.at_val.at_long; /*wall time value*/
 }
 
 /**
@@ -2901,19 +2482,19 @@ get_cput(job *jp)
 int
 get_used_cput(job *jp)
 {
-	resource_def	*rscdef;
-	resource	*pres;
+	resource_def *rscdef;
+	resource *pres;
 
-	rscdef = find_resc_def(svr_resc_def, "cput", svr_resc_size);
+	rscdef = &svr_resc_def[RESC_CPUT];
 	if (rscdef == 0)
 		return (-1);
-	pres = find_resc_entry(&jp->ji_wattr[JOB_ATR_resc_used], rscdef);
+	pres = find_resc_entry(get_jattr(jp, JOB_ATR_resc_used), rscdef);
 	if (pres == 0)
 		return (-1);
-	else if ((pres->rs_value.at_flags & ATR_VFLAG_SET) == 0)
+	else if (!is_attr_set(&pres->rs_value))
 		return (-1);
 	else
-		return pres->rs_value.at_val.at_long;   /*wall time value*/
+		return pres->rs_value.at_val.at_long; /*wall time value*/
 }
 /*-------------------------------------------------------------------------------
  Functions for establishing reservation related tasks
@@ -2924,15 +2505,15 @@ get_used_cput(job *jp)
  *
  * @param[in,out]	ptask	-	work task structure which contains reservation structure.
  */
-static	void
+static void
 Time4reply(struct work_task *ptask)
 {
-	resc_resv	*presv = ptask->wt_parm1;
+	resc_resv *presv = ptask->wt_parm1;
 
 	if (presv->ri_brp) {
 		char buf[512] = {0};
 		if (presv->ri_qs.ri_state == RESV_UNCONFIRMED ||
-			presv->ri_qs.ri_state == RESV_BEING_ALTERED)
+		    presv->ri_qs.ri_state == RESV_BEING_ALTERED)
 			snprintf(buf, sizeof(buf), "%s UNCONFIRMED", presv->ri_qs.ri_resvID);
 		else if (presv->ri_qs.ri_state == RESV_CONFIRMED) {
 			/*Remark: this part of the if is unlikely to happen*/
@@ -2940,8 +2521,8 @@ Time4reply(struct work_task *ptask)
 			snprintf(buf, sizeof(buf), "%s CONFIRMED", presv->ri_qs.ri_resvID);
 		}
 
-		(void)reply_text(presv->ri_brp, PBSE_NONE, buf);
-		presv->ri_brp = NULL ;
+		(void) reply_text(presv->ri_brp, PBSE_NONE, buf);
+		presv->ri_brp = NULL;
 	}
 }
 
@@ -2965,13 +2546,12 @@ Time4reply(struct work_task *ptask)
  *
  *	Returns   none
  */
-static	void
+static void
 Time4resv(struct work_task *ptask)
 {
-	resc_resv	*presv = ptask->wt_parm1;
-	int		pbs_ecode;
-	int		state, sub;
-
+	resc_resv *presv = ptask->wt_parm1;
+	int pbs_ecode;
+	int state, sub;
 
 	/* cause to have issued to the qmgr subsystem
 	 * a request to start the reservation's queue
@@ -2981,23 +2561,13 @@ Time4resv(struct work_task *ptask)
 
 	pbs_ecode = change_enableORstart(presv, Q_CHNG_START, "True");
 	if (!pbs_ecode) {
-		job *pjob;
-
 		/*
-		 *this is really the line  we want once the scheduler
+		 *this is really the line we want once the scheduler
 		 *has the capability to say "begin this reservation"
 		 */
 
 		eval_resvState(presv, RESVSTATE_Time4resv, 0, &state, &sub);
 		resv_setResvState(presv, state, sub);
-		cmp_resvStateRelated_attrs((void *)presv,
-			presv->ri_qs.ri_type);
-		if (presv->ri_qs.ri_type == RESV_JOB_OBJECT &&
-			(pjob = presv->ri_jbp)) {
-
-			svr_evaljobstate(pjob, &state, &sub, 0);
-			(void)svr_setjobstate(pjob, state, sub);
-		}
 
 		/*ok, time for the reservation to be running so adjust
 		 *server's/queue's resource accounting to reflect that
@@ -3006,24 +2576,45 @@ Time4resv(struct work_task *ptask)
 		 *indicate that in the future resources have to be returned
 		 *and, setup so that the scheduler gets notified
 		 */
-		set_resc_assigned((void *)presv, 1, INCR);
+		if (!presv->resv_from_job)
+			set_resc_assigned((void *) presv, 1, INCR);
 		presv->ri_giveback = 1;
 
 		resv_exclusive_handler(presv);
-
-		set_scheduler_flag(SCH_SCHEDULE_JOBRESV,dflt_scheduler);
+		notify_scheds_about_resv(SCH_SCHEDULE_JOBRESV, presv);
 
 		/*notify the relevant persons that the reservation time has arrived*/
-		if(presv->ri_qs.ri_tactive == time_now){
+		if (presv->ri_qs.ri_tactive == time_now) {
 			svr_mailownerResv(presv, MAIL_BEGIN, MAIL_NORMAL, "");
 			account_resvstart(presv);
+
+			/* make an artifical request so we can fire process hooks */
+			struct batch_request *preq = alloc_br(PBS_BATCH_BeginResv);
+			preq->rq_perm |= ATR_DFLAG_MGWR;
+			strncpy(preq->rq_user, pbs_current_user, PBS_MAXUSER);
+			strncpy(preq->rq_host, server_host, PBS_MAXHOSTNAME);
+			strncpy(preq->rq_ind.rq_manager.rq_objname, presv->ri_qs.ri_resvID, PBS_MAXSVRRESVID);
+			/* handle truncation warning */
+			preq->rq_ind.rq_manager.rq_objname[PBS_MAXSVRJOBID] = '\0';
+
+			char hook_msg[HOOK_MSG_SIZE] = {0};
+			switch (process_hooks(preq, hook_msg, sizeof(hook_msg), pbs_python_set_interrupt)) {
+				case 0: /* explicit reject */
+				case 1: /* no recreate request as there are only read permissions */
+				case 2: /* no hook script executed - go ahead and accept event*/
+					break;
+				default:
+					log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK, LOG_INFO, __func__,
+						  "resv_begin event: accept req by default");
+			}
+			free_br(preq);
 		}
 
 		presv->resv_start_task = NULL;
 		if ((ptask = set_task(WORK_Timed, time_now + 60,
-			Time4resv1, presv)) != 0) {
+				      Time4resv1, presv)) != 0) {
 
-			ptask->wt_aux = 4;	/*we will attempt up to 5 times*/
+			ptask->wt_aux = 4; /*we will attempt up to 5 times*/
 
 			/* set things so that the reservation going away causes */
 			/* any "yet to be processed" work tasks also going away */
@@ -3031,8 +2622,12 @@ Time4resv(struct work_task *ptask)
 			append_link(&presv->ri_svrtask, &ptask->wt_linkobj, ptask);
 		}
 	}
-}
 
+	if (is_rattr_set(presv, RESV_ATR_del_idle_time)) {
+		/* Catch the idle case where the reservation never has any jobs in it */
+		set_idle_delete_task(presv);
+	}
+}
 
 /**
  * @brief
@@ -3050,23 +2645,19 @@ Time4resv(struct work_task *ptask)
  *
  *	@return   none
  */
-static	void
+static void
 Time4resv1(struct work_task *ptask)
 {
-	struct work_task   *pwt;
-	resc_resv	   *presv = ptask->wt_parm1;
+	struct work_task *pwt;
+	resc_resv *presv = ptask->wt_parm1;
 
-
-
-	if (presv->ri_wattr[RESV_ATR_state].at_val.at_long !=
-		RESV_TIME_TO_RUN)
-
-		return;    /*no more reminders needed*/
+	if (get_rattr_long(presv, RESV_ATR_state) != RESV_TIME_TO_RUN)
+		return; /*no more reminders needed*/
 
 	/*put on another reminder timed for 60 seconds in the future*/
 	if (ptask->wt_aux > 0) {
 		if ((pwt = set_task(WORK_Timed, time_now + 60,
-			Time4resv1, presv)) != 0) {
+				    Time4resv1, presv)) != 0) {
 
 			pwt->wt_aux = ptask->wt_aux - 1;
 
@@ -3084,10 +2675,9 @@ Time4resv1(struct work_task *ptask)
 		reservation jobs
 #endif
 
-		/* specify the scheduling command for the scheduler */
-		set_scheduler_flag(SCH_SCHEDULE_JOBRESV, dflt_scheduler);
+	/* specify the scheduling command for the scheduler */
+	set_scheduler_flag(SCH_SCHEDULE_JOBRESV, dflt_scheduler);
 }
-
 
 /**
  * @brief
@@ -3101,8 +2691,8 @@ Time4resv1(struct work_task *ptask)
 void
 Time4resvFinish(struct work_task *ptask)
 {
-	resc_resv		*presv = ptask->wt_parm1;
-	struct  batch_request	*preq;
+	resc_resv *presv = ptask->wt_parm1;
+	struct batch_request *preq;
 
 	/* If more than one occurrence then process the occurrence end. The sequence
 	 * of events that are needed for the end of a standing reservation are:
@@ -3111,28 +2701,31 @@ Time4resvFinish(struct work_task *ptask)
 	 * 2) Delete all Running Jobs and Keep Queued Jobs
 	 * 3) Once all Obits are received (see running_jobs_count):
 	 *    3.a) Determine if occurrences were missed
-	 *    3.b) Add the next occurrence start and end event on the work task 	 *
+	 *    3.b) Add the next occurrence start and end event on the work task
 	 */
 	presv->resv_end_task = NULL;
-	if (presv->ri_wattr[RESV_ATR_resv_count].at_val.at_long > 1) {
-		int ridx = presv->ri_wattr[RESV_ATR_resv_idx].at_val.at_long;
-		int rcount = presv->ri_wattr[RESV_ATR_resv_count].at_val.at_long;
+	if (get_rattr_long(presv, RESV_ATR_resv_count) > 1) {
+		int ridx = get_rattr_long(presv, RESV_ATR_resv_idx);
+		int rcount = get_rattr_long(presv, RESV_ATR_resv_count);
 
 		DBPRT(("reached end of occurrence %d/%d\n", ridx, rcount))
+		log_eventf(PBSEVENT_DEBUG, PBS_EVENTCLASS_RESV, LOG_NOTICE, presv->ri_qs.ri_resvID,
+				       "reached end of occurrence %d/%d", ridx, rcount);
 
 		/* When recovering past the last occurrence the standing reservation is purged
-		 * in a manner similar to an advance reservation  */
+		 * in a manner similar to an advance reservation
+		 */
 		if (ridx < rcount) {
 			/*
 			 * Invoke the reservation end hook for every occurrence
 			 */
 			struct batch_request *newreq;
 			newreq = alloc_br(PBS_BATCH_ResvOccurEnd);
-			if (newreq != NULL)	{
+			if (newreq != NULL) {
 				newreq->rq_perm |= ATR_DFLAG_MGWR;
 				strcpy(newreq->rq_user, pbs_current_user);
 				strcpy(newreq->rq_host, server_host);
-				strcpy(newreq->rq_ind.rq_delete.rq_objname, presv->ri_qs.ri_resvID);
+				strcpy(newreq->rq_ind.rq_manager.rq_objname, presv->ri_qs.ri_resvID);
 				if (issue_Drequest(PBS_LOCAL_CONNECTION, newreq, resvFinishReply, NULL, 0) == -1) {
 					free_br(newreq);
 				}
@@ -3142,7 +2735,7 @@ Time4resvFinish(struct work_task *ptask)
 			 * state of the reservation queue
 			 */
 			change_enableORstart(presv, Q_CHNG_START, "FALSE");
-			(void)resv_setResvState(presv, RESV_DELETING_JOBS, RESV_DELETING_JOBS);
+			resv_setResvState(presv, RESV_DELETING_JOBS, presv->ri_qs.ri_substate);
 
 			/* 2) Issue delete messages to jobs in running state and keep jobs in
 			 * Queued state. Server periodically monitors the reservation queue
@@ -3181,19 +2774,18 @@ Time4resvFinish(struct work_task *ptask)
 
 		strcpy(preq->rq_user, pbs_current_user);
 		strcpy(preq->rq_host, server_host);
-		strcpy(preq->rq_ind.rq_delete.rq_objname,
-			presv->ri_qs.ri_resvID);
-
-		(void)issue_Drequest(PBS_LOCAL_CONNECTION, preq,
-			resvFinishReply, NULL, 0);
+		strcpy(preq->rq_ind.rq_manager.rq_objname,
+		       presv->ri_qs.ri_resvID);
 
 		/*notify relevant parties that the reservation's
 		 *ending time has arrived and reservation is being deleted
 		 */
 		svr_mailownerResv(presv, MAIL_END, MAIL_NORMAL, "");
 
-		tickle_for_reply();
 		set_last_used_time_node(presv, 1);
+		(void) issue_Drequest(PBS_LOCAL_CONNECTION, preq,
+				      resvFinishReply, NULL, 0);
+		tickle_for_reply();
 	}
 }
 
@@ -3215,62 +2807,84 @@ Time4resvFinish(struct work_task *ptask)
 static void
 Time4occurrenceFinish(resc_resv *presv)
 {
-	time_t			newend;
-	time_t			newstart;
-	int			state = 0;
-	int			sub = 0;
-	int			rc = 0;
-	int			rcount_adjusted = 0;
-	char			*execvnodes = NULL;
-	char			*newxc = NULL;
-	char			**short_xc = NULL;
-	char			**tofree = NULL;
-	time_t			dtstart;
-	time_t			dtend;
-	time_t			next;
-	time_t			now;
-	struct work_task	*ptask = NULL;
-	pbsnode_list_t		*pl = NULL;
-	char			start_time[9] = {0};	/* 9 = sizeof("%H:%M:%S")[=8] + 1('\0') */
-	resource_def		*rscdef = NULL;
-	resource		*prsc = NULL;
-	attribute		atemp = {0};
-	int			j = 2;
-	int			ridx = presv->ri_wattr[RESV_ATR_resv_idx].at_val.at_long;
-	int			rcount = presv->ri_wattr[RESV_ATR_resv_count].at_val.at_long;
-	char			*rrule = presv->ri_wattr[RESV_ATR_resv_rrule].at_val.at_str;
-	char			*tz = presv->ri_wattr[RESV_ATR_resv_timezone].at_val.at_str;
+	time_t newend;
+	time_t newstart;
+	int state = 0;
+	int sub = 0;
+	int rc = 0;
+	int rcount_adjusted = 0;
+	char *execvnodes_orig = NULL;
+	char *execvnodes = NULL;
+	char *newxc = NULL;
+	char **short_xc = NULL;
+	char **tofree = NULL;
+	time_t dtstart;
+	time_t dtend;
+	time_t next;
+	time_t now;
+	struct work_task *ptask = NULL;
+	pbsnode_list_t *pl = NULL;
+	char start_time[9] = {0}; /* 9 = sizeof("%H:%M:%S")[=8] + 1('\0') */
+	resource_def *rscdef = NULL;
+	resource *prsc = NULL;
+	attribute atemp = {0};
+	int j = 2;
+	int occurrence_ended_early = 0;
+	int ridx = get_rattr_long(presv, RESV_ATR_resv_idx);
+	int rcount = get_rattr_long(presv, RESV_ATR_resv_count);
+	char *rrule = get_rattr_str(presv, RESV_ATR_resv_rrule);
+	char *tz = get_rattr_str(presv, RESV_ATR_resv_timezone);
 
 	/* the next occurrence returned by get_occurrence is counted from the current
 	 * one which is at index 1. */
 
-	/* If the start time of the reservation was altered, copy from RESV_ATR_start
- 	 * will make the next instance to have it's start time altered so take the start
- 	 * time from the ri_alter_stime. */
-	if (presv->ri_alter_stime) {
-		dtstart = presv->ri_alter_stime;
-		presv->ri_alter_stime = 0;
-	} else
-		dtstart = presv->ri_wattr[RESV_ATR_start].at_val.at_long;
+	/* If the reservation was altered,
+	 * use the stored values in RESV_ATR_standing_revert.
+	 */
+	if (is_rattr_set(presv, RESV_ATR_standing_revert)) {
+		resource *resc, *resc2;
+		attribute *stnd_revert = get_rattr(presv, RESV_ATR_standing_revert);
+		attribute *resc_attr = get_rattr(presv, RESV_ATR_resource);
 
-	dtend = presv->ri_wattr[RESV_ATR_end].at_val.at_long;
+		resc = find_resc_entry(stnd_revert, &svr_resc_def[RESC_START_TIME]);
+		dtstart = resc->rs_value.at_val.at_long;
+
+		resc = find_resc_entry(stnd_revert, &svr_resc_def[RESC_WALLTIME]);
+		set_rattr_l_slim(presv, RESV_ATR_duration, resc->rs_value.at_val.at_long, SET);
+		presv->ri_qs.ri_duration = resc->rs_value.at_val.at_long;
+
+		resc = find_resc_entry(resc_attr, &svr_resc_def[RESC_SELECT]);
+		resc2 = find_resc_entry(stnd_revert, &svr_resc_def[RESC_SELECT]);
+		free(resc->rs_value.at_val.at_str);
+		resc->rs_value.at_val.at_str = strdup(resc2->rs_value.at_val.at_str);
+		post_attr_set(resc_attr);
+		make_schedselect(resc_attr, resc, NULL, get_rattr(presv, RESV_ATR_SchedSelect));
+		set_chunk_sum(&resc->rs_value, resc_attr);
+	} else
+		dtstart = get_rattr_long(presv, RESV_ATR_start);
+
+	dtend = get_rattr_long(presv, RESV_ATR_end);
 	next = dtstart;
 	now = time(NULL);
 
-	/* Add next occurrence and account for missed occurrences..
-	 * A missed occurrence is one that had its reservation end time in the past.
-	 * next can be -1 if it exceeds the end date of Unix time in 2038.
+	/* Add next occurrence and account for missed occurrences.
+	 * There are three ways we can get into this function:
+	 * 1) When the server is initializating.  We need to account for all occurrences we have missed.
+	 * 2) The end of an occurrence.  We need to move onto the next.
+	 * 3) If an occurrence ends early.  We need to move onto the next.
 	 */
-	while (dtend <= now && next != -1) {
+	if (presv->ri_qs.ri_substate == RESV_RUNNING && next < now)
+		occurrence_ended_early = 1;
+	while (occurrence_ended_early || dtend <= now) {
+		/* We may loop and skip several occurrences for different reasons,
+		 * if an occurrence ended early, it can only be the one we are in
+		 */
+		occurrence_ended_early = 0;
 		/* get occurrence that is "j" numbers away from dtstart. */
 		next = get_occurrence(rrule, dtstart, tz, j);
-		if (presv->ri_alter_standing_reservation_duration) {
-			presv->ri_qs.ri_duration = presv->ri_alter_standing_reservation_duration;
-			presv->ri_alter_standing_reservation_duration = 0;
-		}
 		dtend = next + presv->ri_qs.ri_duration;
 
-		/* Index of next occurrence from dtstart*/
+		/* Index of next occurrence from dtstart */
 		j++;
 
 		/* Log information notifying of missed occurrences. An occurrence is
@@ -3283,7 +2897,7 @@ Time4occurrenceFinish(resc_resv *presv)
 		 * missed occurrences that are noted in the log file. */
 		if (j > 3 || presv->ri_giveback == 0) {
 			if (strftime(start_time, sizeof(start_time),
-				"%H:%M:%S", localtime(&dtstart))) {
+				     "%H:%M:%S", localtime(&dtstart))) {
 				sprintf(log_buffer,
 					"reservation occurrence %d/%d "
 					"scheduled at %s was skipped because "
@@ -3293,11 +2907,12 @@ Time4occurrenceFinish(resc_resv *presv)
 				sprintf(log_buffer,
 					"reservation occurrence %d/%d was "
 					"skipped because its end time is in "
-					"the past", ridx, rcount);
+					"the past",
+					ridx, rcount);
 			}
 			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_RESV,
-				LOG_NOTICE, presv->ri_qs.ri_resvID,
-				log_buffer);
+				  LOG_NOTICE, presv->ri_qs.ri_resvID,
+				  log_buffer);
 		}
 
 		/* The reservation index is incremented */
@@ -3308,7 +2923,7 @@ Time4occurrenceFinish(resc_resv *presv)
 		 * message
 		 */
 		if (ridx > rcount) {
-			presv->ri_wattr[RESV_ATR_resv_idx].at_val.at_long = rcount;
+			set_rattr_l_slim(presv, RESV_ATR_resv_idx, rcount, SET);
 
 			if ((ptask = set_task(WORK_Immed, 0, Time4resvFinish, presv)) != 0)
 				append_link(&presv->ri_svrtask, &ptask->wt_linkobj, ptask);
@@ -3318,10 +2933,16 @@ Time4occurrenceFinish(resc_resv *presv)
 
 		DBPRT(("stdg_resv: next occurrence start = %s", ctime(&next)))
 		DBPRT(("stdg_resv: next occurrence end   = %s", ctime(&dtend)))
-
 	}
-	DBPRT(("stdg_resv: execvnodes sequence   = %s\n", presv->ri_wattr[RESV_ATR_resv_execvnodes].at_val.at_str))
-	execvnodes = strdup(presv->ri_wattr[RESV_ATR_resv_execvnodes].at_val.at_str);
+	if (is_rattr_set(presv, RESV_ATR_resv_execvnodes))
+		execvnodes_orig = get_rattr_str(presv, RESV_ATR_resv_execvnodes);
+	if (execvnodes_orig != NULL) {
+		DBPRT(("stdg_resv: execvnodes sequence   = %s\n", execvnodes_orig))
+		execvnodes = strdup(execvnodes_orig);
+	} else {
+		DBPRT(("stdg_resv: execvnodes sequence missing"))
+		;
+	}
 	short_xc = (char **) unroll_execvnode_seq(execvnodes, &tofree);
 
 	/* when a reservation is reconfirmed, the 'count' of occurrences may differ
@@ -3331,81 +2952,101 @@ Time4occurrenceFinish(resc_resv *presv)
 	rcount_adjusted = rcount - get_execvnodes_count(execvnodes);
 
 	/* The reservation index starts at 1 but the short_xc array at 0. Occurrence 1
-	 * is therefore given by array element 0. */
-	newxc = strdup(short_xc[ridx-rcount_adjusted-1]);
+	 * is therefore given by array element 0.
+	 */
+	if (ridx - rcount_adjusted >= 1 && short_xc != NULL)
+		newxc = strdup(short_xc[ridx - rcount_adjusted - 1]);
+	else {
+		newxc = NULL;
+		log_eventf(PBSEVENT_ERROR, PBS_EVENTCLASS_RESV, LOG_NOTICE, presv->ri_qs.ri_resvID,
+		           "%s: attempt to find vnodes for for occurence %d failed; using empty set",
+		           __func__, ridx);
+	}
 
 	/* clean up helper variables */
 	free(short_xc);
 	free(execvnodes);
 	free_execvnode_seq(tofree);
 
+	/* Set reservation state to finished. Will re-evaluate
+	 * the state for the next occurrence later in the function.
+	 */
+	resv_setResvState(presv, RESV_FINISHED, RESV_FINISHED);
+
 	/* Decrement resources assigned */
 	if (presv->ri_giveback == 1) {
-		set_resc_assigned((void *)presv, 1, DECR);
+		set_resc_assigned((void *) presv, 1, DECR);
 		presv->ri_giveback = 0;
 	}
 
 	/* Reservation Nodes are freed and a -possibly- new set assigned */
 	free_resvNodes(presv);
+	/* set ri_vnodes_down to 0 because the previous occurrences downed nodes might
+	 * not exist in the following occurrence.  The new occurrence's ri_vnodes_down
+	 * will be set properly in set_nodes()
+	 */
+	presv->ri_vnodes_down = 0;
 
 	/* Set the new start time, end time, and occurrence index */
 	newstart = next;
 	newend = (time_t)(newstart + presv->ri_qs.ri_duration);
 
-	presv->ri_wattr[RESV_ATR_start].at_val.at_long = newstart;
-	presv->ri_wattr[RESV_ATR_start].at_flags |= ATR_VFLAG_SET | ATR_VFLAG_MODIFY
-		| ATR_VFLAG_MODCACHE;
+	set_rattr_l_slim(presv, RESV_ATR_start, newstart, SET);
 	presv->ri_qs.ri_stime = newstart;
 
-	presv->ri_wattr[RESV_ATR_end].at_val.at_long = newend;
-	presv->ri_wattr[RESV_ATR_end].at_flags |= ATR_VFLAG_SET | ATR_VFLAG_MODIFY
-		| ATR_VFLAG_MODCACHE;
+	set_rattr_l_slim(presv, RESV_ATR_end, newend, SET);
 	presv->ri_qs.ri_etime = newend;
 
-	presv->ri_wattr[RESV_ATR_resv_idx].at_val.at_long = ridx;
-	presv->ri_wattr[RESV_ATR_resv_idx].at_flags |= ATR_VFLAG_SET
-		| ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
+	set_rattr_l_slim(presv, RESV_ATR_resv_idx, ridx, SET);
+	set_rattr_l_slim(presv, RESV_ATR_duration, presv->ri_qs.ri_duration, SET);
 
-	presv->ri_wattr[RESV_ATR_duration].at_val.at_long = presv->ri_qs.ri_duration;
-	presv->ri_wattr[RESV_ATR_duration].at_flags |= ATR_VFLAG_SET
-		| ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-
-	rscdef = find_resc_def(svr_resc_def, "walltime", svr_resc_size);
-	prsc = find_resc_entry(&presv->ri_wattr[RESV_ATR_resource], rscdef);
+	rscdef = &svr_resc_def[RESC_WALLTIME];
+	prsc = find_resc_entry(get_rattr(presv, RESV_ATR_resource), rscdef);
 	atemp.at_flags = ATR_VFLAG_SET;
 	atemp.at_type = ATR_TYPE_LONG;
 	atemp.at_val.at_long = presv->ri_qs.ri_duration;
 	rscdef->rs_set(&prsc->rs_value, &atemp, SET);
-	presv->ri_wattr[RESV_ATR_resource].at_flags |= ATR_VFLAG_SET | ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
+	post_attr_set(get_rattr(presv, RESV_ATR_resource));
 
 	/* Assign the allocated resources to the reservation
 	 * and the reservation to the associated vnodes
 	 */
-	rc = assign_resv_resc(presv, newxc);
+	rc = assign_resv_resc(presv, newxc, FALSE);
 	free(newxc);
 
 	if (rc != PBSE_NONE) {
 		sprintf(log_buffer, "problem assigning resource to reservation occurrence (%d)", rc);
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_RESV, LOG_NOTICE, presv->ri_qs.ri_resvID, log_buffer);
+		resv_setResvState(presv, RESV_DEGRADED, RESV_DEGRADED);
+		/* avoid skipping a reconfirmation */
+		presv->ri_degraded_time = newstart;
+		force_resv_retry(presv, determine_resv_retry(presv));
+		resv_save_db(presv);
 		return;
 	}
 
-	/*place "Time4resv" task on "task_list_timed"*/
+	/* place "Time4resv" task on "task_list_timed" */
 	if ((rc = gen_task_Time4resv(presv)) != 0) {
 		sprintf(log_buffer, "problem generating task Time for occurrence (%d)", rc);
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_RESV, LOG_NOTICE, presv->ri_qs.ri_resvID, log_buffer);
+		resv_setResvState(presv, RESV_DEGRADED, RESV_DEGRADED);
+		/* avoid skipping a reconfirmation */
+		presv->ri_degraded_time = newstart;
+		force_resv_retry(presv, determine_resv_retry(presv));
+		resv_save_db(presv);
 		return;
 	}
 	/* add task to handle the end of the next occurrence */
 	if ((rc = gen_task_EndResvWindow(presv)) != 0) {
-		(void)resv_purge(presv);
-		sprintf(log_buffer, " problem generating reservation end task for occurrence (%d)", rc);
+		(void) resv_purge(presv);
+		sprintf(log_buffer, "problem generating reservation end task for occurrence (%d); "
+		        "purging reservation", rc);
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_RESV, LOG_NOTICE, presv->ri_qs.ri_resvID, log_buffer);
 		return;
 	}
 
 	/* compute new values for state and substate */
-	eval_resvState(presv, RESVSTATE_gen_task_Time4resv, 0, &state, &sub);
+	eval_resvState(presv, RESVSTATE_gen_task_Time4resv, 1, &state, &sub);
 
 	/*
 	 * Walk the nodes list associated to this reservation to determine if any
@@ -3422,25 +3063,18 @@ Time4occurrenceFinish(resc_resv *presv)
 		}
 	}
 
+	/* All nodes of this occurrence are up, mark reservation confirmed */
+	if (pl == NULL)
+		state = RESV_CONFIRMED;
+
 	/* If the reservation already has a retry time set then its substate is
-	 * marked degraded
+	 * marked degraded.  If all degraded occurrences are in the past, the
+	 * scheduler will fix this on the next retry attempt.
 	 */
-	if (presv->ri_wattr[RESV_ATR_retry].at_val.at_long > time_now) {
+	if (is_rattr_set(presv, RESV_ATR_retry)) {
 		sub = RESV_DEGRADED;
-	}
-	/* otherwise, if it has a valid degraded time past the cutoff time then
-	 * set the retry time to be the half time to the degraded time
-	 */
-	else if (presv->ri_degraded_time > (time_now + reserve_retry_cutoff)) {
-		set_resv_retry(presv, time_now + ((presv->ri_degraded_time - time_now)/2));
-	}
-	/* otherwise, if degraded, default to setting a retry time in a
-	 * "reasonable" time in the future
-	 */
-	else if ((presv->ri_wattr[RESV_ATR_retry].at_flags & ATR_VFLAG_SET) &&
-		presv->ri_wattr[RESV_ATR_retry].at_val.at_long > 0 &&
-		presv->ri_wattr[RESV_ATR_retry].at_val.at_long <= time_now) {
-		set_resv_retry(presv, time_now + 120);
+		if (get_rattr_long(presv, RESV_ATR_retry) > 0 && get_rattr_long(presv, RESV_ATR_retry) <= time_now)
+			set_resv_retry(presv, time_now + 120);
 	}
 
 	if (sub == RESV_DEGRADED) {
@@ -3450,8 +3084,7 @@ Time4occurrenceFinish(resc_resv *presv)
 	/* Set the reservation state and substate */
 	resv_setResvState(presv, state, sub);
 
-	if (presv->ri_modified)
-		(void)job_or_resv_save((void *)presv, SAVERESV_FULL, RESC_RESV_OBJECT);
+	resv_save_db(presv);
 }
 
 /**
@@ -3495,13 +3128,13 @@ delete_occurrence_jobs(resc_resv *presv)
 	job *pjob, *pnxj;
 	struct work_task *ptask;
 
-	pjob = (job *)GET_NEXT(presv->ri_qp->qu_jobs);
+	pjob = (job *) GET_NEXT(presv->ri_qp->qu_jobs);
 	while (pjob != NULL) {
 		/* Get the next job from the queue before the job is unlinked as a result
 		 * of job_abt
 		 */
-		pnxj = (job *)GET_NEXT(pjob->ji_jobque);
-		if (pjob->ji_qs.ji_state == JOB_STATE_RUNNING && pjob->ji_qs.ji_substate != JOB_SUBSTATE_ABORT)
+		pnxj = (job *) GET_NEXT(pjob->ji_jobque);
+		if (check_job_state(pjob, JOB_STATE_LTR_RUNNING) && !check_job_substate(pjob, JOB_SUBSTATE_ABORT))
 			(void) job_abt(pjob, "Deleting running job at end of reservation occurrence");
 
 		pjob = pnxj;
@@ -3528,8 +3161,8 @@ delete_occurrence_jobs(resc_resv *presv)
 void
 Time4_term(struct work_task *ptask)
 {
-	resc_resv		*presv = ptask->wt_parm1;
-	struct  batch_request	*preq;
+	resc_resv *presv = ptask->wt_parm1;
+	struct batch_request *preq;
 
 	/*construct a "deleteResv" batch request for the dummy connection
 	 *PBS_LOCAL_CONNECTION; Issue that request via "issue_Drequest".
@@ -3553,11 +3186,11 @@ Time4_term(struct work_task *ptask)
 
 		strcpy(preq->rq_user, pbs_current_user);
 		strcpy(preq->rq_host, server_host);
-		strcpy(preq->rq_ind.rq_delete.rq_objname,
-			presv->ri_qs.ri_resvID);
+		strcpy(preq->rq_ind.rq_manager.rq_objname,
+		       presv->ri_qs.ri_resvID);
 
-		(void)issue_Drequest(PBS_LOCAL_CONNECTION, preq,
-			resvFinishReply, NULL, 0);
+		(void) issue_Drequest(PBS_LOCAL_CONNECTION, preq,
+				      resvFinishReply, NULL, 0);
 
 		/*notify relevant parties that the reservation's
 		 *ending time has arrived and reservation is being deleted
@@ -3568,7 +3201,6 @@ Time4_term(struct work_task *ptask)
 		set_last_used_time_node(presv, 1);
 	}
 }
-
 
 /**
  * @brief
@@ -3584,8 +3216,8 @@ Time4_term(struct work_task *ptask)
 void
 Time4_I_term(struct work_task *ptask)
 {
-	resc_resv		*presv = ptask->wt_parm1;
-	struct  batch_request	*preq;
+	resc_resv *presv = ptask->wt_parm1;
+	struct batch_request *preq;
 
 	if (presv->ri_qs.ri_state != RESV_UNCONFIRMED)
 		return;
@@ -3612,11 +3244,11 @@ Time4_I_term(struct work_task *ptask)
 
 		strcpy(preq->rq_user, pbs_current_user);
 		strcpy(preq->rq_host, server_host);
-		strcpy(preq->rq_ind.rq_delete.rq_objname,
-			presv->ri_qs.ri_resvID);
+		strcpy(preq->rq_ind.rq_manager.rq_objname,
+		       presv->ri_qs.ri_resvID);
 
-		(void)issue_Drequest(PBS_LOCAL_CONNECTION, preq,
-			resvFinishReply, NULL, 0);
+		(void) issue_Drequest(PBS_LOCAL_CONNECTION, preq,
+				      resvFinishReply, NULL, 0);
 
 		/*notify relevant parties that the reservation's
 		 *ending time has arrived and reservation is being deleted
@@ -3626,7 +3258,6 @@ Time4_I_term(struct work_task *ptask)
 		tickle_for_reply();
 	}
 }
-
 
 /**
  * @brief
@@ -3647,10 +3278,9 @@ resvFinishReply(struct work_task *ptask)
 {
 	if (ptask->wt_event == PBS_LOCAL_CONNECTION) {
 		/*we passed the little sanity check so do the free*/
-		free_br((struct batch_request *)ptask->wt_parm1);
+		free_br((struct batch_request *) ptask->wt_parm1);
 	}
 }
-
 
 /**
  * @brief
@@ -3669,31 +3299,48 @@ resvFinishReply(struct work_task *ptask)
  * @param[out]	psub	-	substate of resv state
  */
 void
-eval_resvState(resc_resv *presv, enum resvState_discrim s, int relVal,
-	int *pstate, int *psub)
+eval_resvState(resc_resv *presv, enum resvState_discrim s, int relVal, int *pstate, int *psub)
 {
-	/*initialize new values to current settings*/
+	int is_running = 0;
 
 	*pstate = presv->ri_qs.ri_state;
 	*psub = presv->ri_qs.ri_substate;
 
-	if (s == RESVSTATE_gen_task_Time4resv) {
-		if (relVal == 0) {
-			if (*pstate == RESV_BEING_ALTERED) {
-				/*
-				 * Altering a reservation's start time after the current time
-				 * moves the reservation into the confirmed state.
-				 */
-				if (presv->ri_qs.ri_stime > time_now) {
+	if (time_now >= presv->ri_qs.ri_stime && time_now < presv->ri_qs.ri_etime)
+		is_running = 1;
 
-					*pstate = RESV_CONFIRMED;
-					*psub = RESV_CONFIRMED;
-				} else {
-					/* Altering a reservation after its start time */
+	if (s == RESVSTATE_gen_task_Time4resv) {
+		/* from a successful confirmation */
+		if (relVal == 0) {
+			if (*psub == RESV_DEGRADED) {
+				if (is_running) {
 					*pstate = RESV_RUNNING;
 					*psub = RESV_RUNNING;
+				} else {
+					*pstate = RESV_CONFIRMED;
+					*psub = RESV_CONFIRMED;
 				}
-			} else if (presv->ri_qs.ri_etime > time_now) {
+			} else {
+				if (*pstate == RESV_BEING_ALTERED) {
+					if (is_running) {
+						*pstate = RESV_RUNNING;
+						*psub = RESV_RUNNING;
+
+					} else {
+						/* Altering a reservation after its start time */
+						*pstate = RESV_CONFIRMED;
+						*psub = RESV_CONFIRMED;
+					}
+				} else if (presv->ri_qs.ri_etime > time_now) {
+					*pstate = RESV_CONFIRMED;
+					*psub = RESV_CONFIRMED;
+				}
+			}
+		} else {
+			/* End of standing occurrence */
+			if (*psub == RESV_DEGRADED)
+				*pstate = RESV_DEGRADED;
+			else {
 				*pstate = RESV_CONFIRMED;
 				*psub = RESV_CONFIRMED;
 			}
@@ -3701,16 +3348,16 @@ eval_resvState(resc_resv *presv, enum resvState_discrim s, int relVal,
 	} else if (s == RESVSTATE_Time4resv) {
 		if (relVal == 0) {
 			if (presv->ri_qs.ri_stime <= time_now &&
-				time_now <= presv->ri_qs.ri_etime) {
+			    time_now <= presv->ri_qs.ri_etime) {
 				if (*pstate == RESV_DEGRADED || *psub == RESV_DEGRADED)
 					*psub = RESV_DEGRADED;
 				else
 					*psub = RESV_RUNNING;
 				*pstate = RESV_RUNNING;
-				if (presv->ri_qs.ri_tactive <
-					presv->ri_wattr[RESV_ATR_start].at_val.at_long)
-					/*Assigning time_now to indicate when reservation become active
- 					 *to help in fend off accounting on server restart*/
+				if (presv->ri_qs.ri_tactive < get_rattr_long(presv, RESV_ATR_start))
+					/* Assigning time_now to indicate when reservation become active
+ 					 *to help in fend off accounting on server restart
+					 */
 					presv->ri_qs.ri_tactive = time_now;
 			}
 		}
@@ -3739,12 +3386,27 @@ eval_resvState(resc_resv *presv, enum resvState_discrim s, int relVal,
 	} else if (s == RESVSTATE_req_resvSub) {
 		*pstate = RESV_UNCONFIRMED;
 		*psub = RESV_UNCONFIRMED;
-	} else if (s == RESVSTATE_alter_failed)
-		/* backup only the state, as substate was not modified. */
-		*pstate = presv->ri_alter_state;
+	} else if (s == RESVSTATE_alter_failed) {
+		if (presv->ri_alter.ra_state) {
+			*pstate = presv->ri_alter.ra_state;
+		} else if (*psub == RESV_IN_CONFLICT || *psub == RESV_DEGRADED) {
+			if (is_running) {
+				*pstate = RESV_RUNNING;
+			} else {
+				*pstate = RESV_DEGRADED;
+			}
+		} else if (is_running) {
+			*pstate = RESV_RUNNING;
+			*psub = RESV_RUNNING;
+		} else if (is_rattr_set(presv, RESV_ATR_resv_nodes)) {
+			*pstate = RESV_CONFIRMED;
+			*psub = RESV_CONFIRMED;
+		} else {
+			*pstate = RESV_UNCONFIRMED;
+			*psub = RESV_UNCONFIRMED;
+		}
+	}
 }
-
-
 
 /**
  * @brief
@@ -3762,24 +3424,20 @@ void
 resv_setResvState(resc_resv *presv, int state, int sub)
 {
 	if ((presv->ri_qs.ri_state == state) &&
-		(presv->ri_qs.ri_substate == sub))
+	    (presv->ri_qs.ri_substate == sub))
 		return;
+
+	DBPRT(("resv_name=%s, o_state=%d, o_sub=%d, state=%d, sub=%d",
+	       presv->ri_qs.ri_resvID, presv->ri_qs.ri_state, presv->ri_qs.ri_substate,
+	       state, sub))
 
 	presv->ri_qs.ri_state = state;
 	presv->ri_qs.ri_substate = sub;
 
-	presv->ri_wattr[(int)RESV_ATR_state]
-	.at_val.at_long = state;
-	presv->ri_wattr[(int)RESV_ATR_state]
-	.at_flags |= ATR_VFLAG_SET |
-		ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
+	set_rattr_l_slim(presv, RESV_ATR_state, state, SET);
+	set_rattr_l_slim(presv, RESV_ATR_substate, sub, SET);
 
-	presv->ri_wattr[(int)RESV_ATR_substate]
-	.at_val.at_long = sub;
-	presv->ri_wattr[(int)RESV_ATR_substate]
-	.at_flags |= ATR_VFLAG_SET |
-		ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-	presv->ri_modified = 1;
+	resv_save_db(presv);
 	return;
 }
 
@@ -3789,11 +3447,12 @@ resv_setResvState(resc_resv *presv, int state, int sub)
  * 		in degraded mode and needs to have nodes replaced.
  *
  * @param[in]	ptask	-	work task structure which contains reservation.
+ * @param[in]	forced 	- 	whether to neuter scheduler call if ri_vnodes_down is 0
  */
 void
-resv_retry_handler(struct work_task *ptask)
+resv_retry_handler2(struct work_task *ptask, int forced)
 {
-	resc_resv	   *presv = ptask->wt_parm1;
+	resc_resv *presv = ptask->wt_parm1;
 
 	if (!presv)
 		return;
@@ -3802,11 +3461,39 @@ resv_retry_handler(struct work_task *ptask)
 	 * a change in the system setup or a recovery) then no action is required as
 	 * the handler vnode_available takes care of updating the reservation state
 	 */
-	if (presv->ri_vnodes_down == 0)
+	if (!forced && presv->ri_vnodes_down == 0)
 		return;
 
 	/* Notify scheduler that a reservation needs to be reconfirmed */
-	set_scheduler_flag(SCH_SCHEDULE_RESV_RECONFIRM, dflt_scheduler);
+	notify_scheds_about_resv(SCH_SCHEDULE_RESV_RECONFIRM, presv);
+}
+
+/**
+ * @brief
+ * 		Set a scheduler flag to initiate a scheduling cycle when a reservation is
+ * 		in degraded mode and needs to have nodes replaced.
+ *		this version will only kick scheduler if ri_vnodes_down > 0
+ *
+ * @param[in]	ptask	-	work task structure which contains reservation.
+ */
+void
+resv_retry_handler(struct work_task *ptask)
+{
+	resv_retry_handler2(ptask, 0);
+}
+
+/**
+ * @brief
+ * 		Set a scheduler flag to initiate a scheduling cycle when a reservation is
+ * 		in degraded mode and needs to have nodes replaced.
+ *		this version will also kick scheduler if ri_vnodes_down is 0
+ *
+ * @param[in]	ptask	-	work task structure which contains reservation.
+ */
+void
+resv_retry_handler_forced(struct work_task *ptask)
+{
+	resv_retry_handler2(ptask, 1);
 }
 
 /**
@@ -3822,23 +3509,19 @@ resv_retry_handler(struct work_task *ptask)
 int
 chk_resvReq_viable(resc_resv *presv)
 {
-	attribute		*ap;
-	int			rc;
+	long state = get_rattr_long(presv, RESV_ATR_state);
+	int rc;
 
-	ap = &presv->ri_wattr[RESV_ATR_state];
-	if (ap->at_val.at_long == RESV_NONE)
-		return    PBSE_INTERNAL;
+	if (state == RESV_NONE)
+		return PBSE_INTERNAL;
 
-	rc = 0;		/*assume no problems occur*/
+	rc = 0; /*assume no problems occur*/
 
-	if (ap->at_val.at_long == RESV_FINISHED ||
-		ap->at_val.at_long == RESV_DELETED  ||
-		ap->at_val.at_long == RESV_BEING_DELETED)
+	if (state == RESV_FINISHED || state == RESV_DELETED || state == RESV_BEING_DELETED)
 		rc = PBSE_INTERNAL;
 
-	return  (rc);
+	return rc;
 }
-
 
 /**
  * @brief
@@ -3858,21 +3541,19 @@ chk_resvReq_viable(resc_resv *presv)
 int
 gen_task_Time4resv(resc_resv *presv)
 {
-	struct work_task	*ptask;
-	attribute		*ap;
-	int			rc;
-	long			startTime;
+	struct work_task *ptask;
+	int rc;
+	long startTime;
 
-	ap = &presv->ri_wattr[RESV_ATR_state];
-	if (ap->at_val.at_long == RESV_NONE)
-		return    PBSE_INTERNAL;
+	if (get_rattr_long(presv, RESV_ATR_state) == RESV_NONE)
+		return PBSE_INTERNAL;
 
 	if (presv->resv_start_task)
 		delete_task(presv->resv_start_task);
 	presv->resv_start_task = NULL;
-	startTime = presv->ri_wattr[RESV_ATR_start].at_val.at_long;
+	startTime = get_rattr_long(presv, RESV_ATR_start);
 	if ((ptask = set_task(WORK_Timed, startTime,
-		Time4resv, presv)) != 0) {
+			      Time4resv, presv)) != 0) {
 		/* set things so that the reservation going away causes
 		 * any "yet to be processed" work tasks to also go away
 		 */
@@ -3888,9 +3569,8 @@ gen_task_Time4resv(resc_resv *presv)
 	} else
 		rc = PBSE_SYSTEM;
 
-	return  (rc);
+	return (rc);
 }
-
 
 /**
  * @brief
@@ -3907,20 +3587,18 @@ gen_task_Time4resv(resc_resv *presv)
 int
 gen_task_EndResvWindow(resc_resv *presv)
 {
-	int		 rc;
-	long		 fromNow;
+	int rc;
+	long fromNow;
 
 	if (presv == NULL)
 		return (PBSE_INTERNAL);
 
-	fromNow = presv->ri_qs.ri_etime - (long)time_now;
-	if ((server.sv_attr[(int)SVR_ATR_resv_post_processing].at_flags &
-		ATR_VFLAG_SET) != 0)
-		fromNow -= server.sv_attr[(int)SVR_ATR_resv_post_processing].at_val.at_long;
+	fromNow = presv->ri_qs.ri_etime - (long) time_now;
+	if (is_sattr_set(SVR_ATR_resv_post_processing))
+		fromNow -= get_sattr_long(SVR_ATR_resv_post_processing);
 	rc = gen_future_deleteResv(presv, fromNow);
-	return  (rc);
+	return (rc);
 }
-
 
 /**
  * @brief
@@ -3939,12 +3617,12 @@ gen_task_EndResvWindow(resc_resv *presv)
 int
 gen_deleteResv(resc_resv *presv, long fromNow)
 {
-	struct work_task	*ptask;
-	int			rc = 0;		/*assume success*/
-	long			event = (long)time_now + fromNow;
+	struct work_task *ptask;
+	int rc = 0; /*assume success*/
+	long event = (long) time_now + fromNow;
 
 	if ((ptask = set_task(WORK_Timed, event,
-		Time4_term, presv)) != 0) {
+			      Time4_term, presv)) != 0) {
 
 		/* set things so that the reservation going away results in
 		 * any "yet to be processed" work tasks also going away
@@ -3956,9 +3634,8 @@ gen_deleteResv(resc_resv *presv, long fromNow)
 	} else
 		rc = PBSE_SYSTEM;
 
-	return  (rc);
+	return (rc);
 }
-
 
 /**
  * @brief
@@ -3979,12 +3656,12 @@ gen_deleteResv(resc_resv *presv, long fromNow)
 int
 gen_negI_deleteResv(resc_resv *presv, long fromNow)
 {
-	struct work_task	*ptask;
-	int			rc = 0;		/*assume success*/
-	long			event = (long)time_now + fromNow;
+	struct work_task *ptask;
+	int rc = 0; /*assume success*/
+	long event = (long) time_now + fromNow;
 
 	if ((ptask = set_task(WORK_Timed, event,
-		Time4_I_term, presv)) != 0) {
+			      Time4_I_term, presv)) != 0) {
 
 		/* set things so that the reservation going away results in
 		 * any "yet to be processed" work tasks also going away
@@ -3996,9 +3673,8 @@ gen_negI_deleteResv(resc_resv *presv, long fromNow)
 	} else
 		rc = PBSE_SYSTEM;
 
-	return  (rc);
+	return (rc);
 }
-
 
 /**
  * @brief
@@ -4019,15 +3695,15 @@ gen_negI_deleteResv(resc_resv *presv, long fromNow)
 int
 gen_future_deleteResv(resc_resv *presv, long fromNow)
 {
-	struct work_task	*ptask = NULL;
-	int			rc = 0;		/*assume success*/
-	long			event = (long)time_now + fromNow;
+	struct work_task *ptask = NULL;
+	int rc = 0; /*assume success*/
+	long event = (long) time_now + fromNow;
 
 	if (presv->resv_end_task)
 		delete_task(presv->resv_end_task);
 	presv->resv_end_task = NULL;
 	if ((ptask = set_task(WORK_Timed, event,
-		Time4resvFinish, presv)) != 0) {
+			      Time4resvFinish, presv)) != 0) {
 
 		/* set things so that the reservation going away results in
 		 * any "yet to be processed" work tasks also going away
@@ -4040,9 +3716,8 @@ gen_future_deleteResv(resc_resv *presv, long fromNow)
 	} else
 		rc = PBSE_SYSTEM;
 
-	return  (rc);
+	return (rc);
 }
-
 
 /**
  * @brief
@@ -4063,12 +3738,12 @@ gen_future_deleteResv(resc_resv *presv, long fromNow)
 int
 gen_future_reply(resc_resv *presv, long fromNow)
 {
-	struct work_task	*ptask;
-	int			rc = 0;		/*assume success*/
-	long			event = (long)time_now + fromNow;
+	struct work_task *ptask;
+	int rc = 0; /*assume success*/
+	long event = (long) time_now + fromNow;
 
 	if ((ptask = set_task(WORK_Timed, event,
-		Time4reply, presv)) != 0) {
+			      Time4reply, presv)) != 0) {
 
 		/* set things so that the reservation going away results in
 		 * any "yet to be processed" work tasks also going away
@@ -4080,9 +3755,8 @@ gen_future_reply(resc_resv *presv, long fromNow)
 	} else
 		rc = PBSE_SYSTEM;
 
-	return  (rc);
+	return (rc);
 }
-
 
 /**
  * @brief
@@ -4111,42 +3785,33 @@ gen_future_reply(resc_resv *presv, long fromNow)
 int
 change_enableORstart(resc_resv *presv, int which, char *value)
 {
-	extern char  *msg_internalReqFail;
-	struct batch_request	*newreq;
-	pbs_list_head		*plhed;
-	int			len;
-	svrattrl		*psatl;
-	struct work_task	*pwt;
-	char			*at_name;
-	int			index;
+	extern char *msg_internalReqFail;
+	struct batch_request *newreq;
+	pbs_list_head *plhed;
+	int len;
+	svrattrl *psatl;
+	struct work_task *pwt;
+	char *at_name;
+	int index;
 
-	/*General Remark: shouldn't do any queue "enable/start"
-	 *changing for reservation jobs since they don't have
-	 *a queue especially created for them
-	 */
-	if (presv->ri_qs.ri_type != RESC_RESV_OBJECT)
-		return (0);
-
-	if (which == Q_CHNG_START && strcmp(value, ATR_TRUE) == 0 &&
-		! presv->ri_wattr[RESV_ATR_resv_nodes].at_flags & ATR_VFLAG_SET)
+	if (which == Q_CHNG_START && strcmp(value, ATR_TRUE) == 0 && !is_rattr_set(presv, RESV_ATR_resv_nodes))
 		return (0);
 
 	newreq = alloc_br(PBS_BATCH_Manager);
 	if (newreq == NULL) {
-		(void)sprintf(log_buffer, "batch request allocation failed");
+		(void) sprintf(log_buffer, "batch request allocation failed");
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_RESV, LOG_NOTICE,
-			presv->ri_qs.ri_resvID, log_buffer);
-		return  (PBSE_SYSTEM);
+			  presv->ri_qs.ri_resvID, log_buffer);
+		return (PBSE_SYSTEM);
 	}
 
 	newreq->rq_ind.rq_manager.rq_cmd = MGR_CMD_SET;
 	newreq->rq_ind.rq_manager.rq_objtype = MGR_OBJ_QUEUE;
 	newreq->rq_perm = ATR_DFLAG_MGWR | ATR_DFLAG_OPWR;
-	(void)strcpy(newreq->rq_user, "pbs_server");
-	(void)strcpy(newreq->rq_host, pbs_server_name);
+	(void) strcpy(newreq->rq_user, "pbs_server");
+	(void) strcpy(newreq->rq_host, pbs_server_name);
 
-	strcpy(newreq->rq_ind.rq_manager.rq_objname,
-		presv->ri_wattr[RESV_ATR_queue].at_val.at_str);
+	strcpy(newreq->rq_ind.rq_manager.rq_objname, get_rattr_str(presv, RESV_ATR_queue));
 
 	CLEAR_HEAD(newreq->rq_ind.rq_manager.rq_attr);
 	plhed = &newreq->rq_ind.rq_manager.rq_attr;
@@ -4158,7 +3823,7 @@ change_enableORstart(resc_resv *presv, int which, char *value)
 		index = QA_ATR_Started;
 		at_name = que_attr_def[index].at_name;
 	} else
-		return  (PBSE_INTERNAL);
+		return (PBSE_INTERNAL);
 
 	len = strlen(value) + 1;
 	if ((psatl = attrlist_create(at_name, NULL, len)) != NULL) {
@@ -4167,27 +3832,25 @@ change_enableORstart(resc_resv *presv, int which, char *value)
 		append_link(plhed, &psatl->al_link, psatl);
 	} else {
 		free_br(newreq);
-		return  (PBSE_INTERNAL);
+		return (PBSE_INTERNAL);
 	}
 
 	if (issue_Drequest(PBS_LOCAL_CONNECTION, newreq,
-		handle_qmgr_reply_to_startORenable, &pwt, 0) == -1) {
+			   handle_qmgr_reply_to_startORenable, &pwt, 0) == -1) {
 		free_br(newreq);
 
-		(void)sprintf(log_buffer, "%s", msg_internalReqFail);
+		(void) sprintf(log_buffer, "%s", msg_internalReqFail);
 		log_event(PBSEVENT_RESV, PBS_EVENTCLASS_RESV, LOG_NOTICE,
-			presv->ri_qs.ri_resvID, log_buffer);
+			  presv->ri_qs.ri_resvID, log_buffer);
 
 		return (PBSE_mgrBatchReq);
 	}
 	tickle_for_reply();
 	if (pwt)
-		pwt->wt_parm2 = presv;	/*needed to handle qmgr's response*/
+		pwt->wt_parm2 = presv; /*needed to handle qmgr's response*/
 
 	return (0);
 }
-
-
 
 /**
  * @brief
@@ -4212,18 +3875,18 @@ change_enableORstart(resc_resv *presv, int which, char *value)
 static void
 handle_qmgr_reply_to_startORenable(struct work_task *pwt)
 {
-	extern char  *msg_qEnabStartFail;
-	struct batch_request	*preq = pwt->wt_parm1;
-	resc_resv		*presv = pwt->wt_parm2;
+	extern char *msg_qEnabStartFail;
+	struct batch_request *preq = pwt->wt_parm1;
+	resc_resv *presv = pwt->wt_parm2;
 
 	if (preq->rq_reply.brp_code) {
 
-		(void)sprintf(log_buffer, "%s", msg_qEnabStartFail);
+		(void) sprintf(log_buffer, "%s", msg_qEnabStartFail);
 		log_event(PBSEVENT_RESV, PBS_EVENTCLASS_RESV, LOG_NOTICE,
-			presv->ri_qs.ri_resvID, log_buffer);
+			  presv->ri_qs.ri_resvID, log_buffer);
 	}
 
-	free_br((struct batch_request *)pwt->wt_parm1);
+	free_br((struct batch_request *) pwt->wt_parm1);
 	if (pwt->wt_event != -1)
 		svr_disconnect(pwt->wt_event);
 
@@ -4236,7 +3899,6 @@ handle_qmgr_reply_to_startORenable(struct work_task *pwt)
 	 */
 }
 
-
 /**
  * @brief
  * 		remove_deleted_resvs - Walk the server's "svr_allresvs"
@@ -4248,12 +3910,12 @@ handle_qmgr_reply_to_startORenable(struct work_task *pwt)
 void
 remove_deleted_resvs(void)
 {
-	resc_resv		*presv, *nxresv;
-	struct work_task	*ptask;
+	resc_resv *presv, *nxresv;
+	struct work_task *ptask;
 
-	presv = (resc_resv *)GET_NEXT(svr_allresvs);
+	presv = (resc_resv *) GET_NEXT(svr_allresvs);
 	while (presv) {
-		nxresv = (resc_resv *)GET_NEXT(presv->ri_allresvs);
+		nxresv = (resc_resv *) GET_NEXT(presv->ri_allresvs);
 
 		if (presv->ri_qs.ri_state == RESV_FINISHED) {
 			/*put a task on the server's "task_list_timed" that causes
@@ -4262,7 +3924,7 @@ remove_deleted_resvs(void)
 			 */
 
 			if ((ptask = set_task(WORK_Timed, time_now + 5,
-				Time4resvFinish, presv)) != 0) {
+					      Time4resvFinish, presv)) != 0) {
 
 				/* set things so that the reservation going away results in
 				 * any "yet to be processed" work tasks also going away
@@ -4271,37 +3933,93 @@ remove_deleted_resvs(void)
 
 				append_link(&presv->ri_svrtask, &ptask->wt_linkobj, ptask);
 			}
+		} else if (presv->ri_qs.ri_state == RESV_DELETING_JOBS) {
+				/* this will set up the task to finally move it to RESV_FINISHED */
+				delete_occurrence_jobs(presv);
 		}
 		presv = nxresv;
 	}
 }
 
+/**
+ * @brief
+ *  	degrade_corrupted_confirmed_resvs - Walk the server's "svr_allresvs"
+ *  	list and cause to be degraded any reservation whose state
+ *  	is marked RESV_CONFIRMED but is missing resv_nodes or resv_execvnodes.
+ *  	Function used in "pbsd_init" code
+ *
+ * @return Nothing
+ */
+void
+degrade_corrupted_confirmed_resvs(void)
+{
+	int is_degraded = 0;
+	resc_resv *presv, *nxresv;
+	long retry_time = 0;
+	char *str_time;
+
+	presv = (resc_resv *) GET_NEXT(svr_allresvs);
+	while (presv) {
+		nxresv = (resc_resv *) GET_NEXT(presv->ri_allresvs);
+		/* if corrupted and already degraded we still need to set a retry time for the scheduler to be prodded again */
+		if (presv->ri_qs.ri_state == RESV_CONFIRMED || presv->ri_qs.ri_state == RESV_DEGRADED) {
+			if (get_rattr_long(presv, RESV_ATR_resv_standing))
+				if (!(is_rattr_set(presv, RESV_ATR_resv_execvnodes)) || get_rattr_str(presv, RESV_ATR_resv_execvnodes) == NULL)
+					is_degraded = 1;
+			if (!(is_rattr_set(presv, RESV_ATR_resv_nodes)) || get_rattr_str(presv, RESV_ATR_resv_nodes) == NULL)
+				is_degraded = 1;
+		} else if (presv->ri_qs.ri_state == RESV_FINISHED && get_rattr_long(presv, RESV_ATR_resv_standing))
+			if (get_rattr_long(presv, RESV_ATR_resv_idx) < get_rattr_long(presv, RESV_ATR_resv_count))
+				/* should never keep a standing reservation in RESV_FINISHED state for anything but the last occurrence */
+				/* if we don't degrade it then remove_deleted_resvs may create a task to nuke it */
+				is_degraded = 1;
+		if (is_degraded) {
+			resv_setResvState(presv, RESV_DEGRADED, RESV_DEGRADED);
+			/* there is no point in trying to reconfirm it immediately at server start,
+			 * since the nodes will not have reported as free yet.
+			 * One minute is a reasonable time to try, but jobs may already have filled
+			 * some nodes by then. Tough luck, but it's the best we can do. It beats
+			 * waiting for the default 600 seconds.
+			 */
+			retry_time = determine_resv_retry(presv);
+			if (time_now + 60 < retry_time)
+				retry_time = time_now + 60;
+			str_time = ctime(&retry_time);
+			if (str_time == NULL)
+				str_time = "";
+			presv->ri_degraded_time = get_rattr_long(presv, RESV_ATR_start);
+			/* bogus value, but avoid skipping a reconfirmation */
+			log_eventf(PBSEVENT_ERROR, PBS_EVENTCLASS_RESV, LOG_NOTICE, presv->ri_qs.ri_resvID,
+				   "Reservation with corrupted nodes, degrading with retry time set to %s", str_time);
+			force_resv_retry(presv, retry_time);
+		}
+		presv = nxresv;
+	}
+}
 
 /**
  * @brief
- * 		add_resv_beginEnd_tasks - for each reservation not in state
- *      RESV_FINISHED add to "task_list_timed" the "begin" and
- *      "end" reservation tasks as appropriate.  Function used
- *		in "pbsd_init" code
+ *  	add_resv_beginEnd_tasks - for each reservation not in state
+ *  	RESV_FINISHED add to "task_list_timed" the "begin" and
+ *  	"end" reservation tasks as appropriate.  Function used
+ *  	in "pbsd_init" code
  *
  * @return	none
  */
 void
 add_resv_beginEnd_tasks(void)
 {
-	resc_resv		*presv;
-	char			txt[PBS_MAXSVRRESVID + 100];
-	int			rc;
+	resc_resv *presv;
+	char txt[PBS_MAXSVRRESVID + 100];
+	int rc;
 
-
-	presv = (resc_resv *)GET_NEXT(svr_allresvs);
+	presv = (resc_resv *) GET_NEXT(svr_allresvs);
 	while (presv) {
-
 		rc = 0;
 		if (presv->ri_qs.ri_state == RESV_CONFIRMED ||
-			presv->ri_qs.ri_state == RESV_RUNNING) {
+		    presv->ri_qs.ri_state == RESV_RUNNING) {
 
-			/*add "begin" and "end" tasks onto "task_list_timed"*/
+			/* add "begin" and "end" tasks onto "task_list_timed" */
 
 			if ((rc = gen_task_EndResvWindow(presv)) != 0) {
 				sprintf(txt, "%s : EndResvWindow task creation failed",
@@ -4315,7 +4033,7 @@ add_resv_beginEnd_tasks(void)
 			}
 		} else if (presv->ri_qs.ri_state == RESV_UNCONFIRMED) {
 
-			/*add "end" task onto "task_list_timed"*/
+			/* add "end" task onto "task_list_timed" */
 
 			if ((rc = gen_task_EndResvWindow(presv)) != 0) {
 				sprintf(txt, "%s : EndResvWindow task creation failed",
@@ -4324,11 +4042,9 @@ add_resv_beginEnd_tasks(void)
 			}
 		}
 
-		presv = (resc_resv *)GET_NEXT(presv->ri_allresvs);
+		presv = (resc_resv *) GET_NEXT(presv->ri_allresvs);
 	}
 }
-
-
 
 /**
  * @brief
@@ -4349,28 +4065,26 @@ add_resv_beginEnd_tasks(void)
 int
 uniq_nameANDfile(char *pname, char *psuffix, char *pdir)
 {
-	int	fds, L1, L2;
-	int	rc = 0;
-	char	*pc;
-	char	namebuf[MAXPATHLEN + 1];
-
+	int fds, L1, L2;
+	int rc = 0;
+	char *pc;
+	char namebuf[MAXPATHLEN + 1];
 
 	if (!pname || !psuffix || !pdir ||
-		!(L1 = strlen(pname)) ||
-		!(L2 = strlen(pdir))  ||
-		((L1 + L2 + strlen(psuffix)) >= MAXPATHLEN))
-		return  (PBSE_INTERNAL);
-
+	    !(L1 = strlen(pname)) ||
+	    !(L2 = strlen(pdir)) ||
+	    ((L1 + L2 + strlen(psuffix)) >= MAXPATHLEN))
+		return (PBSE_INTERNAL);
 
 	do {
-		(void)strcpy(namebuf, pdir);
-		(void)strcat(namebuf, pname);
-		(void)strcat(namebuf, psuffix);
+		(void) strcpy(namebuf, pdir);
+		(void) strcat(namebuf, pname);
+		(void) strcat(namebuf, psuffix);
 		fds = open(namebuf, O_CREAT | O_EXCL | O_WRONLY, 0600);
 		if (fds < 0) {
 			if (errno == EEXIST) {
 				pc = pname + strlen(pname) - 1;
-				while (! isprint((int)*pc)) {
+				while (!isprint((int) *pc)) {
 					pc--;
 					if (pc <= pname) {
 						rc = PBSE_INTERNAL;
@@ -4386,15 +4100,13 @@ uniq_nameANDfile(char *pname, char *psuffix, char *pdir)
 	} while (fds < 0);
 
 	if (fds)
-		(void)close(fds);
+		(void) close(fds);
 	return (rc);
 }
 
 /**
  * @brief
- *		start_end_dur_wall - This function handles both "resc_resv"
- *		objects or "job" objects.   If it is passed a reservation
- *		of some type, it considers the information specified for
+ *		start_end_dur_wall - This function considers the information specified for
  *		start_time, end_time, duration and walltime.  Using what was
  *		specified, it computes those unspecified values that are
  *		possible to compute. If the initially supplied information
@@ -4408,219 +4120,187 @@ uniq_nameANDfile(char *pname, char *psuffix, char *pdir)
  *		"ri_qs.ri_etime", and "ri_qs.ri_duration" fields are subject
  *		to modification.
  *
- * @param[in,out]	pobj	-	it can be "resc_resv" objects or "job" objects.
- * @param[in]	objtype	-	determines the type of object - job/resc_resv.
+ * @param[in,out]	presv	-	the "resc_resv" object
  *
  * @return	int
  * @retval	0	: Success
- * @retval	!=0	: don't have a complete or consistent set of
+ * @retval	!= 0	: don't have a complete or consistent set of
  * 					information, or possibly some other error
  * 					occurred - e.g. problem adding the "walltime"
  * 					resource entry if it doesn't exist
  */
 int
-start_end_dur_wall(void *pobj, int objtype)
+start_end_dur_wall(resc_resv *presv)
 {
-	job		*pjob = NULL;
-	resc_resv	*presv = NULL;
-	resource_def	*rscdef = NULL;
-	resource	*prsc = NULL;
-	attribute	*pstime = NULL;
-	attribute	*petime = NULL;
-	attribute	*pduration = NULL;
-	attribute	*pattr = NULL;
-	attribute	atemp = {0};
-	attribute_def	*pddef = NULL;
-	int		pstate = 0;
+	resource_def *rscdef = NULL;
+	resource *prsc = NULL;
+	attribute *pattr = NULL;
+	attribute atemp = {0};
+	int pstate = 0;
+	long stime, etime, duration;
 
-	int	swcode = 0;	/*"switch code"*/
-	int	rc = 0;		/*return code, assume success*/
+	int swcode = 0; /* "switch code" */
+	int rc = 0;	/* return code, assume success */
+	short check_start = 1;
 
-	if (pobj == 0)
+	if (presv == 0)
 		return (-1);
 
-	rscdef = find_resc_def(svr_resc_def, "walltime", svr_resc_size);
+	rscdef = &svr_resc_def[RESC_WALLTIME];
+	pstate = get_rattr_long(presv, RESV_ATR_state);
+	stime = get_rattr_long(presv, RESV_ATR_start);
+	etime = get_rattr_long(presv, RESV_ATR_end);
+	duration = get_rattr_long(presv, RESV_ATR_duration);
 
-	if (objtype == JOB_OBJECT) {
-		pjob = (job *)pobj;
-		if ((pjob->ji_wattr[JOB_ATR_reserve_start]
-			.at_flags & ATR_VFLAG_SET) == 0)
-			return (0);
-		else {
-			pjob = (job *)pobj;
-			pstime = &pjob->ji_wattr[JOB_ATR_reserve_start];
-
-			petime = &pjob->ji_wattr[JOB_ATR_reserve_end];
-
-			pddef = &job_attr_def[JOB_ATR_reserve_duration];
-			pduration = &pjob->ji_wattr[JOB_ATR_reserve_duration];
-
-			pattr = &pjob->ji_wattr[JOB_ATR_resource];
-			prsc = find_resc_entry(&pjob->ji_wattr[JOB_ATR_resource],
-				rscdef);
-		}
-	} else if (objtype == RESC_RESV_OBJECT) {
-		presv = (resc_resv *)pobj;
-		pstime = &presv->ri_wattr[RESV_ATR_start];
-		pstate = presv->ri_wattr[RESV_ATR_state].at_val.at_long;
-
-		petime = &presv->ri_wattr[RESV_ATR_end];
-
-		pddef = &resv_attr_def[RESV_ATR_duration];
-		pduration = &presv->ri_wattr[RESV_ATR_duration];
-
-		pattr = &presv->ri_wattr[RESV_ATR_resource];
-		prsc = find_resc_entry(&presv->ri_wattr[RESV_ATR_resource],
-			rscdef);
-	} else if (objtype == RESV_JOB_OBJECT) {
-		pjob = (job *)pobj;
-		presv = pjob->ji_resvp;
-		pstime = &pjob->ji_wattr[JOB_ATR_reserve_start];
-
-		petime = &pjob->ji_wattr[JOB_ATR_reserve_end];
-
-		pddef = &job_attr_def[JOB_ATR_reserve_duration];
-		pduration = &pjob->ji_wattr[JOB_ATR_reserve_duration];
-
-		pattr = &pjob->ji_wattr[JOB_ATR_resource];
-		prsc = find_resc_entry(&pjob->ji_wattr[JOB_ATR_resource],
-			rscdef);
-	} else
-		return (-1);
+	pattr = get_rattr(presv, RESV_ATR_resource);
+	prsc = find_resc_entry(pattr, rscdef);
+	check_start = !is_rattr_set(presv, RESV_ATR_job);
 
 	if (pstate != RESV_BEING_ALTERED) {
-		if (pstime->at_flags & ATR_VFLAG_SET)
-			swcode += 1;			/*have start*/
-		if (petime->at_flags & ATR_VFLAG_SET)
-			swcode += 2;			/*have end  */
-		if (pduration->at_flags & ATR_VFLAG_SET)
-			swcode += 4;			/*have duration*/
+		if (is_rattr_set(presv, RESV_ATR_start))
+			swcode += 1; /* have start */
+		if (is_rattr_set(presv, RESV_ATR_end))
+			swcode += 2; /* have end */
+		if (is_rattr_set(presv, RESV_ATR_duration))
+			swcode += 4; /* have duration */
 		if (prsc)
-			swcode += 8;			/*have walltime*/
+			swcode += 8; /* have walltime */
 		else if (!(prsc = add_resource_entry(pattr, rscdef)))
 			return (-1);
-	}
-	else {
-		swcode = 3;
+	} else {
+		if (presv->ri_alter.ra_flags & RESV_DURATION_MODIFIED)
+			swcode += 4;
+		if (presv->ri_alter.ra_flags & RESV_END_TIME_MODIFIED)
+			swcode += 2; /* calcualte start time */
+		if (presv->ri_alter.ra_flags & RESV_START_TIME_MODIFIED)
+			swcode += 1; /* calculate end time */
+		if (presv->ri_alter.ra_flags == RESV_START_TIME_MODIFIED || presv->ri_alter.ra_flags == RESV_END_TIME_MODIFIED) {
+			swcode = 3;
+		}
 	}
 
 	atemp.at_flags = ATR_VFLAG_SET;
 	atemp.at_type = ATR_TYPE_LONG;
 	switch (swcode) {
-		case  3:	/*start, end*/
-			if (((pstime->at_val.at_long < time_now) && (pstate != RESV_BEING_ALTERED)) ||
-				(petime->at_val.at_long <= pstime->at_val.at_long))
+		case 3: /* start, end */
+			if (((check_start && (stime < time_now)) && (pstate != RESV_BEING_ALTERED)) ||
+			    (etime <= stime))
 				rc = -1;
 			else {
-
-				atemp.at_val.at_long = (petime->at_val.at_long -
-					pstime->at_val.at_long);
-
-				(void)pddef->at_set(pduration, &atemp, SET);
-				(void)rscdef->rs_set(&prsc->rs_value, &atemp, SET);
+				if (pstate == RESV_BEING_ALTERED) {
+					presv->ri_alter.ra_flags |= RESV_DURATION_MODIFIED;
+				}
+				atemp.at_val.at_long = etime - stime;
+				set_rattr_l_slim(presv, RESV_ATR_duration, atemp.at_val.at_long, SET);
+				rscdef->rs_set(&prsc->rs_value, &atemp, SET);
 			}
 			break;
 
-		case  5:	/*start, duration*/
-			if ((pstime->at_val.at_long < time_now) ||
-				(pduration->at_val.at_long <= 0))
+		case 4:
+		case 5: /* start, duration */
+			if (((check_start && stime < time_now) && (pstate != RESV_BEING_ALTERED)) ||
+			    (duration <= 0))
 				rc = -1;
 			else {
-				petime->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				petime->at_val.at_long = pstime->at_val.at_long +
-					presv->ri_qs.ri_duration;
+				if (pstate == RESV_BEING_ALTERED) {
+					presv->ri_alter.ra_flags |= RESV_END_TIME_MODIFIED;
+				}
+				set_rattr_l_slim(presv, RESV_ATR_end, stime + duration, SET);
+				set_attr_l(&atemp, duration, SET);
+				rscdef->rs_set(&prsc->rs_value, &atemp, SET);
 			}
 			break;
 
-		case  7:	/*start, end, duration*/
-			if ((pstime->at_val.at_long < time_now) ||
-				(petime->at_val.at_long < pstime->at_val.at_long) ||
-				(pduration->at_val.at_long <= 0) ||
-				((petime->at_val.at_long - pstime->at_val.at_long) !=
-					pduration->at_val.at_long))
-				rc = -1;
-			break;
-
-		case  8:	/* end, duration */
-			if ((pduration->at_val.at_long <= 0) ||
-				(petime->at_val.at_long - pduration->at_val.at_long <
-					time_now)) {
-				rc = -1;
-			}
-			else {
-				pstime->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				pstime->at_val.at_long = petime->at_val.at_long -
-					pduration->at_val.at_long;
-			}
-			break;
-
-		case  9:	/*start, wall*/
-			if ((pstime->at_val.at_long < time_now) ||
-				(prsc->rs_value.at_val.at_long <= 0))
+		case 7: /* start, end, duration */
+			if (((check_start) && (stime < time_now)) ||
+			    (etime < stime) ||
+			    (duration <= 0) ||
+			    ((etime - stime) !=
+			     duration))
 				rc = -1;
 			else {
-				petime->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				petime->at_val.at_long = pstime->at_val.at_long +
-					prsc->rs_value.at_val.at_long;
-				pduration->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				pduration->at_val.at_long = prsc->rs_value.at_val.at_long;
+				atemp.at_val.at_long = duration;
+				rscdef->rs_set(&prsc->rs_value, &atemp, SET);
 			}
 			break;
 
-		case 10:	/* end, wall */
+		case 6:
+		case 8: /* end, duration */
+			if ((duration <= 0) ||
+			    (etime - duration <
+			     time_now)) {
+				rc = -1;
+			} else {
+				if (pstate == RESV_BEING_ALTERED) {
+					presv->ri_alter.ra_flags |= RESV_START_TIME_MODIFIED;
+				}
+				set_rattr_l_slim(presv, RESV_ATR_start, etime - duration, SET);
+				atemp.at_val.at_long = duration;
+				rscdef->rs_set(&prsc->rs_value, &atemp, SET);
+			}
+			break;
+
+		case 9: /* start, wall */
+			if (((check_start) && (stime < time_now)) ||
+			    (prsc->rs_value.at_val.at_long <= 0))
+				rc = -1;
+			else {
+				if (pstate == RESV_BEING_ALTERED) {
+					presv->ri_alter.ra_flags |= RESV_END_TIME_MODIFIED | RESV_DURATION_MODIFIED;
+				}
+				set_rattr_l_slim(presv, RESV_ATR_end, stime + prsc->rs_value.at_val.at_long, SET);
+				set_rattr_l_slim(presv, RESV_ATR_duration, prsc->rs_value.at_val.at_long, SET);
+			}
+			break;
+
+		case 10: /* end, wall */
 			if ((prsc->rs_value.at_val.at_long <= 0) ||
-				(petime->at_val.at_long - prsc->rs_value.at_val.at_long <
-					time_now)) {
+			    (etime - prsc->rs_value.at_val.at_long <
+			     time_now)) {
 				rc = -1;
-			}
-			else {
-				pstime->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				pstime->at_val.at_long = petime->at_val.at_long -
-					prsc->rs_value.at_val.at_long;
-				pduration->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				pduration->at_val.at_long = prsc->rs_value.at_val.at_long;
+			} else {
+				if (pstate == RESV_BEING_ALTERED) {
+					presv->ri_alter.ra_flags |= RESV_START_TIME_MODIFIED;
+				}
+				set_rattr_l_slim(presv, RESV_ATR_start, etime - prsc->rs_value.at_val.at_long, SET);
+				set_rattr_l_slim(presv, RESV_ATR_duration, prsc->rs_value.at_val.at_long, SET);
 			}
 			break;
 
-		case 11:	/*start, end, wall*/
-			if ((pstime->at_val.at_long < time_now) ||
-				(prsc->rs_value.at_val.at_long <= 0) ||
-				(petime->at_val.at_long - pstime->at_val.at_long !=
-					prsc->rs_value.at_val.at_long))
+		case 11: /* start, end, wall */
+			if (((check_start) && (stime < time_now)) ||
+			    (prsc->rs_value.at_val.at_long <= 0) ||
+			    (etime - stime !=
+			     prsc->rs_value.at_val.at_long))
 				rc = -1;
 			else {
-				pduration->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				pduration->at_val.at_long = prsc->rs_value.at_val.at_long;
+				if (pstate == RESV_BEING_ALTERED) {
+					presv->ri_alter.ra_flags |= RESV_DURATION_MODIFIED;
+				}
+				set_rattr_l_slim(presv, RESV_ATR_duration, prsc->rs_value.at_val.at_long, SET);
 			}
 			break;
 
-		case 13:	/*start, duration & wall*/
-			if ((pstime->at_val.at_long < time_now) ||
-				(prsc->rs_value.at_val.at_long != pduration->at_val.at_long) ||
-				(pduration->at_val.at_long <= 0))
+		case 13: /* start, duration & wall */
+			if (((check_start) && (stime < time_now)) ||
+			    (prsc->rs_value.at_val.at_long != duration) ||
+			    (duration <= 0))
 				rc = -1;
 			else {
-				petime->at_flags |= ATR_VFLAG_SET |
-					ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-				petime->at_val.at_long = pstime->at_val.at_long +
-					presv->ri_qs.ri_duration;
+				if (pstate == RESV_BEING_ALTERED) {
+					presv->ri_alter.ra_flags |= RESV_END_TIME_MODIFIED;
+				}
+				set_rattr_l_slim(presv, RESV_ATR_end, stime + presv->ri_qs.ri_duration, SET);
 			}
 			break;
 
-		case 15:	/*start, end, duration & wall*/
-			if ((pstime->at_val.at_long < time_now) ||
-				(petime->at_val.at_long < pstime->at_val.at_long) ||
-				(pduration->at_val.at_long <= 0) ||
-				(prsc->rs_value.at_val.at_long != pduration->at_val.at_long) ||
-				((petime->at_val.at_long - pstime->at_val.at_long) !=
-					pduration->at_val.at_long))
+		case 15: /* start, end, duration & wall */
+			if (((check_start) || (stime < time_now)) ||
+			    (etime < stime) ||
+			    (duration <= 0) ||
+			    (prsc->rs_value.at_val.at_long != duration) ||
+			    ((etime - stime) !=
+			     duration))
 				rc = -1;
 			break;
 
@@ -4628,21 +4308,17 @@ start_end_dur_wall(void *pobj, int objtype)
 			rc = -1;
 	}
 
-	if (server.sv_attr[(int)SVR_ATR_resv_post_processing].at_flags &
-		ATR_VFLAG_SET) {
-		pduration->at_val.at_long += server.sv_attr[(int)SVR_ATR_resv_post_processing].at_val.at_long;
-		petime->at_val.at_long += server.sv_attr[(int)SVR_ATR_resv_post_processing].at_val.at_long;
+	if (is_sattr_set(SVR_ATR_resv_post_processing)) {
+		duration += get_sattr_long(SVR_ATR_resv_post_processing);
+		etime += get_sattr_long(SVR_ATR_resv_post_processing);
 	}
 
-	if (!rc && (objtype == RESC_RESV_OBJECT ||
-		objtype == RESV_JOB_OBJECT)) {
-		presv->ri_qs.ri_stime = pstime->at_val.at_long;
-		presv->ri_qs.ri_etime = petime->at_val.at_long;
-		presv->ri_qs.ri_duration = pduration->at_val.at_long;
-	}
+	presv->ri_qs.ri_stime = get_rattr_long(presv, RESV_ATR_start);
+	presv->ri_qs.ri_etime = get_rattr_long(presv, RESV_ATR_end);
+	presv->ri_qs.ri_duration = get_rattr_long(presv, RESV_ATR_duration);
+
 	return (rc);
 }
-
 
 /**
  * @brief
@@ -4660,13 +4336,12 @@ start_end_dur_wall(void *pobj, int objtype)
 void
 is_resv_window_in_future(resc_resv *presv)
 {
-	int	state, sub;
+	int state, sub;
 
 	eval_resvState(presv, RESVSTATE_is_resv_window_in_future, 0, &state,
-		&sub);
+		       &sub);
 	resv_setResvState(presv, state, sub);
 }
-
 
 /**
  * @brief
@@ -4686,14 +4361,14 @@ is_resv_window_in_future(resc_resv *presv)
 void
 resv_mailAction(resc_resv *presv, struct batch_request *preq)
 {
-	int	force;
-	char	text[PBS_MAXUSER + PBS_MAXHOSTNAME + 64];
+	int force;
+	char text[PBS_MAXUSER + PBS_MAXHOSTNAME + 64];
 
 	if (preq->rq_type != PBS_BATCH_DeleteResv)
 		return;
 
 	snprintf(text, sizeof(text), "Requesting party: %s@%s",
-		preq->rq_user, preq->rq_host);
+		 preq->rq_user, preq->rq_host);
 #ifdef NAS /* localmod 028 */
 	/*
 	 * The extend attribute can contain additional explanation
@@ -4701,8 +4376,8 @@ resv_mailAction(resc_resv *presv, struct batch_request *preq)
 	if (preq->rq_extend) {
 		size_t len;
 		len = strlen(text);
-		snprintf(text+len, sizeof(text)-len,
-			"\nReason: %s\n", preq->rq_extend);
+		snprintf(text + len, sizeof(text) - len,
+			 "\nReason: %s\n", preq->rq_extend);
 	}
 #endif /* localmod 028 */
 	if (preq->rq_fromsvr != 0)
@@ -4711,7 +4386,6 @@ resv_mailAction(resc_resv *presv, struct batch_request *preq)
 		force = MAIL_NORMAL;
 	svr_mailownerResv(presv, MAIL_ABORT, force, text);
 }
-
 
 /**
  * @brief
@@ -4725,7 +4399,7 @@ resv_mailAction(resc_resv *presv, struct batch_request *preq)
  * @retval	NULL	: failure
  */
 
-char*
+char *
 convert_long_to_time(long l)
 {
 	unsigned int h;
@@ -4735,25 +4409,24 @@ convert_long_to_time(long l)
 	int hr_len = 0;
 	char *str;
 
-	temp = h = l/3600;
-	l = l%3600;
-	m = l/60;
-	l = l%60;
+	temp = h = l / 3600;
+	l = l % 3600;
+	m = l / 60;
+	l = l % 60;
 	s = l;
 	while (temp > 0) {
 		hr_len++;
-		temp = temp/10;
+		temp = temp / 10;
 	}
 	/* Allocating memory for hours field and other 9 chars which can
 	 * accommodate "hh:mm:ss\0"
 	 */
-	str = (char*)malloc(hr_len + 9);
+	str = (char *) malloc(hr_len + 9);
 	if (str == NULL)
 		return NULL;
 
 	sprintf(str, "%02u:%02d:%02d", h, m, s);
 	return str;
-
 }
 
 /**
@@ -4775,87 +4448,66 @@ convert_long_to_time(long l)
  * @retval	JOB_INELIGIBLE	-	when job is ineligible to accrue eligible_time
  * @retval	JOB_RUNNING	-	when job is running or provisioning
  * @retval	JOB_EXIT	-	when job is exiting
- * @retval	-1	-	when this function is not able to determine accruetype
+ * @retval	-1	- when accrue type couldn'tbe determined
  */
 long
-determine_accruetype(job* pjob)
+determine_accruetype(job *pjob)
 {
 	struct pbs_queue *pque;
-	long	temphold;
-	long newaccruetype = -1;
-
+	long temphold;
 
 	/* have to determine accrue type */
 
 	/* if job is truely running or provisioning */
-	if (pjob->ji_qs.ji_state == JOB_STATE_RUNNING &&
-		(pjob->ji_qs.ji_substate == JOB_SUBSTATE_RUNNING ||
-		pjob->ji_qs.ji_substate == JOB_SUBSTATE_PROVISION)) {
-		newaccruetype = (long)JOB_RUNNING;
-		return newaccruetype;
-	}
+	if (check_job_state(pjob, JOB_STATE_LTR_RUNNING) &&
+	    (check_job_substate(pjob, JOB_SUBSTATE_RUNNING) ||
+	     check_job_substate(pjob, JOB_SUBSTATE_PROVISION)))
+		return JOB_RUNNING;
 
 	/* if job exit */
-	if (pjob->ji_qs.ji_state == JOB_STATE_EXITING) {
-		newaccruetype = (long)JOB_EXIT;
-		return newaccruetype;
-	}
+	if (check_job_state(pjob, JOB_STATE_LTR_EXITING))
+		return JOB_EXIT;
 
 	/* handling qsub -a, waiting with substate 30 ; accrue ineligible time */
-	if (pjob->ji_wattr[(int)JOB_ATR_exectime].at_val.at_long) {
-		newaccruetype = (long)JOB_INELIGIBLE;
-		return newaccruetype;
-	}
+	if (get_jattr_long(pjob, JOB_ATR_exectime))
+		return JOB_INELIGIBLE;
 
 	/* 'user' hold applied ; accrue ineligible time */
-	if (pjob->ji_wattr[(int)JOB_ATR_hold].at_val.at_long & HOLD_u) {
-		newaccruetype = (long)JOB_INELIGIBLE;
-		return newaccruetype;
-	}
+	if (get_jattr_long(pjob, JOB_ATR_hold) & HOLD_u)
+		return JOB_INELIGIBLE;
 
 	/* other than 'user' hold applied */
 	/* accrue type is set to JOB_INELIGIBLE incase a job has dependency */
 	/* on another job and hold type is set to system hold. */
 	/* For all other cases accrue type is set to JOB_ELIGIBLE. */
-	temphold = pjob->ji_wattr[(int)JOB_ATR_hold].at_val.at_long;
+	temphold = get_jattr_long(pjob, JOB_ATR_hold);
 	if (temphold & HOLD_o || temphold & HOLD_bad_password || temphold & HOLD_s) {
-		if ((pjob->ji_qs.ji_substate == JOB_SUBSTATE_DEPNHOLD)
-			&& (temphold & HOLD_s)) {
-			newaccruetype = (long)JOB_INELIGIBLE;
-		} else {
-			newaccruetype = (long)JOB_ELIGIBLE;
-		}
-		return newaccruetype;
+		if ((check_job_substate(pjob, JOB_SUBSTATE_DEPNHOLD)) && (temphold & HOLD_s))
+			return JOB_INELIGIBLE;
+
+		return JOB_ELIGIBLE;
 	}
 
 	/* scheduler suspend job ; accrue eligible time */
-	if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_SCHSUSP) {
-		newaccruetype = (long)JOB_ELIGIBLE;
-		return newaccruetype;
-	}
+	if (check_job_substate(pjob, JOB_SUBSTATE_SCHSUSP))
+		return JOB_ELIGIBLE;
 
 	/* qsig suspended job ; accrue eligible time */
-	if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_SUSPEND) {
-		newaccruetype = (long)JOB_ELIGIBLE;
-		return newaccruetype;
-	}
+	if (check_job_substate(pjob, JOB_SUBSTATE_SUSPEND))
+		return JOB_ELIGIBLE;
 
 	/* check for stopped queue: routing and execute ; accrue eligible time */
 	pque = find_queuebyname(pjob->ji_qs.ji_queue);
 	if (pque != NULL)
-		if (pque->qu_attr[(int)QA_ATR_Started].at_val.at_long == 0) {
-			newaccruetype = (long)JOB_ELIGIBLE;
-			return newaccruetype;
-		}
+		if (get_qattr_long(pque, QA_ATR_Started) == 0)
+			return JOB_ELIGIBLE;
 
-	/* handling qsub -Wdepend, state H with substate 22 ; accrue eligible_time */
-	if (pjob->ji_wattr[(int)JOB_ATR_depend].at_flags & ATR_VFLAG_SET) {
-		newaccruetype = (long)JOB_ELIGIBLE;
-		return newaccruetype;
-	}
+	/* The job doesn't have any reason to not accrue eligible time (e.g. on hold), so it should accrue it */
+	if (check_job_state(pjob, JOB_STATE_LTR_TRANSIT) &&
+	    check_job_substate(pjob, JOB_SUBSTATE_TRANSIN))
+		return JOB_ELIGIBLE;
 
-	/* return */
-	return newaccruetype;
+	return -1;
 }
 
 /**
@@ -4876,59 +4528,30 @@ determine_accruetype(job* pjob)
 int
 update_eligible_time(long newaccruetype, job *pjob)
 {
-	static char *msg[] = { "initial_time", "ineligible_time", "eligible_time", "run_time", "exiting" };
+	static char *msg[] = {"initial_time", "ineligible_time", "eligible_time", "run_time", "exiting"};
 	char *strtime;
 	static char errtime[] = "00:00:00";
 	char str[256];
-	long accrued_time;			/* accrued time */
-	long oldaccruetype = pjob->ji_wattr[(int)JOB_ATR_accrue_type].at_val.at_long;
-	long timestamp = (long)time_now; 	/* time since accrual begins */
+	long accrued_time = 0; /* accrued time */
+	long oldaccruetype = get_jattr_long(pjob, JOB_ATR_accrue_type);
+	long timestamp = (long) time_now; /* time since accrual begins */
 
 	/* check if updating same accrue type or do nothing */
 	if (newaccruetype == oldaccruetype || newaccruetype == -1)
 		return 1;
 
 	/* time since accrue type last changed  */
-	accrued_time = timestamp - pjob->ji_wattr[(int) JOB_ATR_sample_starttime].at_val.at_long;
+	accrued_time = timestamp - get_jattr_long(pjob, JOB_ATR_sample_starttime);
 
-	/* time since accrue type last changed is accrued */
-	/* change type to new accrue type,  update start time to mark */
-	/* change of accrue type */
-	switch ((int)oldaccruetype) {
-		case JOB_ELIGIBLE:
-			pjob->ji_wattr[(int)JOB_ATR_eligible_time].at_val.at_long += accrued_time;
-			pjob->ji_wattr[(int)JOB_ATR_accrue_type].at_val.at_long = newaccruetype;
-			pjob->ji_wattr[(int)JOB_ATR_sample_starttime].at_val.at_long = timestamp;
+	if (oldaccruetype == JOB_ELIGIBLE && accrued_time > 0)
+		set_jattr_l_slim(pjob, JOB_ATR_eligible_time, accrued_time, INCR);
 
-			pjob->ji_wattr[(int)JOB_ATR_sample_starttime].at_flags |=
-				(ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE);
-			pjob->ji_wattr[(int)JOB_ATR_accrue_type].at_flags |=
-				(ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE);
-			pjob->ji_wattr[(int)JOB_ATR_eligible_time].at_flags |=
-				(ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE);
-			break;
-		case JOB_INELIGIBLE:
-		case JOB_RUNNING:
-		case JOB_INITIAL:
-		case JOB_EXIT:
-			pjob->ji_wattr[(int)JOB_ATR_accrue_type].at_val.at_long = newaccruetype;
-			pjob->ji_wattr[(int)JOB_ATR_sample_starttime].at_val.at_long = timestamp;
-
-			pjob->ji_wattr[(int)JOB_ATR_sample_starttime].at_flags |=
-				(ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE);
-			pjob->ji_wattr[(int)JOB_ATR_accrue_type].at_flags |=
-				(ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE);
-			pjob->ji_wattr[(int)JOB_ATR_eligible_time].at_flags |=
-				(ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE);
-			break;
-
-		default:
-			break;
-
-	}  /*switch end*/
+	/* change type to new accrue type, update start time to mark change of accrue type */
+	set_jattr_l_slim(pjob, JOB_ATR_accrue_type, newaccruetype, SET);
+	set_jattr_l_slim(pjob, JOB_ATR_sample_starttime, timestamp, SET);
 
 	/* Prepare and print log message */
-	strtime = convert_long_to_time(pjob->ji_wattr[(int)JOB_ATR_eligible_time].at_val.at_long);
+	strtime = convert_long_to_time(get_jattr_long(pjob, JOB_ATR_eligible_time));
 	if (strtime == NULL)
 		strtime = errtime;
 
@@ -4962,16 +4585,16 @@ int
 alter_eligibletime(attribute *pattr, void *pobject, int actmode)
 {
 	static char errtime[] = "00:00:00";
-	long timestamp = (long)time_now; /* accrual begins from here */
-	job * pjob = (job*)pobject;
-	long oldaccruetype = pjob->ji_wattr[(int)JOB_ATR_accrue_type].at_val.at_long;
+	long timestamp = (long) time_now; /* accrual begins from here */
+	job *pjob = (job *) pobject;
+	long oldaccruetype = get_jattr_long(pjob, JOB_ATR_accrue_type);
 	long newaccruetype = oldaccruetype; /* We are not changing accrue type */
 
 	/* distinguish between genuine qalter and call by action */
 	if (actmode == ATR_ACTION_ALTER) {
 
 		/* eligible_time_enable is OFF, then error */
-		if (!server.sv_attr[SRV_ATR_EligibleTimeEnable].at_val.at_long) {
+		if (!get_sattr_long(SVR_ATR_EligibleTimeEnable)) {
 			return PBSE_ETEERROR;
 		} else {
 			long accrued_time;
@@ -4981,27 +4604,25 @@ alter_eligibletime(attribute *pattr, void *pobject, int actmode)
 				"initial_time",
 				"ineligible_time",
 				"eligible_time",
-			 	"run_time",
-				"exiting"
-			};
+				"run_time",
+				"exiting"};
 
-			accrued_time = (long)time_now -
-				pjob->ji_wattr[(int)JOB_ATR_sample_starttime].at_val.at_long;
+			accrued_time = (long) time_now -
+				       get_jattr_long(pjob, JOB_ATR_sample_starttime);
 
 			/* Sample time accrual continues with this time .... */
-			pjob->ji_wattr[(int)JOB_ATR_sample_starttime].at_val.at_long = timestamp;
-
+			set_jattr_l_slim(pjob, JOB_ATR_sample_starttime, timestamp, SET);
 			/* eligible_time is set to new value again in modify_job_attr.
 			 * this is for log message, we have the new value anyways.
 			 */
 			strtime = convert_long_to_time(pattr->at_val.at_long);
-			if (strtime == NULL)
-				strtime = errtime;
 
 			sprintf(logstr, "Accrue type is %s, previous accrue type was %s for %ld secs, due to qalter total eligible_time=%s",
-				msg[newaccruetype], msg[oldaccruetype], accrued_time, strtime);
+				msg[newaccruetype], msg[oldaccruetype], accrued_time, strtime != NULL ? strtime : errtime);
 			log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-				pjob->ji_qs.ji_jobid, logstr);
+				  pjob->ji_qs.ji_jobid, logstr);
+
+			free(strtime);
 
 			return PBSE_NONE;
 		}
@@ -5023,17 +4644,25 @@ void
 svr_saveorpurge_finjobhist(job *pjob)
 {
 	int flag = 0;
+	resc_resv *presv;
+
+	presv = pjob->ji_myResv;
 
 	flag = svr_chk_history_conf();
 	if (flag && !pjob->ji_deletehistory) {
 		svr_setjob_histinfo(pjob, T_FIN_JOB);
-		if (pjob->ji_ajtrk)
-			pjob->ji_ajtrk->tkm_flags &= ~TKMFLG_CHK_ARRAY;
+		if (pjob->ji_ajinfo != NULL)
+			pjob->ji_ajinfo->tkm_flags &= ~TKMFLG_CHK_ARRAY;
+		if (pjob->ji_terminated &&
+		    (pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) &&
+		    pjob->ji_parentaj != NULL &&
+		    pjob->ji_parentaj->ji_ajinfo != NULL)
+			pjob->ji_parentaj->ji_ajinfo->tkm_dsubjsct++;
 	} else {
 		if (pjob->ji_deletehistory && flag) {
 			log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB,
-				LOG_INFO, pjob->ji_qs.ji_jobid,
-				msg_also_deleted_job_history);
+				  LOG_INFO, pjob->ji_qs.ji_jobid,
+				  msg_also_deleted_job_history);
 		}
 		/* For an array subjob if exit status is non-zero mark sub state
 		 * as JOB_SUBSTATE_FAILED. Otherwise set to JOB_SUBSTATE_FINISHED
@@ -5041,17 +4670,17 @@ svr_saveorpurge_finjobhist(job *pjob)
 		 */
 		if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) {
 			if (pjob->ji_terminated)
-				pjob->ji_qs.ji_substate = JOB_SUBSTATE_TERMINATED;
-			else if ((pjob->ji_wattr[(int)JOB_ATR_exit_status].at_flags) &
-				ATR_VFLAG_SET) {
-				if (pjob->ji_wattr[(int)JOB_ATR_exit_status].at_val.at_long)
-					pjob->ji_qs.ji_substate = JOB_SUBSTATE_FAILED;
-				else if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_EXITED)
-					pjob->ji_qs.ji_substate = JOB_SUBSTATE_FINISHED;
+				set_job_substate(pjob, JOB_SUBSTATE_TERMINATED);
+			else if (is_jattr_set(pjob, JOB_ATR_exit_status)) {
+				if (get_jattr_long(pjob, JOB_ATR_exit_status))
+					set_job_substate(pjob, JOB_SUBSTATE_FAILED);
+				else if (check_job_substate(pjob, JOB_SUBSTATE_EXITED))
+					set_job_substate(pjob, JOB_SUBSTATE_FINISHED);
 			}
 		}
 		job_purge(pjob);
 	}
+	set_idle_delete_task(presv);
 }
 /**
  * @brief
@@ -5068,9 +4697,9 @@ svr_saveorpurge_finjobhist(job *pjob)
 void
 svr_clean_job_history(struct work_task *pwt)
 {
-	job 	*pjob;
-	job 	*nxpjob = NULL;
-	int 	walltime_used = 0;
+	job *pjob;
+	job *nxpjob = NULL;
+	int walltime_used = 0;
 
 	/*
 	 * Keep track of time spent purging jobs, interrupts purge if necessary.
@@ -5081,8 +4710,8 @@ svr_clean_job_history(struct work_task *pwt)
 	 * - lowered if this purge needs to be interrupted
 	 */
 
-	time_t	begin_time;
-	time_t	end_time;
+	time_t begin_time;
+	time_t end_time;
 	static time_t time_between_tasks = SVR_CLEAN_JOBHIST_TM;
 
 	begin_time = time(NULL);
@@ -5091,42 +4720,38 @@ svr_clean_job_history(struct work_task *pwt)
 
 	/*
 	 * Traverse through the SERVER job list and find the history
-	 * jobs (job with state JOB_STATE_MOVED and JOB_STATE_FINISHED)
+	 * jobs (job with state JOB_STATE_LTR_MOVED and JOB_STATE_LTR_FINISHED)
 	 * which exceed the configured job_history_duration value and
 	 * purge them immediately.
 	 */
-	pjob = (job *)GET_NEXT(svr_alljobs);
+	pjob = (job *) GET_NEXT(svr_alljobs);
 
 	while (pjob != NULL) {
 		/* save the next job */
-		nxpjob = (job *)GET_NEXT(pjob->ji_alljobs);
+		nxpjob = (job *) GET_NEXT(pjob->ji_alljobs);
 
-		if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED && pjob->ji_qs.ji_substate == JOB_SUBSTATE_FINISHED) ||
-			(pjob->ji_qs.ji_state == JOB_STATE_FINISHED) ||
-			(pjob->ji_qs.ji_state == JOB_STATE_EXPIRED)) {
+		if ((check_job_state(pjob, JOB_STATE_LTR_MOVED) && check_job_substate(pjob, JOB_SUBSTATE_FINISHED)) ||
+		    (check_job_state(pjob, JOB_STATE_LTR_FINISHED)) ||
+		    (check_job_state(pjob, JOB_STATE_LTR_EXPIRED))) {
 
-			if (!(pjob->ji_wattr[(int) JOB_ATR_history_timestamp].at_flags & ATR_VFLAG_SET)) {
-				if (pjob->ji_qs.ji_state == JOB_STATE_MOVED)
-					pjob->ji_wattr[(int) JOB_ATR_history_timestamp].at_val.at_long = time_now;
+			if (!(is_jattr_set(pjob, JOB_ATR_history_timestamp))) {
+				if (check_job_state(pjob, JOB_STATE_LTR_MOVED))
+					set_jattr_l_slim(pjob, JOB_ATR_history_timestamp, time_now, SET);
 				else {
 					if (((walltime_used = get_used_wall(pjob)) == -1) ||
-						!(pjob->ji_wattr[(int) JOB_ATR_stime].at_flags & ATR_VFLAG_SET)) {
+					    !(is_jattr_set(pjob, JOB_ATR_stime))) {
 						log_err(-1, "svr_clean_job_history",
 							"Finished job missing start-time/walltime used, cannot clean history");
 						pjob = nxpjob;
 						continue;
 					}
-					pjob->ji_wattr[(int) JOB_ATR_history_timestamp].at_val.at_long =
-						pjob->ji_wattr[(int) JOB_ATR_stime].at_val.at_long + walltime_used;
+					set_jattr_l_slim(pjob, JOB_ATR_history_timestamp,
+							 get_jattr_long(pjob, JOB_ATR_stime) + walltime_used, SET);
 				}
-				pjob->ji_wattr[(int) JOB_ATR_history_timestamp].at_flags |= ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
-				pjob->ji_modified = 1;
-				/* save the full job */
-				(void)job_save(pjob, SAVEJOB_FULL);
+				job_save_db(pjob);
 			}
 
-			if (time_now >= (pjob->ji_wattr[(int) JOB_ATR_history_timestamp].at_val.at_long
-				+ svr_history_duration)) {
+			if (time_now >= (get_jattr_long(pjob, JOB_ATR_history_timestamp) + svr_history_duration)) {
 				job_purge(pjob);
 				pjob = NULL;
 			}
@@ -5140,7 +4765,7 @@ svr_clean_job_history(struct work_task *pwt)
 			/* Apparently the interval between history purges is too long.
 			 * reduce it using factor 0.7
 			 */
-			time_between_tasks = (floor((double)time_between_tasks * 0.7));
+			time_between_tasks = (floor((double) time_between_tasks * 0.7));
 
 			/* no use reducing to less than 4 * SVR_CLEAN_JOBHIST_SECS
 			 * since we'll already schedule a continuation task here
@@ -5152,12 +4777,12 @@ svr_clean_job_history(struct work_task *pwt)
 			 * but leave as much time as we spent in this routine for other work first
 			 */
 			if (!set_task(WORK_Timed,
-				(end_time + SVR_CLEAN_JOBHIST_SECS),
-				svr_clean_job_history, NULL)) {
+				      (end_time + SVR_CLEAN_JOBHIST_SECS),
+				      svr_clean_job_history, NULL)) {
 				log_err(errno,
 					"svr_clean_job_history",
 					"Unable to set task for clean job history");
-					/* on error to set task
+				/* on error to set task
 					 * just continue purging the history
 					 */
 			} else
@@ -5173,8 +4798,8 @@ svr_clean_job_history(struct work_task *pwt)
 	 */
 	if (pwt && svr_history_enable) {
 		if (!set_task(WORK_Timed,
-			(time_now + time_between_tasks),
-			svr_clean_job_history, NULL)) {
+			      (time_now + time_between_tasks),
+			      svr_clean_job_history, NULL)) {
 			log_err(errno,
 				"svr_clean_job_history",
 				"Unable to set task for clean job history");
@@ -5188,7 +4813,7 @@ svr_clean_job_history(struct work_task *pwt)
 	 */
 
 	if ((time_between_tasks < SVR_CLEAN_JOBHIST_TM) &&
-	    ((end_time - begin_time) < floor((double)SVR_CLEAN_JOBHIST_SECS * 2/3))) {
+	    ((end_time - begin_time) < floor((double) SVR_CLEAN_JOBHIST_SECS * 2 / 3))) {
 		time_between_tasks = ceil((double) time_between_tasks * 1.1);
 		if (time_between_tasks > SVR_CLEAN_JOBHIST_TM)
 			time_between_tasks = SVR_CLEAN_JOBHIST_TM;
@@ -5209,51 +4834,63 @@ svr_clean_job_history(struct work_task *pwt)
  * @return	Nothing
  */
 void
-svr_histjob_update(job * pjob, int newstate, int newsubstate)
+svr_histjob_update(job *pjob, char newstate, int newsubstate)
 {
-	int oldstate = pjob->ji_qs.ji_state;
+	char oldstate = get_job_state(pjob);
 	pbs_queue *pque = pjob->ji_qhdr;
 
 	/* update the state count in queue and server */
 	if (oldstate != newstate) {
-		server.sv_jobstates[oldstate]--;
-		server.sv_jobstates[newstate]++;
+		int oldstatenum;
+		int newstatenum;
+
+		oldstatenum = state_char2int(oldstate);
+		newstatenum = state_char2int(newstate);
+		if (oldstatenum != -1)
+			server.sv_jobstates[oldstatenum]--;
+		if (newstatenum != -1)
+			server.sv_jobstates[newstatenum]++;
 		if (pque != NULL) {
-			pque->qu_njstate[oldstate]--;
-			pque->qu_njstate[newstate]++;
+			if (oldstatenum != -1)
+				pque->qu_njstate[oldstatenum]--;
+			if (newstatenum != -1)
+				pque->qu_njstate[newstatenum]++;
 		}
 	}
 	/* set the job state and state char */
-	pjob->ji_qs.ji_state = newstate;
-	pjob->ji_qs.ji_substate = newsubstate;
-	set_statechar(pjob);
+	set_job_state(pjob, newstate);
+	set_job_substate(pjob, newsubstate);
 
 	/* For subjob update the state */
 	if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) {
-		update_subjob_state(pjob, newstate);
+		update_sj_parent(pjob->ji_parentaj, pjob, pjob->ji_qs.ji_jobid, oldstate, newstate);
+		chk_array_doneness(pjob->ji_parentaj);
 	}
 
 	/* set the status of each subjob if it is an array job */
 	if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob) {
-		int indx;
-		struct ajtrkhd *ptbl = pjob->ji_ajtrk;
+		int i;
+		ajinfo_t *ptbl = pjob->ji_ajinfo;
 		if (ptbl) {
-			/* update the subjob state table */
-			for (indx = 0; indx < ptbl->tkm_ct; ++indx) {
-				job *psubj = ptbl->tkm_tbl[indx].trk_psubjob;
-				if (psubj)
-					svr_histjob_update(psubj, newstate, newsubstate);
-				else
-					set_subjob_tblstate(pjob, indx, newstate);
+			for (i = ptbl->tkm_start; i <= ptbl->tkm_end; i += ptbl->tkm_step) {
+				int sjsst;
+				char sjst;
+				job *psubj = get_subjob_and_state(pjob, i, &sjst, &sjsst);
+				if (psubj) {
+					if (sjsst != JOB_SUBSTATE_TERMINATED &&
+					    sjsst != JOB_SUBSTATE_FINISHED &&
+					    sjsst != JOB_SUBSTATE_FAILED &&
+					    sjsst != JOB_SUBSTATE_MOVED)
+						svr_histjob_update(psubj, newstate, newsubstate);
+					else
+						svr_histjob_update(psubj, newstate, sjsst);
+				} else
+					update_sj_parent(pjob, NULL, create_subjob_id(pjob->ji_qs.ji_jobid, i), sjst, newstate);
 			}
 		}
 	}
-	/* set the substate attr and cache it */
-	pjob->ji_wattr[(int)JOB_ATR_substate].at_val.at_long = newsubstate;
-	pjob->ji_wattr[(int)JOB_ATR_substate].at_flags |= ATR_VFLAG_MODCACHE;
 
-	/* save the full job */
-	(void)job_save(pjob, SAVEJOB_FULL);
+	job_save_db(pjob);
 }
 
 /**
@@ -5286,35 +4923,64 @@ void
 update_job_finish_comment(job *pjob, int newsubstate, char *user)
 {
 	char buffer[LOG_BUF_SIZE + 1] = {'\0'};
-	if ((pjob->ji_wattr[(int)JOB_ATR_Comment].at_flags & ATR_VFLAG_SET) == 0) {
+	if ((is_jattr_set(pjob, JOB_ATR_Comment)) == 0) {
 		return;
 	}
 
 	if (newsubstate == JOB_SUBSTATE_FINISHED) {
 		snprintf(buffer, LOG_BUF_SIZE, "%s and finished",
-			pjob->ji_wattr[(int)JOB_ATR_Comment].at_val.at_str);
+			 get_jattr_str(pjob, JOB_ATR_Comment));
 	} else if (newsubstate == JOB_SUBSTATE_FAILED) {
-		snprintf(buffer, LOG_BUF_SIZE, "%s and failed",
-			pjob->ji_wattr[(int)JOB_ATR_Comment].at_val.at_str);
+		if (is_jattr_set(pjob, JOB_ATR_exit_status)) {
+			switch (get_jattr_long(pjob, JOB_ATR_exit_status)) {
+				case JOB_EXEC_KILL_NCPUS_BURST:
+					snprintf(buffer, LOG_BUF_SIZE, "%s and exceeded resource ncpus (burst)",
+						 get_jattr_str(pjob, JOB_ATR_Comment));
+					break;
+				case JOB_EXEC_KILL_NCPUS_SUM:
+					snprintf(buffer, LOG_BUF_SIZE, "%s and exceeded resource ncpus (sum)",
+						 get_jattr_str(pjob, JOB_ATR_Comment));
+					break;
+				case JOB_EXEC_KILL_VMEM:
+					snprintf(buffer, LOG_BUF_SIZE, "%s and exceeded resource vmem",
+						 get_jattr_str(pjob, JOB_ATR_Comment));
+					break;
+				case JOB_EXEC_KILL_MEM:
+					snprintf(buffer, LOG_BUF_SIZE, "%s and exceeded resource mem",
+						 get_jattr_str(pjob, JOB_ATR_Comment));
+					break;
+				case JOB_EXEC_KILL_CPUT:
+					snprintf(buffer, LOG_BUF_SIZE, "%s and exceeded resource cput",
+						 get_jattr_str(pjob, JOB_ATR_Comment));
+					break;
+				case JOB_EXEC_KILL_WALLTIME:
+					snprintf(buffer, LOG_BUF_SIZE, "%s and exceeded resource walltime",
+						 get_jattr_str(pjob, JOB_ATR_Comment));
+					break;
+				default:
+					snprintf(buffer, LOG_BUF_SIZE, "%s and failed",
+						 get_jattr_str(pjob, JOB_ATR_Comment));
+					break;
+			}
+		} else {
+			snprintf(buffer, LOG_BUF_SIZE, "%s and failed",
+				 get_jattr_str(pjob, JOB_ATR_Comment));
+		}
 	} else if (newsubstate == JOB_SUBSTATE_TERMINATED) {
 		/* Don't overwrite the comment; if already set by req_deletejob2 */
-		if (strstr(pjob->ji_wattr[(int)JOB_ATR_Comment].at_val.at_str, "terminated") == NULL) {
+		if (strstr(get_jattr_str(pjob, JOB_ATR_Comment), "terminated") == NULL) {
 			if (user != NULL) {
 				snprintf(buffer, LOG_BUF_SIZE, "%s and terminated by %s",
-					pjob->ji_wattr[(int)JOB_ATR_Comment].at_val.at_str,
-					user);
+					 get_jattr_str(pjob, JOB_ATR_Comment),
+					 user);
 			} else {
 				snprintf(buffer, LOG_BUF_SIZE, "%s and terminated",
-					pjob->ji_wattr[(int)JOB_ATR_Comment].at_val.at_str);
+					 get_jattr_str(pjob, JOB_ATR_Comment));
 			}
 		}
 	}
 	if (buffer[0] != '\0') {
-		(void)job_attr_def[(int)JOB_ATR_Comment].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_Comment],
-			NULL,
-			NULL,
-			buffer);
+		set_jattr_str_slim(pjob, JOB_ATR_Comment, buffer, NULL);
 	}
 }
 
@@ -5340,10 +5006,9 @@ update_job_finish_comment(job *pjob, int newsubstate, char *user)
 void
 svr_setjob_histinfo(job *pjob, histjob_type type)
 {
-	int newstate = 0;
+	char newstate = 'T';
 	int newsubstate = 0;
-	struct ajtrkhd *ptbl = NULL;
-	struct work_task *pwt = NULL;
+	ajinfo_t *ptbl = NULL;
 
 	if (type == T_MOV_JOB) { /* MOVED job */
 		char *destination = pjob->ji_qs.ji_destin;
@@ -5368,7 +5033,7 @@ svr_setjob_histinfo(job *pjob, histjob_type type)
 		sprintf(log_buffer,
 			"Job Moved to destination: \"%s\"", destination);
 		log_event(PBSEVENT_JOB, PBS_EVENTCLASS_JOB, LOG_INFO,
-			pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 
 		/* put the accounting log for MOVED job */
 		sprintf(log_buffer, "destination=%s", destination);
@@ -5382,34 +5047,26 @@ svr_setjob_histinfo(job *pjob, histjob_type type)
 		snprintf(qname, sizeof(qname), "%s", destination);
 
 		/* strip off the portion that isn't the queue name */
-		tmpstr = strchr(qname,'@');
+		tmpstr = strchr(qname, '@');
 		if (tmpstr != NULL) {
 			*tmpstr = '\0';
 		}
 		snprintf(pjob->ji_qs.ji_queue, sizeof(pjob->ji_qs.ji_queue),
-			"%.*s", PBS_MAXQUEUENAME, qname);
+			 "%.*s", PBS_MAXQUEUENAME, qname);
 
 		/* Set the queue attribute to destination */
-		(void)job_attr_def[(int)JOB_ATR_in_queue].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_in_queue],
-			NULL,
-			NULL,
-			destination);
+		set_jattr_generic(pjob, JOB_ATR_in_queue, destination, NULL, SET);
 
 		/* set the job comment attr with destination */
-		sprintf(log_buffer, "Job has been moved to \"%s\"",
-			destination);
-		(void)job_attr_def[(int)JOB_ATR_Comment].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_Comment],
-			NULL,
-			NULL,
-			log_buffer);
+		sprintf(log_buffer, "Job has been moved to \"%s\"", destination);
+		set_jattr_generic(pjob, JOB_ATR_Comment, log_buffer, NULL, SET);
+
 		/*
 		 * SET the NEW STATE/SUB-STATE for the job (which is moved).
-		 * New STATE for the job will be JOB_STATE_MOVED and new
+		 * New STATE for the job will be JOB_STATE_LTR_MOVED and new
 		 * SUBSTATE will be JOB_SUBSTATE_MOVED.
 		 */
-		newstate = JOB_STATE_MOVED;
+		newstate = JOB_STATE_LTR_MOVED;
 		newsubstate = JOB_SUBSTATE_MOVED;
 
 	} else if (type == T_FIN_JOB) {
@@ -5421,103 +5078,67 @@ svr_setjob_histinfo(job *pjob, histjob_type type)
 		 * exited with non-zero exit status, then it is FAILED,
 		 * otherwise FINISHED.
 		 */
-		newstate = (pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) ?
-				JOB_STATE_EXPIRED : JOB_STATE_FINISHED; /* default X for subjob, F for other jobs */
-		newsubstate = JOB_SUBSTATE_FINISHED; /* default */
+		newstate = (pjob->ji_qs.ji_svrflags & JOB_SVFLG_SubJob) ? JOB_STATE_LTR_EXPIRED : JOB_STATE_LTR_FINISHED; /* default X for subjob, F for other jobs */
+		newsubstate = JOB_SUBSTATE_FINISHED;									  /* default */
 
 		/* If Array job, handle here */
 		if ((pjob->ji_qs.ji_svrflags & JOB_SVFLG_ArrayJob) &&
-			(ptbl = pjob->ji_ajtrk)) {
-			int i = 0;
-			int stgout_status = -1;
-
-			for (i=0; i<ptbl->tkm_ct; i++) {
-				if (ptbl->tkm_tbl[i].trk_stgout >= 0) {
-					stgout_status = ptbl->tkm_tbl[i].trk_stgout;
-					if (stgout_status == 0)
-						break;
-				}
-			}
-			if (stgout_status != -1) {
-				pjob->ji_wattr[(int)JOB_ATR_stageout_status].at_val.at_long =
-					stgout_status;
-				pjob->ji_wattr[(int)JOB_ATR_stageout_status].at_flags =
-					ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
-			}
-			for (i=0; i<ptbl->tkm_ct; i++) {
-				if (ptbl->tkm_tbl[i].trk_exitstat) {
-					pjob->ji_wattr[(int)JOB_ATR_exit_status].at_val.at_long =
-						pjob->ji_qs.ji_un.ji_exect.ji_exitstat;
-					pjob->ji_wattr[(int)JOB_ATR_exit_status].at_flags =
-						ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
-					break;
-				}
-			}
+		    (ptbl = pjob->ji_ajinfo)) {
 			if (pjob->ji_terminated)
 				newsubstate = JOB_SUBSTATE_TERMINATED;
 			else {
-				for (i=0; i<ptbl->tkm_ct; i++) {
-					if (ptbl->tkm_tbl[i].trk_substate != JOB_SUBSTATE_FINISHED) {
-						if ((ptbl->tkm_tbl[i].trk_substate == JOB_SUBSTATE_FAILED) ||
-							(ptbl->tkm_tbl[i].trk_substate == JOB_SUBSTATE_TERMINATED)) {
-							newsubstate = ptbl->tkm_tbl[i].trk_substate;
-							break;
-						}
+				int i;
+				for (i = ptbl->tkm_start; i <= ptbl->tkm_end; i += ptbl->tkm_step) {
+					int sjsst;
+					get_subjob_and_state(pjob, i, NULL, &sjsst);
+					if (sjsst == JOB_SUBSTATE_FAILED || sjsst == JOB_SUBSTATE_TERMINATED) {
+						newsubstate = sjsst;
+						break;
 					}
 				}
 			}
 		} else { /* Non-Array job */
 			if (pjob->ji_terminated) {
 				newsubstate = JOB_SUBSTATE_TERMINATED;
-			} else if ((pjob->ji_wattr[(int)JOB_ATR_exit_status].at_flags) &
-				ATR_VFLAG_SET) {
-				if (pjob->ji_wattr[(int)JOB_ATR_exit_status].at_val.at_long)
+			} else if (is_jattr_set(pjob, JOB_ATR_exit_status)) {
+				if (get_jattr_long(pjob, JOB_ATR_exit_status))
 					newsubstate = JOB_SUBSTATE_FAILED;
 			}
 		}
 		update_job_finish_comment(pjob, newsubstate, NULL);
 	} else if (type == T_MOM_DOWN) {
-		newstate = JOB_STATE_FINISHED;
+		newstate = JOB_STATE_LTR_FINISHED;
 		newsubstate = JOB_SUBSTATE_FAILED;
 	}
-
 
 	/* if the job is not already in MOVED or FINISHED state, then */
 	/* decrement the entity job counts and entity resource sums   */
 
-	if ((pjob->ji_qs.ji_state != JOB_STATE_MOVED) &&
-		(pjob->ji_qs.ji_state != JOB_STATE_EXPIRED) &&
-		(pjob->ji_qs.ji_state != JOB_STATE_FINISHED)) {
+	if (!check_job_state(pjob, JOB_STATE_LTR_MOVED) &&
+	    !check_job_state(pjob, JOB_STATE_LTR_EXPIRED) &&
+	    !check_job_state(pjob, JOB_STATE_LTR_FINISHED)) {
 		account_entity_limit_usages(pjob, NULL, NULL, DECR,
-				pjob->ji_etlimit_decr_queued ? ETLIM_ACC_ALL_MAX : ETLIM_ACC_ALL);
+					    pjob->ji_etlimit_decr_queued ? ETLIM_ACC_ALL_MAX : ETLIM_ACC_ALL);
 		account_entity_limit_usages(pjob, pjob->ji_qhdr, NULL, DECR,
-				pjob->ji_etlimit_decr_queued ? ETLIM_ACC_ALL_MAX : ETLIM_ACC_ALL);
+					    pjob->ji_etlimit_decr_queued ? ETLIM_ACC_ALL_MAX : ETLIM_ACC_ALL);
 	}
 
 	/* set the history timestamp */
-	pjob->ji_wattr[(int) JOB_ATR_history_timestamp].at_val.at_long = time_now;
-	pjob->ji_wattr[(int) JOB_ATR_history_timestamp].at_flags |= ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
-	pjob->ji_modified = 1;
+	set_jattr_l_slim(pjob, JOB_ATR_history_timestamp, time_now, SET);
 	/* update the history job state and substate */
 	svr_histjob_update(pjob, newstate, newsubstate);
 
 	/*
 	 * Work tasks on history jobs are not required and may change the
-	 * history info which is dangerous, so better delete them. Walk
-	 * through the work task list of the job and delete them using
-	 * delete_task().
+	 * history info which is dangerous, so better delete them.
 	 */
-	while ((pwt = (struct work_task *)GET_NEXT(pjob->ji_svrtask)) != NULL) {
-		free(pwt->wt_event2);	/* wt_event2 either has additional data (like msgid) or NULL */
-		delete_task(pwt);
-	}
-
+	free_job_work_tasks(pjob);
 }
 
 /**
  * @brief
  * 		svr_chk_histjob - check whether job is a history job: called from
- * 		       req_stat_job() if type = 1;
+ * 			req_stat_job() if type = 1;
  *
  * @param[in]	pjob	-	job structure to be checked
  *
@@ -5545,12 +5166,12 @@ svr_chk_histjob(job *pjob)
 	 * return PBSE_HISTJOBID otherwise PBSE_NONE.
 	 */
 	if (pjob) {
-		switch (pjob->ji_qs.ji_state) {
-			case JOB_STATE_FINISHED:
+		switch (get_job_state(pjob)) {
+			case JOB_STATE_LTR_FINISHED:
 				rc = PBSE_HISTJOBID;
 				break;
-			case JOB_STATE_MOVED:
-				if (pjob->ji_qs.ji_substate == JOB_SUBSTATE_FINISHED)
+			case JOB_STATE_LTR_MOVED:
+				if (check_job_substate(pjob, JOB_SUBSTATE_FINISHED))
 					rc = PBSE_HISTJOBID;
 				else /* other than JOB_SUBSTATE_FINISHED */
 					rc = PBSE_UNKJOBID;
@@ -5558,127 +5179,6 @@ svr_chk_histjob(job *pjob)
 		}
 	}
 	return rc;
-}
-
-
-/**
- * @brief
- *		Creates the avl key from jobid string.
- *
- * @param[in]	keystr	-	jobid string
- *
- * @see
- * 		svr_enquejob()
- *		svr_dequejob()
- *		find_job()
- *
- * @return	Pointer to AVL_IX_REC record for success.
- * @retval	NULL	: failure.
- *
- * @par	Reentrancy:
- *		MT-unsafe
- *
- */
-AVL_IX_REC *
-svr_avlkey_create(const char *keystr)
-{
-	size_t keylen;
-	AVL_IX_REC *pkey;
-
-	if (keystr == NULL)
-		return NULL;
-
-	keylen = sizeof(AVL_IX_REC) + strlen(keystr) + 1;
-	pkey = malloc(keylen);
-	if (pkey == NULL)
-		return NULL;
-
-	memset((void *)pkey, 0, keylen);
-	(void)strcpy(pkey->key, keystr);
-	return (pkey);
-
-}
-
-/**
- * @brief
- *		Add/Delete the job to/from the AVL tree for faster lookup based
- *		on the boolean value of "delkey" parameter.
- *
- * @par Functionality:
- *		Create the key for the avl record using svr_avlkey_create() and call
- *		avl_add_key()/avl_delete_key() based on the boolean value parameter
- *		i.e. "delkey" to add/delete the job to the AVL tree for faster lookup.
- *		If it fails in the AVL operation, then it destroys the AVL tree and
- *		turns off the global avl switch AVL_jctx, so that SERVER falls back
- *		to regular doubly linked list for lookup.
- *
- * @param[in]	pjob	-	job structure to be operated on.
- * @param[in]	delkey	-	0 to add the key.
- *							1 to delete the key.
- *
- * @par	Linkage scope:
- *		static (local)
- *
- * @see	svr_enquejob()
- *		svr_dequejob()
- *
- * @return	void
- *
- * @par	Reentrancy:
- *		MT-unsafe
- *
- */
-static void
-svr_avljob_oper(job *pjob, int delkey)
-{
-	int rc = AVL_IX_OK;
-	AVL_IX_REC *pkey;
-
-	if ((AVL_jctx == NULL) || (pjob == NULL))
-		return;
-
-	/** create the avl key using jobid */
-	pkey = svr_avlkey_create(pjob->ji_qs.ji_jobid);
-	if (pkey == NULL) { /** key creation failed */
-		(void) sprintf(log_buffer, "AVL: failed to create job key.");
-		log_event(PBSEVENT_DEBUG4, PBS_EVENTCLASS_JOB, LOG_DEBUG,
-			pjob->ji_qs.ji_jobid, log_buffer);
-		goto AVL_OP_FAIL;
-	}
-
-	/** call avl interface based on the delkey */
-	if (delkey == 0) {
-		pkey->recptr = pjob;
-		rc = avl_add_key(pkey, AVL_jctx);
-	} else {
-		rc = avl_delete_key(pkey, AVL_jctx);
-	}
-	if (rc != AVL_IX_OK) /** avl operation failed */
-		goto AVL_OP_FAIL;
-
-	/** everything went fine, free() the pkey and return */
-	free(pkey);
-	return;
-
-AVL_OP_FAIL:
-	if (pkey) /** free the pkey if valid */
-		free(pkey);
-	/**
-	 * AVL operation failed, free the AVL tree context which was created
-	 * by avl_create_index(), and turn off the AVL context i.e. AVL_jctx
-	 * [global switch] so that SERVER will fall back to use linked list
-	 * for job lookup.
-	 */
-	if (AVL_jctx != NULL) {
-		(void) sprintf(log_buffer,
-			"AVL: %s failed, using LinkedList.",
-			delkey ? "delete" : "insert");
-		log_event(PBSEVENT_DEBUG4, PBS_EVENTCLASS_SERVER, LOG_DEBUG,
-			msg_daemonname, log_buffer);
-		avl_destroy_index(AVL_jctx);
-		free(AVL_jctx);
-		AVL_jctx = NULL;
-	}
 }
 
 /**
@@ -5700,10 +5200,10 @@ post_send_job_exec_update_req(struct work_task *pwt)
 	if (pwt == NULL)
 		return;
 
-	if (pwt->wt_aux2 != 1) /* not rpp */
-		svr_disconnect(pwt->wt_event);  /* close connection to MOM */
+	if (pwt->wt_aux2 != PROT_TPP)
+		svr_disconnect(pwt->wt_event); /* close connection to MOM */
 	mom_preq = pwt->wt_parm1;
-	mom_preq->rq_conn = mom_preq->rq_orgconn;  /* restore socket to client */
+	mom_preq->rq_conn = mom_preq->rq_orgconn; /* restore socket to client */
 	bcode = mom_preq->rq_reply.brp_code;
 
 	cli_preq = pwt->wt_parm2;
@@ -5713,9 +5213,9 @@ post_send_job_exec_update_req(struct work_task *pwt)
 
 		/* also take note of the reject msg if any */
 		if (mom_preq->rq_reply.brp_choice == BATCH_REPLY_CHOICE_Text) {
-			(void)snprintf(err_msg, sizeof(err_msg), "%s", mom_preq->rq_reply.brp_un.brp_txt.brp_str);
+			(void) snprintf(err_msg, sizeof(err_msg), "%s", mom_preq->rq_reply.brp_un.brp_txt.brp_str);
 		} else {
-			(void)snprintf(err_msg, sizeof(err_msg), msg_mombadmodify, bcode);
+			(void) snprintf(err_msg, sizeof(err_msg), msg_mombadmodify, bcode);
 		}
 		log_event(PBSEVENT_JOB, PBS_EVENTCLASS_JOB, LOG_INFO, mom_preq->rq_ind.rq_modify.rq_objname, err_msg);
 		req_reject(bcode, 0, mom_preq);
@@ -5752,16 +5252,15 @@ post_send_job_exec_update_req(struct work_task *pwt)
 
 int
 send_job_exec_update_to_mom(job *pjob, char *err_msg, int err_msg_sz,
-				struct batch_request *reply_req)
+			    struct batch_request *reply_req)
 {
 	struct batch_request *newreq;
-	char		*new_exec_vnode = NULL;
-	char		*new_exec_host = NULL;
-	char		*new_exec_host2 = NULL;
-	attribute	*psched = NULL;
-	int		rc = 1;
-	int		num_updates = 0;
-	struct	work_task	*pwt = NULL;
+	char *new_exec_vnode = NULL;
+	char *new_exec_host = NULL;
+	char *new_exec_host2 = NULL;
+	int rc = 1;
+	int num_updates = 0;
+	struct work_task *pwt = NULL;
 
 	if (pjob == NULL) {
 		log_err(-1, __func__, "bad job parameter");
@@ -5778,7 +5277,6 @@ send_job_exec_update_to_mom(job *pjob, char *err_msg, int err_msg_sz,
 			log_err(-1, __func__, "strdup failed");
 			return (1);
 		}
-
 	}
 
 	newreq = alloc_br(PBS_BATCH_ModifyJob);
@@ -5789,100 +5287,99 @@ send_job_exec_update_to_mom(job *pjob, char *err_msg, int err_msg_sz,
 	}
 	CLEAR_HEAD(newreq->rq_ind.rq_modify.rq_attr);
 
-	(void)strcpy(newreq->rq_ind.rq_modify.rq_objname,
-                                        pjob->ji_qs.ji_jobid);
+	(void) strcpy(newreq->rq_ind.rq_modify.rq_objname,
+		      pjob->ji_qs.ji_jobid);
 
-	if (pjob->ji_wattr[(int)JOB_ATR_exec_vnode].at_flags & ATR_VFLAG_SET) {
-	 	new_exec_vnode =
-		  pjob->ji_wattr[(int)JOB_ATR_exec_vnode].at_val.at_str;
+	if (is_jattr_set(pjob, JOB_ATR_exec_vnode)) {
+		new_exec_vnode =
+			get_jattr_str(pjob, JOB_ATR_exec_vnode);
 
 		if (add_to_svrattrl_list(
-			&(newreq->rq_ind.rq_modify.rq_attr),
-			ATTR_execvnode, NULL, new_exec_vnode, 0,
-							NULL) == -1) {
+			    &(newreq->rq_ind.rq_modify.rq_attr),
+			    ATTR_execvnode, NULL, new_exec_vnode, 0,
+			    NULL) == -1) {
 			if ((err_msg != NULL) && (err_msg_sz > 0)) {
 				snprintf(err_msg, err_msg_sz, "failed to add_to_svrattrl_list(%s,%s,%s)", ATTR_execvnode, "", new_exec_vnode);
-        			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
+				log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
 			}
 			goto send_job_exec_update_exit;
 		}
 		num_updates++;
 	}
 
-	if (pjob->ji_wattr[(int)JOB_ATR_exec_host].at_flags & ATR_VFLAG_SET) {
+	if (is_jattr_set(pjob, JOB_ATR_exec_host)) {
 		new_exec_host =
-		   pjob->ji_wattr[(int)JOB_ATR_exec_host].at_val.at_str;
+			get_jattr_str(pjob, JOB_ATR_exec_host);
 
 		if (add_to_svrattrl_list(
-			&(newreq->rq_ind.rq_modify.rq_attr),
-			ATTR_exechost, NULL, new_exec_host, 0, NULL) == -1) {
+			    &(newreq->rq_ind.rq_modify.rq_attr),
+			    ATTR_exechost, NULL, new_exec_host, 0, NULL) == -1) {
 			if ((err_msg != NULL) && (err_msg_sz > 0)) {
 				snprintf(err_msg, err_msg_sz, "failed to add_to_svrattrl_list(%s,%s,%s)", ATTR_exechost, "", new_exec_host);
-        			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
+				log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
 			}
 			goto send_job_exec_update_exit;
 		}
 		num_updates++;
 	}
 
-	if (pjob->ji_wattr[(int)JOB_ATR_exec_host2].at_flags & ATR_VFLAG_SET) {
+	if (is_jattr_set(pjob, JOB_ATR_exec_host2)) {
 		new_exec_host2 =
-		  pjob->ji_wattr[(int)JOB_ATR_exec_host2].at_val.at_str;
+			get_jattr_str(pjob, JOB_ATR_exec_host2);
 
 		if (add_to_svrattrl_list(
-			&(newreq->rq_ind.rq_modify.rq_attr),
-			ATTR_exechost2, NULL, new_exec_host2, 0, NULL) == -1) {
+			    &(newreq->rq_ind.rq_modify.rq_attr),
+			    ATTR_exechost2, NULL, new_exec_host2, 0, NULL) == -1) {
 			if ((err_msg != NULL) && (err_msg_sz > 0)) {
 				snprintf(err_msg, err_msg_sz, "failed to add_to_svrattrl_list(%s,%s,%s)", ATTR_exechost2, "", new_exec_host2);
-        			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
+				log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
 			}
 			goto send_job_exec_update_exit;
 		}
 		num_updates++;
 	}
 
-	psched = &pjob->ji_wattr[(int)JOB_ATR_SchedSelect];
-	if ((psched->at_flags & ATR_VFLAG_SET) != 0) {
+	if (is_jattr_set(pjob, JOB_ATR_SchedSelect)) {
 		if (add_to_svrattrl_list(
-			&(newreq->rq_ind.rq_modify.rq_attr),
-			ATTR_SchedSelect, NULL,
-			psched->at_val.at_str, 0, NULL) == -1) {
+			    &(newreq->rq_ind.rq_modify.rq_attr),
+			    ATTR_SchedSelect, NULL,
+			    get_jattr_str(pjob, JOB_ATR_SchedSelect),
+			    0, NULL) == -1) {
 			if ((err_msg != NULL) && (err_msg_sz > 0)) {
-				snprintf(err_msg, err_msg_sz, "failed to add_to_svrattrl_list(%s,%s,%s)", ATTR_SchedSelect, "", psched->at_val.at_str);
-        			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
+				snprintf(err_msg, err_msg_sz, "failed to add_to_svrattrl_list(%s,%s,%s)", ATTR_SchedSelect, "", get_jattr_str(pjob, JOB_ATR_SchedSelect));
+				log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
 			}
 			goto send_job_exec_update_exit;
 		}
 		num_updates++;
 	}
 
+	if ((is_jattr_set(pjob, JOB_ATR_resource)) != 0) {
+		pbs_list_head collectresc;
+		svrattrl *psvrl;
+		attribute_def *objatrdef;
+		extern int resc_access_perm;
 
-	if ((pjob->ji_wattr[JOB_ATR_resource].at_flags & ATR_VFLAG_SET) != 0) {
-		pbs_list_head    collectresc;
-		svrattrl 	*psvrl;
-		attribute_def	*objatrdef;
-		extern  int	resc_access_perm;
-
-		objatrdef = &job_attr_def[(int)JOB_ATR_resource];
+		objatrdef = &job_attr_def[(int) JOB_ATR_resource];
 		CLEAR_HEAD(collectresc);
 		resc_access_perm = READ_ONLY;
-		if (objatrdef->at_encode(&pjob->ji_wattr[(int)JOB_ATR_resource], &collectresc, objatrdef->at_name, NULL, ATR_ENCODE_CLIENT, NULL) > 0) {
+		if (objatrdef->at_encode(get_jattr(pjob, JOB_ATR_resource), &collectresc, objatrdef->at_name, NULL, ATR_ENCODE_CLIENT, NULL) > 0) {
 
-			psvrl = (svrattrl *)GET_NEXT(collectresc);
+			psvrl = (svrattrl *) GET_NEXT(collectresc);
 			while (psvrl) {
 				if (add_to_svrattrl_list(
-				    &(newreq->rq_ind.rq_modify.rq_attr),
-				    objatrdef->at_name, psvrl->al_resc,
-				      psvrl->al_value, 0, NULL) == -1) {
+					    &(newreq->rq_ind.rq_modify.rq_attr),
+					    objatrdef->at_name, psvrl->al_resc,
+					    psvrl->al_value, 0, NULL) == -1) {
 					free_attrlist(&collectresc);
 					if ((err_msg != NULL) && (err_msg_sz > 0)) {
 						snprintf(err_msg, err_msg_sz, "failed to add_to_svrattrl_list(%s,%s,%s)", objatrdef->at_name, psvrl->al_resc, psvrl->al_value);
-        					log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
+						log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
 					}
 					goto send_job_exec_update_exit;
 				}
 				num_updates++;
-				psvrl = (svrattrl *)GET_NEXT(psvrl->al_link);
+				psvrl = (svrattrl *) GET_NEXT(psvrl->al_link);
 			}
 			free_attrlist(&collectresc);
 		}
@@ -5892,7 +5389,7 @@ send_job_exec_update_to_mom(job *pjob, char *err_msg, int err_msg_sz,
 
 	if (num_updates > 0) {
 		rc = relay_to_mom2(pjob, newreq,
-				post_send_job_exec_update_req, &pwt);
+				   post_send_job_exec_update_req, &pwt);
 		if (rc != 0) {
 			log_err(-1, __func__, "failed telling mom of the request");
 		} else {
@@ -5913,6 +5410,89 @@ send_job_exec_update_exit:
 }
 
 /**
+ *
+ * @brief
+ *	Extracts mom hostnames from exechostx and adds it to list
+ *
+ * @param[in/out]	to_head - destination reliable_job_node list
+ * @param[in]	exechostx - string in exechost format
+ *
+ * @return 	void
+ */
+static void
+populate_mom_list(pbs_list_head *to_head, char *exechostx)
+{
+	char *hostn = NULL, *last = NULL, *peh;
+	int hasprn = 0;
+
+	if (!to_head || !exechostx || !*exechostx) {
+		log_err(-1, __func__, "bad param passed");
+		return;
+	}
+
+	peh = strdup(exechostx);
+	if (peh == NULL) {
+		log_err(errno, __func__, "strdup error");
+		return;
+	}
+
+	CLEAR_HEAD((*to_head));
+
+	for (hostn = parse_plus_spec_r(peh, &last, &hasprn);
+	     hostn;
+	     hostn = parse_plus_spec_r(last, &last, &hasprn)) {
+		if (reliable_job_node_add(to_head, strtok(hostn, ":/")) == -1) {
+			free(peh);
+			return;
+		}
+	}
+	free(peh);
+	return;
+}
+
+/**
+ * @brief
+ *	returns a copy of partial select string representing the MS (first) chunk
+ *	Note - caller to free the returned string pointer
+ *
+ * @param[in]		select_str - pointer to complete schedselect string
+ *
+ * @return char *
+ * @retval ptr	pointer to malloc'd string containing ms (first) chunk's select str
+ *
+ * @note
+ * caller to free the returned string pointer
+*/
+static char *
+get_ms_select_chunk(char *select_str)
+{
+	char *slast, *selbuf, *psubspec, *retval = NULL;
+	int hpn;
+
+	if (select_str == NULL) {
+		log_err(-1, __func__, "bad param passed");
+		return (NULL);
+	}
+
+	selbuf = strdup(select_str);
+	if (selbuf == NULL) {
+		log_err(errno, __func__, "strdup fail");
+		return (NULL);
+	}
+	psubspec = parse_plus_spec_r(selbuf, &slast, &hpn);
+
+	if (psubspec) {
+		while (*psubspec && !isalpha(*(psubspec++)))
+			; /* one line loop */
+
+		if (!(retval = strdup(--psubspec)))
+			log_err(errno, __func__, "strdup fail");
+	}
+
+	free(selbuf);
+	return retval;
+}
+/**
  * @brief
  *	Recreates the pjob's exec_vnode, updating at the same time
  *	its corresponding exec_host and exec_host2 attributes
@@ -5923,6 +5503,9 @@ send_job_exec_update_exit:
  *				freed whose parent mom is a sister mom.
  *				if NULL, releases all the sister
  *				vnodes assigned to 'pjob'
+ * @param[in]		keep_select - non-NULL means it's a select string that
+ *				describes vnodes to be kept while freeing all other vnodes
+ *				assigned to 'pjob' whose parent mom is a sister mom.
  * @param[out]  err_msg - if function returns != 0 (failure), return
  *			  any error message in this buffer.
  * @param[int]	err_msg_sz - size of 'err_msg' buf.
@@ -5931,221 +5514,195 @@ send_job_exec_update_exit:
  * @reval 1	for error
 */
 int
-recreate_exec_vnode(job *pjob, char *vnodelist, char *err_msg,
-						int err_msg_sz)
+recreate_exec_vnode(job *pjob, char *vnodelist, char *keep_select, char *err_msg,
+		    int err_msg_sz)
 {
-	char	*exec_vnode = NULL;
-	char	*exec_host = NULL;
-	char	*exec_host2 = NULL;
-	char	*new_exec_vnode = NULL;
-	char	*new_exec_host = NULL;
-	char	*new_exec_host2 = NULL;
-	char	*new_select = NULL;
-	char	*schedselect = NULL;
-	char	*deallocated_execvnode = NULL;
-	char	*new_deallocated_execvnode = NULL;
-	resource_def	*prdefsl = NULL;
-	resource	*presc;
-	attribute	deallocated_execvnode_attr;
-	int		rc = 1;
-	relnodes_input_t		r_input;
-	relnodes_input_vnodelist_t	r_input_vnlist;
+	char *exec_vnode = NULL;
+	char *exec_host = NULL;
+	char *exec_host2 = NULL;
+	char *new_exec_vnode = NULL;
+	char *new_exec_host = NULL;
+	char *new_exec_host2 = NULL;
+	char *new_select = NULL;
+	char *schedselect = NULL;
+	char *deallocated_execvnode = NULL;
+	char *new_deallocated_execvnode = NULL;
+	resource_def *prdefsl = NULL;
+	resource *presc;
+	int rc = 1;
+	relnodes_input_t r_input;
+	relnodes_input_vnodelist_t r_input_vnlist;
+	relnodes_input_select_t r_input_keep_select;
+	pbs_list_head succeeded_mom_list;
 
 	if (pjob == NULL) {
 		log_err(-1, __func__, "bad job parameter");
 		return (1);
 	}
 
-	if ((pjob->ji_qs.ji_state != JOB_STATE_RUNNING) &&
-	    (pjob->ji_qs.ji_state != JOB_STATE_EXITING)) {
+	if ((!check_job_state(pjob, JOB_STATE_LTR_RUNNING)) &&
+	    (!check_job_state(pjob, JOB_STATE_LTR_EXITING))) {
 		log_err(-1, __func__, "job not in running or exiting state");
 		return (1);
-
 	}
 
-	if ((pjob->ji_wattr[(int)JOB_ATR_exec_vnode].at_flags & ATR_VFLAG_SET) == 0) {
+	if ((is_jattr_set(pjob, JOB_ATR_exec_vnode)) == 0) {
 		log_err(-1, __func__, "exec_vnode is not set");
 		return (1);
 	}
 
-	if ((pjob->ji_wattr[(int)JOB_ATR_exec_host].at_flags & ATR_VFLAG_SET) == 0) {
+	if ((is_jattr_set(pjob, JOB_ATR_exec_host)) == 0) {
 		log_err(-1, __func__, "exec_host is not set");
 		return (1);
 	}
 
-	if ((pjob->ji_wattr[(int)JOB_ATR_exec_host2].at_flags & ATR_VFLAG_SET) == 0) {
+	if ((is_jattr_set(pjob, JOB_ATR_exec_host2)) == 0) {
 		log_err(-1, __func__, "exec_host2 is not set");
 		return (1);
 	}
 
-	if ((pjob->ji_wattr[(int)JOB_ATR_SchedSelect].at_flags & ATR_VFLAG_SET) == 0) {
+	if ((is_jattr_set(pjob, JOB_ATR_SchedSelect)) == 0) {
 		log_err(-1, __func__, "schedselect is not set");
 		return (1);
 	}
 
-	exec_vnode = pjob->ji_wattr[(int) JOB_ATR_exec_vnode].at_val.at_str;
+	exec_vnode = get_jattr_str(pjob, JOB_ATR_exec_vnode);
 
-	exec_host = pjob->ji_wattr[(int)JOB_ATR_exec_host].at_val.at_str;
+	exec_host = get_jattr_str(pjob, JOB_ATR_exec_host);
 
-	exec_host2 = pjob->ji_wattr[(int)JOB_ATR_exec_host2].at_val.at_str;
+	exec_host2 = get_jattr_str(pjob, JOB_ATR_exec_host2);
 
-	schedselect = pjob->ji_wattr[JOB_ATR_SchedSelect].at_val.at_str;
+	schedselect = get_jattr_str(pjob, JOB_ATR_SchedSelect);
 
-	deallocated_execvnode_attr = pjob->ji_wattr[(int)JOB_ATR_exec_vnode_deallocated];
-	if (deallocated_execvnode_attr.at_flags & ATR_VFLAG_SET) {
-		deallocated_execvnode = deallocated_execvnode_attr.at_val.at_str;
-	}
+	if (is_jattr_set(pjob, JOB_ATR_exec_vnode_deallocated))
+		deallocated_execvnode = get_jattr_str(pjob, JOB_ATR_exec_vnode_deallocated);
 
 	relnodes_input_init(&r_input);
 	r_input.jobid = pjob->ji_qs.ji_jobid;
 	r_input.execvnode = exec_vnode;
 	r_input.exechost = exec_host;
 	r_input.exechost2 = exec_host2;
+	r_input.schedselect = schedselect;
 	r_input.p_new_exec_vnode = &new_exec_vnode;
 	r_input.p_new_exec_host[0] = &new_exec_host;
 	r_input.p_new_exec_host[1] = &new_exec_host2;
 	r_input.p_new_schedselect = &new_select;
 
-	relnodes_input_vnodelist_init(&r_input_vnlist);
-	r_input_vnlist.vnodelist = vnodelist;
-	r_input_vnlist.schedselect = schedselect;
-	r_input_vnlist.deallocated_nodes_orig = deallocated_execvnode;
-	r_input_vnlist.p_new_deallocated_execvnode = &new_deallocated_execvnode;
+	if (keep_select == NULL) {
+		relnodes_input_vnodelist_init(&r_input_vnlist);
+		r_input_vnlist.vnodelist = vnodelist;
+		r_input_vnlist.deallocated_nodes_orig = deallocated_execvnode;
+		r_input_vnlist.p_new_deallocated_execvnode = &new_deallocated_execvnode;
 
-	rc = pbs_release_nodes_given_nodelist(&r_input, &r_input_vnlist, err_msg, err_msg_sz);
+		rc = pbs_release_nodes_given_nodelist(&r_input, &r_input_vnlist, err_msg, err_msg_sz);
+	} else {
+		int select_str_sz = 0;
+		relnodes_input_select_init(&r_input_keep_select);
+		r_input_keep_select.select_str = get_ms_select_chunk(schedselect); /* has to be freed later */
+		select_str_sz = strlen(r_input_keep_select.select_str) + 1;
+		pbs_strcat(&r_input_keep_select.select_str, &select_str_sz, "+");
+		pbs_strcat(&r_input_keep_select.select_str, &select_str_sz, keep_select);
+		populate_mom_list(&succeeded_mom_list, exec_host2);
+		r_input_keep_select.succeeded_mom_list = &succeeded_mom_list;
+
+		rc = pbs_release_nodes_given_select(&r_input, &r_input_keep_select, err_msg, err_msg_sz);
+		free(r_input_keep_select.select_str);
+		reliable_job_node_free(&succeeded_mom_list);
+	}
 
 	if (rc != 0) {
 		goto recreate_exec_vnode_exit;
 	}
 
-	if (new_exec_vnode[0] != '\0') {
+	if (new_exec_vnode && (new_exec_vnode[0] != '\0')) {
 
-		if (strcmp(pjob->ji_wattr[(int) JOB_ATR_exec_vnode].at_val.at_str,
-						 new_exec_vnode) == 0) {
+		if (strcmp(get_jattr_str(pjob, JOB_ATR_exec_vnode),
+			   new_exec_vnode) == 0) {
 			/* no change */
 
 			if ((err_msg != NULL) && (err_msg_sz > 0)) {
-				snprintf(err_msg, err_msg_sz, "node(s) requested to be released not part of the job: %s", vnodelist?vnodelist:"");
-        			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
+				snprintf(err_msg, err_msg_sz, "node(s) requested to be released not part of the job: %s", vnodelist ? vnodelist : "");
+				log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, err_msg);
 			}
 			goto recreate_exec_vnode_exit;
 		}
-		(void)job_attr_def[(int)JOB_ATR_exec_vnode_acct].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_exec_vnode_acct],
-			NULL,
-			NULL,
-		pjob->ji_wattr[(int) JOB_ATR_exec_vnode].at_val.at_str);
+		set_jattr_str_slim(pjob, JOB_ATR_exec_vnode_acct, get_jattr_str(pjob, JOB_ATR_exec_vnode), NULL);
 
 		/* save original value which will be used later in the accounting end record */
-		if ((pjob->ji_wattr[JOB_ATR_exec_vnode_orig].at_flags & ATR_VFLAG_SET) == 0) {
-			(void)job_attr_def[(int)JOB_ATR_exec_vnode_orig].at_decode(
-				&pjob->ji_wattr[(int)JOB_ATR_exec_vnode_orig],
-				NULL,
-				NULL,
-				pjob->ji_wattr[(int) JOB_ATR_exec_vnode].at_val.at_str);
+		if ((is_jattr_set(pjob, JOB_ATR_exec_vnode_orig)) == 0) {
+			set_jattr_str_slim(pjob, JOB_ATR_exec_vnode_orig,
+					   get_jattr_str(pjob, JOB_ATR_exec_vnode), NULL);
 		}
 
-		if ((pjob->ji_wattr[JOB_ATR_resource_acct].at_flags & ATR_VFLAG_SET) != 0) {
-			job_attr_def[JOB_ATR_resource_acct].at_free(&pjob->ji_wattr[JOB_ATR_resource_acct]);
-			pjob->ji_wattr[JOB_ATR_resource_acct].at_flags &= ~ATR_VFLAG_SET;
+		if ((is_jattr_set(pjob, JOB_ATR_resource_acct)) != 0) {
+			free_jattr(pjob, JOB_ATR_resource_acct);
+			mark_jattr_not_set(pjob, JOB_ATR_resource_acct);
 		}
-		job_attr_def[JOB_ATR_resource_acct].at_set(&pjob->ji_wattr[JOB_ATR_resource_acct], &pjob->ji_wattr[JOB_ATR_resource], INCR);
+		set_attr_with_attr(&job_attr_def[JOB_ATR_resource_acct], get_jattr(pjob, JOB_ATR_resource_acct), get_jattr(pjob, JOB_ATR_resource), INCR);
+		set_jattr_str_slim(pjob, JOB_ATR_exec_vnode, new_exec_vnode, NULL);
 
-
-		(void)job_attr_def[(int)JOB_ATR_exec_vnode].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_exec_vnode],
-			NULL,
-			NULL,
-			new_exec_vnode);
-		pjob->ji_modified = 1;
-
-		(void)update_resources_list(pjob, ATTR_l,
-			JOB_ATR_resource, new_exec_vnode, INCR, 0,
-				JOB_ATR_resource_orig);
+		(void) update_resources_list(pjob, ATTR_l,
+					     JOB_ATR_resource, new_exec_vnode, INCR, 0,
+					     JOB_ATR_resource_orig);
+	} else {
+		log_err(-1, __func__, "new_exec_vnode is null or empty string");
+		goto recreate_exec_vnode_exit;
 	}
 
-	if (new_deallocated_execvnode[0] != '\0') {
-		(void)job_attr_def[(int)JOB_ATR_exec_vnode_deallocated].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_exec_vnode_deallocated],
-			NULL,
-			NULL,
-			new_deallocated_execvnode);
-		pjob->ji_modified = 1;
+	if (!keep_select && new_deallocated_execvnode && *new_deallocated_execvnode) {
+		set_jattr_str_slim(pjob, JOB_ATR_exec_vnode_deallocated, new_deallocated_execvnode, NULL);
 	}
 
-	if (new_exec_host[0] != '\0') {
+	if (new_exec_host && *new_exec_host) {
 
-		(void)job_attr_def[(int)JOB_ATR_exec_host_acct].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_exec_host_acct],
-			NULL,
-			NULL,
-		  pjob->ji_wattr[(int)JOB_ATR_exec_host].at_val.at_str);
+		set_jattr_str_slim(pjob, JOB_ATR_exec_host_acct, get_jattr_str(pjob, JOB_ATR_exec_host), NULL);
 
 		/* save original value which will be used later in the accounting end record */
-		if ((pjob->ji_wattr[JOB_ATR_exec_host_orig].at_flags & ATR_VFLAG_SET) == 0) {
-			(void)job_attr_def[(int)JOB_ATR_exec_host_orig].at_decode(
-				&pjob->ji_wattr[(int)JOB_ATR_exec_host_orig],
-				NULL,
-				NULL,
-		  	pjob->ji_wattr[(int)JOB_ATR_exec_host].at_val.at_str);
+		if ((is_jattr_set(pjob, JOB_ATR_exec_host_orig)) == 0) {
+			set_jattr_str_slim(pjob, JOB_ATR_exec_host_orig, get_jattr_str(pjob, JOB_ATR_exec_host), NULL);
 		}
 
-		(void)job_attr_def[(int)JOB_ATR_exec_host].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_exec_host],
-			NULL,
-			NULL,
-			new_exec_host);
-		pjob->ji_modified = 1;
+		set_jattr_str_slim(pjob, JOB_ATR_exec_host, new_exec_host, NULL);
+	} else {
+		log_err(-1, __func__, "new_exec_host is null or empty string");
+		goto recreate_exec_vnode_exit;
 	}
 
-	if (new_exec_host2[0] != '\0') {
+	if (new_exec_host2 && *new_exec_host2) {
 
-		(void)job_attr_def[(int)JOB_ATR_exec_host2].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_exec_host2],
-			NULL,
-			NULL,
-			new_exec_host2);
-		pjob->ji_modified = 1;
+		set_jattr_str_slim(pjob, JOB_ATR_exec_host2, new_exec_host2, NULL);
+	} else {
+		log_err(-1, __func__, "new_exec_host2 is null or empty string");
+		goto recreate_exec_vnode_exit;
 	}
 
-	if (new_select[0] != '\0') {
-		prdefsl = find_resc_def(svr_resc_def, "select",
-							svr_resc_size);
+	if (new_select && *new_select) {
+		prdefsl = &svr_resc_def[RESC_SELECT];
 		/* re-generate "select" resource */
 		if (prdefsl != NULL) {
-			presc = find_resc_entry(
-			  	&pjob->ji_wattr[(int)JOB_ATR_resource], prdefsl);
-			if (presc == NULL) {
-				presc = add_resource_entry(
-			  	 &pjob->ji_wattr[(int)JOB_ATR_resource], prdefsl);
-			}
+			presc = find_resc_entry(get_jattr(pjob, JOB_ATR_resource), prdefsl);
+			if (presc == NULL)
+				presc = add_resource_entry(get_jattr(pjob, JOB_ATR_resource), prdefsl);
 			if (presc != NULL) {
-				(void)prdefsl->rs_decode(
+				(void) prdefsl->rs_decode(
 					&presc->rs_value, NULL, "select", new_select);
 			}
 		}
 		/* re-generate "schedselect" attribute */
 
-		if ((pjob->ji_wattr[JOB_ATR_SchedSelect].\
-				at_flags & ATR_VFLAG_SET) != 0) {
+		if (is_jattr_set(pjob, JOB_ATR_SchedSelect)) {
 			/* Save current SchedSelect value if not */
 			/* already saved in *_orig */
-			if ((pjob->ji_wattr[JOB_ATR_SchedSelect_orig].at_flags & ATR_VFLAG_SET) == 0) {
-				(void)decode_str(
-                         		&pjob->ji_wattr[(int)JOB_ATR_SchedSelect_orig],
-					NULL,
-                                        NULL,
-					pjob->ji_wattr[JOB_ATR_SchedSelect].at_val.at_str);
-
-			}
+			if (!is_jattr_set(pjob, JOB_ATR_SchedSelect_orig))
+				set_jattr_str_slim(pjob, JOB_ATR_SchedSelect_orig, get_jattr_str(pjob, JOB_ATR_SchedSelect), NULL);
 		}
-		(void)decode_str(
-			&pjob->ji_wattr[(int)JOB_ATR_SchedSelect], NULL,
-						NULL, new_select);
+		set_jattr_str_slim(pjob, JOB_ATR_SchedSelect, new_select, NULL);
 		/* re-generate nodect */
-		(void)set_chunk_sum(&pjob->ji_wattr[(int)JOB_ATR_SchedSelect],
-					&pjob->ji_wattr[(int)JOB_ATR_resource]);
+		set_chunk_sum(get_jattr(pjob, JOB_ATR_SchedSelect), get_jattr(pjob, JOB_ATR_resource));
 
+	} else {
+		log_err(-1, __func__, "new_select is null or empty string");
+		goto recreate_exec_vnode_exit;
 	}
 recreate_exec_vnode_exit:
 	free(new_exec_vnode);
@@ -6155,4 +5712,29 @@ recreate_exec_vnode_exit:
 	free(new_deallocated_execvnode);
 
 	return (rc);
+}
+
+/**
+ * @brief
+ *  action_max_run_subjobs This is action function for max_run_subjobs attribute.
+ *			   It verifies that the attribute is being set only on array jobs.
+ *
+ * @param[in]	pattr	-	attribute structure
+ * @param[in]	pobject	-	job object
+ * @param[in]	actmode	-	action mode
+ */
+int
+action_max_run_subjobs(attribute *pattr, void *pobject, int actmode)
+{
+	job *pjob = (job *) pobject;
+	int jtype;
+
+	if (pjob == NULL)
+		return PBSE_INTERNAL;
+
+	jtype = is_job_array(pjob->ji_qs.ji_jobid);
+	if (jtype != IS_ARRAY_ArrayJob)
+		return PBSE_NOTARRAY_ATTR;
+
+	return PBSE_NONE;
 }

@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.interfaces import *
 
@@ -43,10 +46,12 @@ class TestNodePartition(TestInterfaces):
     """
     Test suite to test partition attr for node
     """
-    # Node id is MoM's short name
-    host_name = socket.gethostname().split('.')[0]
 
-    def set_node_partition_attr(self, mgr_cmd="MGR_CMD_SET", n_name=host_name,
+    def setUp(self):
+        TestInterfaces.setUp(self)
+        self.mom_hostname = self.mom.shortname
+
+    def set_node_partition_attr(self, mgr_cmd="MGR_CMD_SET", n_name=None,
                                 partition="P1", user=ROOT_USER):
         """
         Common function to set partition attribute to node object
@@ -62,9 +67,9 @@ class TestNodePartition(TestInterfaces):
         :type user: :py:class:`~ptl.lib.pbs_testlib.PbsUser`
         """
         attr = {'partition': partition}
-        if mgr_cmd is "MGR_CMD_SET":
+        if mgr_cmd == "MGR_CMD_SET":
             self.server.manager(MGR_CMD_SET, NODE, attr, id=n_name, runas=user)
-        elif mgr_cmd is "MGR_CMD_UNSET":
+        elif mgr_cmd == "MGR_CMD_UNSET":
             self.server.manager(MGR_CMD_UNSET, NODE,
                                 "partition", id=n_name, runas=user)
         else:
@@ -76,19 +81,20 @@ class TestNodePartition(TestInterfaces):
         """
         Test to set/unset the partition attribute of node object
         """
-        self.set_node_partition_attr()
-        self.set_node_partition_attr(partition="P2")
+        self.set_node_partition_attr(n_name=self.mom_hostname)
+        self.set_node_partition_attr(partition="P2", n_name=self.mom_hostname)
 
         # resetting the same partition value
-        self.set_node_partition_attr(partition="P2")
-        self.set_node_partition_attr(mgr_cmd="MGR_CMD_UNSET")
+        self.set_node_partition_attr(partition="P2", n_name=self.mom_hostname)
+        self.set_node_partition_attr(mgr_cmd="MGR_CMD_UNSET",
+                                     n_name=self.mom_hostname)
 
     def test_set_partition_node_attr_user_permissions(self):
         """
         Test to check the user permissions for set/unset the partition
         attribute of node
         """
-        self.set_node_partition_attr()
+        self.set_node_partition_attr(n_name=self.mom_hostname)
         msg1 = "Unauthorized Request"
         msg2 = "didn't receive expected error message"
         try:
@@ -99,7 +105,7 @@ class TestNodePartition(TestInterfaces):
             self.set_node_partition_attr(mgr_cmd="MGR_CMD_UNSET",
                                          user=TEST_USER)
         except PbsManagerError as e:
-            # self.assertEquals(e.rc, 15007)
+            # self.assertEqual(e.rc, 15007)
             # The above code has to be uncommented when the PTL framework
             # bug PP-881 gets fixed
             self.assertTrue(msg1 in e.msg[0], msg2)
@@ -112,15 +118,16 @@ class TestNodePartition(TestInterfaces):
         attr = {'queue_type': "execution", 'enabled': "True",
                 'started': "True", 'partition': "P1"}
         self.server.manager(MGR_CMD_CREATE, QUEUE, attr, id="Q1")
-        self.set_node_partition_attr()
+        self.set_node_partition_attr(n_name=self.mom_hostname)
         attr = {'queue_type': "execution", 'enabled': "True",
                 'started': "True", 'partition': "P2"}
         self.server.manager(MGR_CMD_CREATE, QUEUE, attr, id="Q2")
 
-        self.set_node_partition_attr(mgr_cmd="MGR_CMD_UNSET")
+        self.set_node_partition_attr(mgr_cmd="MGR_CMD_UNSET",
+                                     n_name=self.mom_hostname)
         self.server.manager(MGR_CMD_SET, NODE, {
-                            'queue': "Q2"}, id=self.host_name)
-        self.set_node_partition_attr(partition="P2")
+                            'queue': "Q2"}, id=self.mom_hostname)
+        self.set_node_partition_attr(partition="P2", n_name=self.mom_hostname)
 
     def test_mismatch_of_partition_on_node_and_queue(self):
         """
@@ -135,7 +142,7 @@ class TestNodePartition(TestInterfaces):
                                 QUEUE, {'partition': "P1"},
                                 id="Q2")
         except PbsManagerError as e:
-            # self.assertEquals(e.rc, 15221)
+            # self.assertEqual(e.rc, 15221)
             # The above code has to be uncommented when the PTL framework
             # bug PP-881 gets fixed
             self.assertTrue(msg1 in e.msg[0], msg2)
@@ -143,17 +150,17 @@ class TestNodePartition(TestInterfaces):
         try:
             self.server.manager(MGR_CMD_SET,
                                 NODE, {'queue': "Q1"},
-                                id=self.host_name)
+                                id=self.mom_hostname)
         except PbsManagerError as e:
-            # self.assertEquals(e.rc, 15220)
+            # self.assertEqual(e.rc, 15220)
             # The above code has to be uncommented when the PTL framework
             # bug PP-881 gets fixed
             self.assertTrue(msg1 in e.msg[0], msg2)
         msg1 = "Queue Q2 is not part of partition for node"
         try:
-            self.set_node_partition_attr()
+            self.set_node_partition_attr(n_name=self.mom_hostname)
         except PbsManagerError as e:
-            # self.assertEquals(e.rc, 15219)
+            # self.assertEqual(e.rc, 15219)
             # The above code has to be uncommented when the PTL framework
             # bug PP-881 gets fixed
             self.assertTrue(msg1 in e.msg[0], msg2)

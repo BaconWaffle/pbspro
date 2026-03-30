@@ -1,42 +1,46 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import time
 from tests.functional import *
+from ptl.utils.pbs_logutils import PBSLogUtils
 
 
 class TestCalendaring(TestFunctional):
@@ -153,8 +157,8 @@ class TestCalendaring(TestFunctional):
         # it won't try and add it to the calendar.  To do this, we ask for
         # 1 node with 2 cpus.  There are 2 nodes with 1 cpu each.
         attrs = {'resources_available.ncpus': 1}
-        self.server.create_vnodes('vn', attrib=attrs, num=2,
-                                  mom=self.mom, sharednode=False)
+        self.mom.create_vnodes(attrib=attrs, num=2,
+                               sharednode=False)
 
         self.scheduler.set_sched_config({'strict_ordering': 'True ALL'})
 
@@ -185,3 +189,300 @@ class TestCalendaring(TestFunctional):
 
         msg = jid3 + ';Job is a top job and will run at'
         self.scheduler.log_match(msg)
+
+    def test_topjob_bucket(self):
+        """
+        In this test we test that a bucket job will be calendared to start
+        at the end of the last job on a node
+        """
+
+        self.scheduler.set_sched_config({'strict_ordering': 'true all'})
+        a = {'resources_available.ncpus': 2}
+        self.mom.create_vnodes(a, 1)
+
+        res_req = {'Resource_List.select': '1:ncpus=1',
+                   'Resource_List.walltime': 30}
+        j1 = Job(TEST_USER, attrs=res_req)
+        j1.set_sleep_time(30)
+        jid1 = self.server.submit(j1)
+
+        res_req = {'Resource_List.select': '1:ncpus=1',
+                   'Resource_List.walltime': 45}
+        j2 = Job(TEST_USER, attrs=res_req)
+        j2.set_sleep_time(45)
+        jid2 = self.server.submit(j2)
+
+        res_req = {'Resource_List.select': '1:ncpus=1',
+                   'Resource_List.place': 'excl'}
+        j3 = Job(TEST_USER, attrs=res_req)
+        jid3 = self.server.submit(j3)
+
+        self.server.expect(JOB, {'job_state': 'R'}, jid1)
+        self.server.expect(JOB, {'job_state': 'R'}, jid2)
+        self.server.expect(JOB, {'job_state': 'Q'}, jid3)
+        job1 = self.server.status(JOB, id=jid1)
+        job2 = self.server.status(JOB, id=jid2)
+        job3 = self.server.status(JOB, id=jid3)
+
+        end_time = time.mktime(time.strptime(job2[0]['stime'], '%c')) + 45
+        est_time = job3[0]['estimated.start_time']
+        est_time = time.mktime(time.strptime(est_time, '%c'))
+        self.assertAlmostEqual(end_time, est_time, delta=1)
+
+    def test_zero_resource_pushes_topjob(self):
+        """
+        This test case tests the scenario where a job that requests zero
+        instance of a resource as the last resource in the select statement
+        pushes the start time of top jobs
+        """
+        attrs = {'resources_available.ncpus': 4}
+        self.mom.create_vnodes(attrib=attrs, num=5,
+                               sharednode=False)
+
+        attr = {ATTR_RESC_TYPE: 'long', ATTR_RESC_FLAG: 'hn'}
+        self.server.manager(MGR_CMD_CREATE, RSC, attr, id='ngpus')
+
+        resources = self.scheduler.sched_config['resources']
+        resources = resources[:-1] + ', ngpus, zz\"'
+        a = {'job_sort_key': '"job_priority HIGH ALL"',
+             'resources': resources,
+             'strict_ordering': 'True ALL'}
+        self.scheduler.set_sched_config(a)
+
+        a = {'Resource_List.select': '2:ncpus=4',
+             'Resource_List.walltime': '1:00:00',
+             'Resource_List.place': 'vscatter'}
+
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        jid1 = self.server.submit(j)
+
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        jid2 = self.server.submit(j)
+
+        a = {'Resource_List.select': '5:ncpus=4',
+             'Resource_List.walltime': '1:00:00',
+             ATTR_p: "1000",
+             'Resource_List.place': 'vscatter'}
+
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        jid3 = self.server.submit(j)
+
+        a = {'Resource_List.select': '1:ncpus=4',
+             'Resource_List.walltime': '24:00:01',
+             'Resource_List.place': 'vscatter'}
+
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        jid4 = self.server.submit(j)
+
+        a = {'Resource_List.select': '1:ncpus=4:ngpus=0',
+             'Resource_List.walltime': '24:00:01',
+             'Resource_List.place': 'vscatter'}
+
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        jid5 = self.server.submit(j)
+
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid2)
+        self.server.expect(JOB, {ATTR_state: 'Q'}, id=jid3)
+        c = "Not Running: Job would conflict with reservation or top job"
+        self.server.expect(JOB, {ATTR_state: 'Q', ATTR_comment: c}, id=jid4)
+        self.server.expect(JOB, {ATTR_state: 'Q', ATTR_comment: c}, id=jid5)
+
+    def test_zero_resource_job_conflict_resv(self):
+        """
+        This test case tests the scenario where a job that requests zero
+        instance of a resource as the last resource in the select statement
+        pushes the start time of reservations
+        """
+        attrs = {'resources_available.ncpus': 4}
+        self.mom.create_vnodes(attrib=attrs, num=5,
+                               sharednode=False)
+
+        attr = {ATTR_RESC_TYPE: 'long', ATTR_RESC_FLAG: 'hn'}
+        self.server.manager(MGR_CMD_CREATE, RSC, attr, id='ngpus')
+
+        resources = self.scheduler.sched_config['resources']
+        resources = resources[:-1] + ', ngpus, zz\"'
+        a = {'job_sort_key': '"job_priority HIGH ALL"',
+             'resources': resources,
+             'strict_ordering': 'True ALL'}
+        self.scheduler.set_sched_config(a)
+
+        a = {'Resource_List.select': '2:ncpus=4',
+             'Resource_List.walltime': '1:00:00',
+             'Resource_List.place': 'vscatter'}
+
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        jid1 = self.server.submit(j)
+
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        jid2 = self.server.submit(j)
+
+        now = int(time.time())
+        a = {'Resource_List.select': '5:ncpus=4',
+             'reserve_start': now + 3610,
+             'reserve_end': now + 6610,
+             'Resource_List.place': 'vscatter'}
+
+        r = Reservation(TEST_USER)
+        r.set_attributes(a)
+        rid = self.server.submit(r)
+        exp = {'reserve_state': (MATCH_RE, "RESV_CONFIRMED|2")}
+        self.server.expect(RESV, exp, id=rid)
+
+        a = {'Resource_List.select': '1:ncpus=4',
+             'Resource_List.walltime': '24:00:01',
+             'Resource_List.place': 'vscatter'}
+
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        jid3 = self.server.submit(j)
+
+        a = {'Resource_List.select': '1:ncpus=4:ngpus=0',
+             'Resource_List.walltime': '24:00:01',
+             'Resource_List.place': 'vscatter'}
+
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        jid4 = self.server.submit(j)
+
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid2)
+        c = "Not Running: Job would conflict with reservation or top job"
+        self.server.expect(JOB, {ATTR_state: 'Q', ATTR_comment: c}, id=jid3)
+        self.server.expect(JOB, {ATTR_state: 'Q', ATTR_comment: c}, id=jid4)
+
+    def test_topjob_stale_estimates_clearing_on_clear_attr_set(self):
+        """
+        In this test we test that former top job with stale estimate
+        gets the estimate cleared once the server attribute
+        clear_topjob_estimates_enable is set to True
+        """
+
+        self.scheduler.set_sched_config({'strict_ordering': 'true all'})
+        a = {'resources_available.ncpus': 1}
+        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
+        a = {'backfill_depth': '2'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        a = {'scheduler_iteration': '5'}
+        self.server.manager(MGR_CMD_SET, SCHED, a)
+
+        res_req = {'Resource_List.select': '1:ncpus=1',
+                   'Resource_List.walltime': 300}
+        j1 = Job(TEST_USER, attrs=res_req)
+        jid1 = self.server.submit(j1)
+
+        self.server.expect(JOB, {'job_state': 'R'}, jid1)
+
+        j2 = Job(TEST_USER, attrs=res_req)
+        jid2 = self.server.submit(j2)
+        job2 = self.server.status(JOB, id=jid2)
+        self.assertIn('estimated.start_time', job2[0])
+        self.assertIn('estimated.exec_vnode', job2[0])
+        self.server.expect(JOB, {'topjob': True}, jid2, max_attempts=5)
+
+        a = {'backfill_depth': '0'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+
+        time.sleep(6)
+
+        job2 = self.server.status(JOB, id=jid2)
+        self.assertIn('estimated.start_time', job2[0])
+        self.assertIn('estimated.exec_vnode', job2[0])
+        self.server.expect(JOB, {'topjob': False}, jid2, max_attempts=5)
+
+        a = {'clear_topjob_estimates_enable': True}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+
+        self.server.expect(JOB, 'estimated.start_time', id=jid2, op=UNSET,
+                           interval=1, max_attempts=10)
+        self.server.expect(JOB, 'estimated.exec_vnode', id=jid2, op=UNSET,
+                           interval=1, max_attempts=10)
+
+    def test_topjob_estimates_clearing_enabled(self):
+        """
+        In this test we test that the top job which gets added to the
+        calendar with valid estimate has estimate cleared once it losses
+        top job status. The clearing needs to have the server attribute
+        clear_topjob_estimates_enable set to true. Also, the job's topjob
+        attribute is set accordingly.
+        """
+
+        self.scheduler.set_sched_config({'strict_ordering': 'true all'})
+        a = {'resources_available.ncpus': 1}
+        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
+        a = {'backfill_depth': '2', 'clear_topjob_estimates_enable': True}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        a = {'scheduler_iteration': '5'}
+        self.server.manager(MGR_CMD_SET, SCHED, a)
+
+        res_req = {'Resource_List.select': '1:ncpus=1',
+                   'Resource_List.walltime': 300}
+        j1 = Job(TEST_USER, attrs=res_req)
+        jid1 = self.server.submit(j1)
+
+        self.server.expect(JOB, {'job_state': 'R'}, jid1)
+
+        j2 = Job(TEST_USER, attrs=res_req)
+        jid2 = self.server.submit(j2)
+        job2 = self.server.status(JOB, id=jid2)
+        self.assertIn('estimated.start_time', job2[0])
+        self.assertIn('estimated.exec_vnode', job2[0])
+        self.server.expect(JOB, {'topjob': True}, jid2, max_attempts=5)
+
+        a = {'backfill_depth': '0'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+
+        time.sleep(6)
+
+        job2 = self.server.status(JOB, id=jid2)
+        self.assertNotIn('estimated.start_time', job2[0])
+        self.assertNotIn('estimated.exec_vnode', job2[0])
+        self.server.expect(JOB, {'topjob': False}, jid2, max_attempts=5)
+
+    def test_topjob_estimates_clearing_disabled(self):
+        """
+        In this test we test that the top job which gets added to the
+        calendar with valid estimate has not estimate cleared if it losses
+        top job status. The clearing is prevented by clear_topjob_estimates_enable
+        set to false/unset. Also, the job's topjob attribute is set accordingly.
+        """
+
+        self.scheduler.set_sched_config({'strict_ordering': 'true all'})
+        a = {'resources_available.ncpus': 1}
+        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
+        a = {'backfill_depth': '2', 'clear_topjob_estimates_enable': False}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        a = {'scheduler_iteration': '5'}
+        self.server.manager(MGR_CMD_SET, SCHED, a)
+
+        res_req = {'Resource_List.select': '1:ncpus=1',
+                   'Resource_List.walltime': 300}
+        j1 = Job(TEST_USER, attrs=res_req)
+        jid1 = self.server.submit(j1)
+
+        self.server.expect(JOB, {'job_state': 'R'}, jid1)
+
+        j2 = Job(TEST_USER, attrs=res_req)
+        jid2 = self.server.submit(j2)
+        job2 = self.server.status(JOB, id=jid2)
+        self.assertIn('estimated.start_time', job2[0])
+        self.assertIn('estimated.exec_vnode', job2[0])
+        self.server.expect(JOB, {'topjob': True}, jid2, max_attempts=5)
+
+        a = {'backfill_depth': '0'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+
+        time.sleep(6)
+
+        job2 = self.server.status(JOB, id=jid2)
+        self.assertIn('estimated.start_time', job2[0])
+        self.assertIn('estimated.exec_vnode', job2[0])
+        self.server.expect(JOB, {'topjob': False}, jid2, max_attempts=5)

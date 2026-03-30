@@ -1,39 +1,40 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
 
 #ifndef PBS_ARRAY_LIST_H__
@@ -42,7 +43,7 @@
 /*
  * The data structures, macros and functions in this header file are used for
  * compressing the list of IP addresses sent across from the
- * server to the MOM(s) as part of the IS_CLUSTER_ADDRS2 message.
+ * server to the MOM(s) as part of the IS_CLUSTER_ADDRS message.
  *
  * The high-level algorithm is to reduce a given set of IP addresses to range(s)
  * E.g.: Given: 1,2,3,4,5,8,9,10,11 => {1-5},{8,11}
@@ -75,39 +76,38 @@ typedef long unsigned int T;
 typedef struct pbs_ip_range {
 	T ra_low;
 	T ra_high;
-}PBS_IP_RANGE; /* ra_high  is the number of addresses in the range 'in addition' to the starting address */
+} PBS_IP_RANGE; /* ra_high  is the number of addresses in the range 'in addition' to the starting address */
 
-typedef PBS_IP_RANGE* pntPBS_IP_RANGE;
+typedef PBS_IP_RANGE *pntPBS_IP_RANGE;
 
 /**
  * The PBS_IP_LIST data structure contains an array of ordered pairs (PBS_IP_RANGE)
  * Carries meta-data about the range: the number of slots used and number of
  * slots available
  */
-typedef struct pbs_ip_list{
+typedef struct pbs_ip_list {
 	pntPBS_IP_RANGE li_range;
 	int li_nrowsused;
 	int li_totalsize;
-}PBS_IP_LIST;
+} PBS_IP_LIST;
 
-
-typedef PBS_IP_LIST* pntPBS_IP_LIST;
-#define CHUNK 5     /* The number of slots by which PBS_IP_LIST is resized */
-#define  INIT_VALUE 0
+typedef PBS_IP_LIST *pntPBS_IP_LIST;
+#define CHUNK 5 /* The number of slots by which PBS_IP_LIST is resized */
+#define INIT_VALUE 0
 
 /* Various macros to retrieve or set 'ra_low' or 'ra_high' for a given PBS_IP_RANGE */
-#define  IPLIST_GET_LOW(X , Y ) (X)->li_range[(Y)].ra_low
-#define  IPLIST_GET_HIGH(X , Y ) (X)->li_range[(Y)].ra_high
-#define  IPLIST_SET_LOW(X , Y , Z ) (X)->li_range[(Y)].ra_low = (Z)
-#define  IPLIST_SET_HIGH(X , Y , Z ) (X)->li_range[(Y)].ra_high = (Z)
-#define  IPLIST_IS_CONTINUOUS(X , Y ) ((X) + 1 == (Y) )
+#define IPLIST_GET_LOW(X, Y) (X)->li_range[(Y)].ra_low
+#define IPLIST_GET_HIGH(X, Y) (X)->li_range[(Y)].ra_high
+#define IPLIST_SET_LOW(X, Y, Z) (X)->li_range[(Y)].ra_low = (Z)
+#define IPLIST_SET_HIGH(X, Y, Z) (X)->li_range[(Y)].ra_high = (Z)
+#define IPLIST_IS_CONTINUOUS(X, Y) ((X) + 1 == (Y))
 
-#define IPLIST_IS_CONTINUOUS_ROW(X , Y , Z ) (IPLIST_IS_CONTINUOUS((IPLIST_GET_LOW(X , Y ) + IPLIST_GET_HIGH(X , Y )), (Z)))
-#define IPLIST_IS_ROW_SAME(X , Y , Z ) ((IPLIST_GET_LOW(X , Y ) + IPLIST_GET_HIGH(X , Y )) == (Z))
-#define IPLIST_MOVE_DOWN(X , Y ) (((X) - (Y)) * sizeof(PBS_IP_RANGE))
-#define IPLIST_MOVE_UP(X , Y ) (((X) - ((Y) + 1)) * sizeof(PBS_IP_RANGE) )
-#define IPLIST_SHIFT_ALL_DOWN_BY_ONE(X , Y , Z ) memmove((X)->li_range + (Y) + 1, (X)->li_range + (Y), (Z) * sizeof(PBS_IP_RANGE) )
-#define IPLIST_SHIFT_ALL_UP_BY_ONE(X , Y , Z ) memmove((X)->li_range + (Y) , (X)->li_range + (Y) + 1, (Z) * sizeof(PBS_IP_RANGE) )
+#define IPLIST_IS_CONTINUOUS_ROW(X, Y, Z) (IPLIST_IS_CONTINUOUS((IPLIST_GET_LOW(X, Y) + IPLIST_GET_HIGH(X, Y)), (Z)))
+#define IPLIST_IS_ROW_SAME(X, Y, Z) ((IPLIST_GET_LOW(X, Y) + IPLIST_GET_HIGH(X, Y)) == (Z))
+#define IPLIST_MOVE_DOWN(X, Y) (((X) - (Y)) * sizeof(PBS_IP_RANGE))
+#define IPLIST_MOVE_UP(X, Y) (((X) - ((Y) + 1)) * sizeof(PBS_IP_RANGE))
+#define IPLIST_SHIFT_ALL_DOWN_BY_ONE(X, Y, Z) memmove((X)->li_range + (Y) + 1, (X)->li_range + (Y), (Z) * sizeof(PBS_IP_RANGE))
+#define IPLIST_SHIFT_ALL_UP_BY_ONE(X, Y, Z) memmove((X)->li_range + (Y), (X)->li_range + (Y) + 1, (Z) * sizeof(PBS_IP_RANGE))
 
 #define IPLIST_INSERT_SUCCESS 0
 #define IPLIST_INSERT_FAILURE -1
@@ -188,7 +188,6 @@ void delete_pbs_iplist(pntPBS_IP_LIST);
  */
 int search_iplist_location(pntPBS_IP_LIST, T, int *);
 
-
 /**
  * @brief
  *	Inserts provided key into provided PBS_IP_LIST
@@ -208,7 +207,7 @@ int search_iplist_location(pntPBS_IP_LIST, T, int *);
  * 0 - SUCCESS
  * 1 - FAILURE
  */
-int insert_iplist_element(pntPBS_IP_LIST , T);
+int insert_iplist_element(pntPBS_IP_LIST, T);
 
 /**
  * @brief
@@ -227,6 +226,6 @@ int insert_iplist_element(pntPBS_IP_LIST , T);
  * 0 - SUCCESS
  * 1 - FAILURE
  */
-int delete_iplist_element(pntPBS_IP_LIST , T);
+int delete_iplist_element(pntPBS_IP_LIST, T);
 
 #endif

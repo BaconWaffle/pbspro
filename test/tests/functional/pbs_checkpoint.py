@@ -1,43 +1,45 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
 
-from tests.functional import *
 from ptl.utils.pbs_crayutils import CrayUtils
+from tests.functional import *
 
 
 class TestCheckpoint(TestFunctional):
@@ -55,11 +57,8 @@ class TestCheckpoint(TestFunctional):
 kill $1
 exit 0
 """
-        self.abort_file = self.du.create_temp_file(body=abort_script)
-        self.du.chmod(path=self.abort_file, mode=0755)
-        self.du.chown(path=self.abort_file, uid=0, gid=0, runas=ROOT_USER)
-        c = {'$action': 'checkpoint_abort 30 !' + self.abort_file + ' %sid'}
-        self.mom.add_config(c)
+        self.abort_file = self.mom.add_checkpoint_abort_script(
+            body=abort_script)
         self.platform = self.du.get_platform()
         if self.platform != 'cray' and self.platform != 'craysim':
             self.attrs = {ATTR_l + '.select': '1:ncpus=1',
@@ -74,9 +73,10 @@ exit 0
         """
         Verify that checkpoint and abort happened.
         """
-        self.ck_dir = os.path.join(self.server.pbs_conf['PBS_HOME'],
+        self.ck_dir = os.path.join(self.mom.pbs_conf['PBS_HOME'],
                                    'checkpoint', jid + '.CK')
-        self.assertTrue(self.du.isdir(path=self.ck_dir, runas=ROOT_USER),
+        self.assertTrue(self.du.isdir(hostname=self.mom.hostname,
+                                      path=self.ck_dir, runas=ROOT_USER),
                         msg="Checkpoint directory %s not found" % self.ck_dir)
         _msg1 = "%s;req_holdjob: Checkpoint initiated." % jid
         self.mom.log_match(_msg1, starttime=stime)
@@ -144,7 +144,6 @@ exit 0
         self.server.manager(MGR_CMD_CREATE, QUEUE, a, "expressq")
 
         j1 = Job(TEST_USER, self.attrs)
-        j1.set_sleep_time(20)
         jid1 = self.server.submit(j1)
         self.server.expect(JOB, {'job_state': 'R'}, id=jid1)
 
@@ -190,7 +189,5 @@ exit 0
 
     def tearDown(self):
         TestFunctional.tearDown(self)
-        try:
-            os.remove(self.abort_file)
-        except OSError:
-            pass
+        self.du.rm(hostname=self.mom.hostname, path=self.abort_file,
+                   sudo=True, force=True)

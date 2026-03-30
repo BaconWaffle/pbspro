@@ -1,53 +1,57 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
-import re
-import time
-import sys
-from datetime import tzinfo, timedelta, datetime
+
+import collections
+import copy
 import logging
-import traceback
 import math
-from subprocess import Popen, PIPE
+import re
+import sys
+import time
+import traceback
+from datetime import datetime, timedelta, tzinfo
+from subprocess import PIPE, Popen
 
+from ptl.lib.pbs_testlib import (EQ, JOB, NODE, SET, BatchUtils, ResourceResv,
+                                 Server, PbsAttribute)
 from ptl.utils.pbs_dshutils import DshUtils
-from ptl.lib.pbs_testlib import BatchUtils, Server, NODE, JOB, SET, EQ
-from ptl.lib.pbs_testlib import ResourceResv
-from ptl.utils.pbs_fileutils import FileUtils, FILE_TAIL
 
 """
 Analyze ``server``, ``scheduler``, ``MoM``, and ``accounting`` logs.
@@ -210,8 +214,6 @@ PARSER_OK_STOP = 1
 PARSER_ERROR_CONTINUE = 2
 PARSER_ERROR_STOP = 3
 
-epoch_datetime = datetime.fromtimestamp(0)
-
 
 class PBSLogUtils(object):
 
@@ -234,17 +236,12 @@ class PBSLogUtils(object):
         :type dt: str or None
         :param fmt: Format to which datetime is to be converted
         :type fmt: str
-        :returns: None if conversion fails
+        :returns: timestamp in seconds since epoch,
+                or None if conversion fails
         """
         if dt is None:
             return None
 
-        stdoffset = timedelta(seconds=-time.timezone)
-        if time.daylight:
-            dstoffset = timedelta(seconds=-time.altzone)
-        else:
-            dstoffset = stdoffset
-        offsetdiff = dstoffset - stdoffset
         micro = False
         if fmt is None:
             if '.' in dt:
@@ -256,12 +253,10 @@ class PBSLogUtils(object):
         try:
             # Get datetime object
             t = datetime.strptime(dt, fmt)
-            # Get timedelta object of epoch time
-            t -= epoch_datetime
-            # get epoch time from timedelta object
-            tm = t.total_seconds() - offsetdiff.total_seconds()
-        except:
-            cls.logger.debug("could not convert date time: " + str(datetime))
+            # Get epoch-timestamp assuming local timezone
+            tm = t.timestamp()
+        except ValueError:
+            cls.logger.debug("could not convert date time: " + str(dt))
             return None
 
         if micro is True:
@@ -281,7 +276,8 @@ class PBSLogUtils(object):
         f.close()
         return nl
 
-    def open_log(self, log, hostname=None, sudo=False):
+    def open_log(self, log, hostname=None, sudo=False, start=None,
+                 num_records=None):
         """
         :param log: the log file name to read from
         :type log: str
@@ -291,25 +287,47 @@ class PBSLogUtils(object):
         :type sudo: boolean
         :returns: A file instance
         """
+        readcmd = ['cat', log]
+        taillogs = 10000
+        tailcmd = [self.du.which(hostname, 'tail')]
+        if start:
+            i = 0
+            while(True):
+                i += 1
+                taillogs = 10000 * i
+                tail_out = self.du.tail(hostname, log, sudo,
+                                        option='-n ' + str(taillogs))
+                line = tail_out['out'][0]
+                ts = line.split(';')[0]
+                epoch = self.convert_date_time(ts)
+                readcmd = tailcmd + ['-n', str(taillogs), log]
+                if start > epoch:
+                    break
+                elif taillogs > num_records:
+                    readcmd = ['cat', log]
+                    break
+
         try:
             if hostname is None or self.du.is_localhost(hostname):
                 if sudo:
-                    cmd = ['sudo', 'cat', log]
+                    cmd = self.du.sudo_cmd + readcmd
                     self.logger.info('running ' + " ".join(cmd))
                     p = Popen(cmd, stdout=PIPE)
                     f = p.stdout
                 else:
-                    f = open(log)
+                    cmd = readcmd
+                    p = Popen(cmd, stdout=PIPE)
+                    f = p.stdout
             else:
                 cmd = ['ssh', hostname]
                 if sudo:
-                    cmd += ['sudo']
-                cmd += ['cat', log]
+                    cmd += self.du.sudo_cmd
+                cmd += readcmd
                 self.logger.debug('running ' + " ".join(cmd))
                 p = Popen(cmd, stdout=PIPE)
                 f = p.stdout
-        except:
-            traceback.print_exc()
+        except Exception:
+            self.logger.error(traceback.print_exc())
             self.logger.error('Problem processing file ' + log)
             f = None
 
@@ -336,6 +354,10 @@ class PBSLogUtils(object):
             num_rec += 1
             if num is not None and num_rec > num:
                 break
+
+            if type(record) == bytes:
+                record = record.decode("utf-8")
+
             m = tm_tag.match(record)
             if m:
                 rec_times.append(
@@ -393,7 +415,7 @@ class PBSLogUtils(object):
         """
         try:
             t = time.strptime(date_time, "%a %b %d %H:%M:%S %Y")
-        except:
+        except Exception:
             t = time.localtime()
         return int(time.mktime(t))
 
@@ -408,16 +430,16 @@ class PBSLogUtils(object):
         hms = tm.split(':')
         return int(int(hms[0]) * 3600 + int(hms[1]) * 60 + int(hms[2]))
 
-    def get_rate(self, l=[]):
+    def get_rate(self, in_list=[]):
         """
         :returns: The frequency of occurrences of array l
                   The array is expected to be sorted
         """
-        if len(l) > 0:
-            duration = l[len(l) - 1] - l[0]
+        if len(in_list) > 0:
+            duration = in_list[len(in_list) - 1] - in_list[0]
             if duration > 0:
                 tm_factor = [1, 60, 60, 24]
-                _rate = float(len(l)) / float(duration)
+                _rate = float(len(in_list)) / float(duration)
                 index = 0
                 while _rate < 1 and index < len(tm_factor):
                     index += 1
@@ -432,7 +454,7 @@ class PBSLogUtils(object):
                 else:
                     _rate = str(_rate) + '/day'
             else:
-                _rate = str(len(l)) + '/s'
+                _rate = str(len(in_list)) + '/s'
             return _rate
         return 0
 
@@ -465,7 +487,7 @@ class PBSLogUtils(object):
     @staticmethod
     def _duration(val=None):
         if val is not None:
-            return str(timedelta(seconds=int(val)))
+            return str(timedelta(seconds=int(float(val))))
 
     @staticmethod
     def get_day(tm=None):
@@ -508,7 +530,7 @@ class PBSLogUtils(object):
             return info
 
         val = [x - intervals[i - 1] for i, x in enumerate(intervals) if i > 0]
-        info[RI] = ", ".join(map(lambda v: str(v), val))
+        info[RI] = ", ".join([str(v) for v in val])
         if intervals:
             info[IT] = intervals[0]
         if frequency is not None:
@@ -641,7 +663,7 @@ class PBSLogAnalyzer(object):
             return False
         self.re_conditional = conditions
         self.num_conditionals = len(conditions)
-        self.prev_records = map(lambda n: '', range(self.num_conditionals))
+        self.prev_records = ['' for n in range(self.num_conditionals)]
         self.info['matches'] = []
 
     def analyze_scheduler_log(self, filename=None, start=None, end=None,
@@ -746,7 +768,7 @@ class PBSLogAnalyzer(object):
             tm = self.logutils.convert_date_time(m.group('datetime'))
             if ((start is None and end is None) or
                     self.logutils.in_range(tm, start, end)):
-                print rec,
+                print(rec, end=' ')
 
     def comp_analyze(self, rec, start, end):
         if self.re_conditional is not None:
@@ -786,25 +808,28 @@ class PBSLogAnalyzer(object):
             return self.summary()
 
     def _log_parser(self, filename, start, end, hostname=None, sudo=False):
+        num_records = self.logutils.get_num_lines(filename, hostname,
+                                                  sudo=sudo)
         if filename is not None:
-            records = self.logutils.open_log(filename, hostname, sudo=sudo)
+            records = self.logutils.open_log(filename, hostname, sudo=sudo,
+                                             start=start,
+                                             num_records=num_records)
         else:
             return None
 
         if records is None:
             return None
 
-        num_records = self.logutils.get_num_lines(filename, hostname,
-                                                  sudo=sudo)
         num_line = 0
         last_rec = None
         if self.show_progress:
-            perc_range = range(10, 110, 10)
-            perc_records = map(lambda x: num_records * x / 100, perc_range)
+            perc_range = list(range(10, 110, 10))
+            perc_records = [num_records * x / 100 for x in perc_range]
             sys.stderr.write('Parsing ' + filename + ': |0%')
             sys.stderr.flush()
 
         for rec in records:
+            rec = rec.decode("utf-8")
             num_line += 1
             if self.show_progress and (num_line > perc_records[0]):
                 sys.stderr.write('-' + str(perc_range[0]) + '%')
@@ -929,7 +954,7 @@ class PBSServerLog(PBSLogAnalyzer):
     server_run_tag = re.compile(tm_re + ".*" + job_re + ".*;Job Run at.*")
     server_nodeup_tag = re.compile(tm_re + ".*Node;.*;node up.*")
     server_enquejob_tag = re.compile(tm_re + ".*" + job_re +
-                                     ".*enqueuing into.*state 1 .*")
+                                     ".*enqueuing into.*state Q .*")
     server_endjob_tag = re.compile(tm_re + ".*" + job_re +
                                    ".*;Exit_status.*")
 
@@ -1109,7 +1134,7 @@ class JobEstimatedStartTimeInfo(object):
         self.num_estimates += 1
 
     def __repr__(self):
-        estimated_at_str = map(lambda t: str(t), self.estimated_at)
+        estimated_at_str = [str(t) for t in self.estimated_at]
         return " ".join([str(self.jobid), 'started: ', str(self.started_at),
                          'estimated: ', ",".join(estimated_at_str)])
 
@@ -1265,7 +1290,7 @@ class PBSSchedulerLog(PBSLogAnalyzer):
                     self.cycle.calendarduration[jid] = \
                         (tm - self.cycle.consider[jid])
                 elif '[' in jid:
-                    arrjid = re.sub("(\[\d+\])", '[]', jid)
+                    arrjid = re.sub(r"(\[\d+\])", '[]', jid)
                     if arrjid in self.cycle.consider:
                         self.cycle.consider[jid] = self.cycle.consider[arrjid]
                         self.cycle.calendarduration[jid] = \
@@ -1285,7 +1310,7 @@ class PBSSchedulerLog(PBSLogAnalyzer):
 
         cycles = []
         if end is None:
-            end = int(time.time())
+            end = time.time()
         for c in self.cycles:
             if c.start >= start and c.end < end:
                 cycles.append(c)
@@ -1337,7 +1362,7 @@ class PBSSchedulerLog(PBSLogAnalyzer):
             try:
                 tm = self.logutils.convert_date_time(m.group('est_tm'),
                                                      "%a %b %d %H:%M:%S %Y")
-            except:
+            except Exception:
                 logging.error('error converting time: ' +
                               str(m.group('est_tm')))
                 return PARSER_ERROR_STOP
@@ -1453,7 +1478,7 @@ class PBSSchedulerLog(PBSLogAnalyzer):
             c.summary(showjobs)
             self.info[num_cycle] = c.info
             run += len(c.sched_job_run.keys())
-            run_tm.extend(c.sched_job_run.values())
+            run_tm.extend(list(c.sched_job_run.values()))
             failed += len(c.run_failure.keys())
             total_considered += c.num_considered
 
@@ -1877,7 +1902,7 @@ class PBSAccountingLog(PBSLogAnalyzer):
         """
         Parsing accounting log
         """
-        r = self.record_tag.match(rec)
+        r = self.record_tag.match(rec.decode("utf-8"))
         if not r:
             return PARSER_ERROR_CONTINUE
 
@@ -1913,11 +1938,11 @@ class PBSAccountingLog(PBSLogAnalyzer):
                     try:
                         msg = r.group('msg').split()
                         attrs = dict([l.split('=', 1) for l in msg])
-                    except:
+                    except Exception:
                         self.parser_errors += 1
                         return PARSER_OK_CONTINUE
                     for k in attrs.keys():
-                        attrs[k] = self.utils.decode_value(attrs[k])
+                        attrs[k] = PbsAttribute.decode_value(attrs[k])
                     running_time = (int(attrs['end']) - int(attrs['start']))
                     attrs['running_time'] = str(running_time)
                     attrs['schedselect'] = attrs['Resource_List.select']
@@ -1955,7 +1980,7 @@ class PBSAccountingLog(PBSLogAnalyzer):
                                 walltime = self.logutils.convert_hhmmss_time(
                                     m.group('walltime').strip())
                                 self.run_time.append(walltime)
-                            except:
+                            except Exception:
                                 pass
                         else:
                             walltime = tm - starttime
@@ -1986,17 +2011,17 @@ class PBSAccountingLog(PBSLogAnalyzer):
             self.duration = last_record_tm - self.record_tm[0]
             self.info[DUR] = self.logutils._duration(self.duration)
 
-        self.jobs_started = self.job_start.keys()
-        self.jobs_ended = self.job_end.keys()
-        self.job_node_size = map(lambda n: len(n), self.job_nodes.values())
-        self.job_cpu_size = self.job_cpus.values()
+        self.jobs_started = list(self.job_start.keys())
+        self.jobs_ended = list(self.job_end.keys())
+        self.job_node_size = [len(n) for n in self.job_nodes.values()]
+        self.job_cpu_size = list(self.job_cpus.values())
         self.start = sorted(self.job_start.values())
         self.end = sorted(self.job_end.values())
 
         # list of jobs that have not yet ended, those are jobs that
         # have an S record but no E record. We port back the precomputed
         # metrics from the S record into the data to "publish"
-        sjobs = list(set(self.jobs_started).difference(self.jobs_ended))
+        sjobs = set(self.jobs_started).difference(self.jobs_ended)
         for job in sjobs:
             if job in self.tmp_wait_time:
                 self.wait_time.append(self.tmp_wait_time[job])
@@ -2055,7 +2080,7 @@ class PBSAccountingLog(PBSLogAnalyzer):
         if m:
             d = {}
             if m.group('type') == 'E':
-                if hasattr(self, 'jobid') and self.jobid != m.group('id'):
+                if getattr(self, 'jobid', None) != m.group('id'):
                     return PARSER_OK_CONTINUE
                 if not hasattr(self, 'job_info_res'):
                     self.job_info_res = {}
@@ -2065,59 +2090,6 @@ class PBSAccountingLog(PBSLogAnalyzer):
                 self.job_info_res[m.group('id')] = d
 
         return PARSER_OK_CONTINUE
-
-    def finished_jobs_nodes(self, last=None, tm_range=None):
-        """
-        :param tm_range: a tuple of time where the first item is the
-                         start time
-        :param last: If tm_range is None and last is specified, a
-                     time range from now till 'last' seconds from
-                     now is used as a range of time to consider and
-                     the second item is the end time to consider
-        :returns: A dictionary of jobs that ended in the time range
-                  as keys,and nodes (hostnames) on which those jobs
-                  were running as values.
-        """
-        if self.filename is None:
-            self.logger.error('A filename is required, exiting')
-            return
-
-        if tm_range is None and last is not None:
-            tm_range = (time.time(), time.time() - last)
-
-        if len(tm_range) != 2:
-            self.logger.error(
-                'tm_range must be a tuple of start and end times')
-            return
-
-        job_nodes = {}
-        f = FileUtils(self.filename, FILE_TAIL)
-
-        # the file is being tailed so we look at the start and end record
-        # in the 'opposite' range
-        start = tm_range[1]
-        end = tm_range[0]
-
-        while True:
-            records = f.next()
-            if records is None:
-                break
-            for rec in records:
-                r = self.record_tag.match(rec)
-                if r:
-                    tm = self.logutils.convert_date_time(r.group('date') +
-                                                         ' ' + r.group('time'))
-                    if not self.logutils.in_range(tm, start, end):
-                        continue
-                    rec_type = r.group('type')
-                    if rec_type == 'E':
-                        jobid = r.group('id')
-                        m = self.sub_record_tag.match(r.group('msg'))
-                        if m and self.utils:
-                            ehost = m.group('exechost')
-                            nodes = ResourceResv.get_hosts(ehost)
-                            job_nodes[jobid] = nodes
-        return job_nodes
 
     def summary(self):
         """

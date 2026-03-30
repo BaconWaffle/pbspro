@@ -1,58 +1,55 @@
 # coding: utf-8
-"""
-/*
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
- *
- */
-"""
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
 __doc__ = """
-$Id$
-
 This hook will activate and deactivate a power profile contained
 in the 'eoe' value for a job.
 """
 
-import pbs
+import datetime
+import json
 import os
 import socket
 import time
-import datetime
-from subprocess import Popen, PIPE
-import json
+from subprocess import PIPE, Popen
+
+import pbs
 from pbs.v1._pmi_utils import _get_vnode_names, _svr_vnode
 
 
@@ -84,7 +81,7 @@ def get_local_node(name):
     # Get host names from /etc/hosts and return matching name for the MoM
     try:
         (hostname, aliaslist, _) = socket.gethostbyname_ex(name)
-    except:
+    except Exception:
         return None
     aliaslist.append(hostname)
     # Search for possible match in server vnode list.
@@ -111,11 +108,11 @@ def parse_config_file():
     global max_concurrent_nodes
 
     try:
-        # This block will work for PBS Pro versions 13 and later
+        # This block will work for PBS versions 13 and later
         pbs_conf = pbs.get_pbs_conf()
         pbs_home = pbs_conf['PBS_HOME']
         pbs_exec = pbs_conf['PBS_EXEC']
-    except:
+    except Exception:
         pbs.logmsg(pbs.EVENT_DEBUG,
                    "PBS_HOME needs to be defined in the config file")
         pbs.logmsg(pbs.EVENT_DEBUG, "Exiting the power hook")
@@ -145,7 +142,7 @@ def parse_config_file():
         fd.close()
     except IOError:
         raise Exception("I/O error reading config file")
-    except:
+    except Exception:
         raise Exception("Error reading config file")
 
     # Assign default values to attributes
@@ -233,7 +230,7 @@ if this_event.type == pbs.PERIODIC:
             job_list = []
         else:
             job_list = o.splitlines()
-    except OSError, ValueError:
+    except (OSError, ValueError):
         job_list = []
     # Analyze queued jobs and see if any of the nodes are needed in near future
     exec_vnodes = {}
@@ -250,7 +247,7 @@ if this_event.type == pbs.PERIODIC:
             (o, e) = p.communicate()
             if p.returncode:
                 continue
-        except OSError, ValueError:
+        except (OSError, ValueError):
             pbs.logmsg(pbs.EVENT_DEBUG3,
                        "Error running qstat command for job %s" % jobid)
             continue
@@ -552,7 +549,7 @@ if this_event.type == pbs.EXECJOB_BEGIN:
     try:
         if not _svr_vnode(me).power_provisioning:
             this_event.accept()
-    except:
+    except Exception:
         # Try with different hostname
         vn = get_local_node(me)
         if not _svr_vnode(vn.name).power_provisioning:
@@ -562,14 +559,14 @@ if this_event.type == pbs.EXECJOB_BEGIN:
     if requested_profile != "":
         try:
             this_event.vnode_list[me].current_eoe = requested_profile
-        except KeyError, ValueError:
+        except (KeyError, ValueError):
             pass
     this_event.accept()
 if this_event.type == pbs.EXECJOB_END:
     me = pbs.get_local_nodename()
     try:
         this_event.vnode_list[me].current_eoe = None
-    except KeyError, ValueError:
+    except (KeyError, ValueError):
         pass
 
     power = init_power(this_event)

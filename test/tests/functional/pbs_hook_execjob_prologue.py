@@ -1,42 +1,46 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 from tests.functional import *
 
 
+@requirements(num_moms=3)
 class TestPbsExecutePrologue(TestFunctional):
     """
     This tests the feature in PBS that allows execjob_prologue hook to
@@ -45,6 +49,7 @@ class TestPbsExecutePrologue(TestFunctional):
 
     PRE: Have a cluster of PBS with 3 mom hosts.
     """
+
     def setUp(self):
         if len(self.moms) != 3:
             self.skip_test(reason="need 3 mom hosts: -p moms=<m1>:<m2>:<m3>")
@@ -59,8 +64,8 @@ class TestPbsExecutePrologue(TestFunctional):
         self.hostB = self.momB.shortname
         self.hostC = self.momC.shortname
 
-        self.server.expect(VNODE, {'state=free': 3}, op=GE, max_attempts=10,
-                           interval=2)
+        for mom in self.moms.values():
+            self.server.expect(NODE, {'state': 'free'}, id=mom.shortname)
 
     def test_prologue_execute_on_all_moms(self):
         """
@@ -74,12 +79,6 @@ class TestPbsExecutePrologue(TestFunctional):
                      "pbs.logjobmsg(e.job.id, 'executed prologue hook')\n")
         attr = {'event': 'execjob_prologue', 'enabled': 'True'}
         self.server.create_import_hook(hook_name, attr, hook_body)
-
-        attr = {'resources_available.ncpus': 1,
-                'resources_available.mem': '2gb'}
-        self.server.manager(MGR_CMD_SET, NODE, attr, id=self.hostA)
-        self.server.manager(MGR_CMD_SET, NODE, attr, id=self.hostB)
-        self.server.manager(MGR_CMD_SET, NODE, attr, id=self.hostC)
 
         attr = {'Resource_List.select': '3:ncpus=1',
                 'Resource_List.place': 'scatter',
@@ -126,9 +125,8 @@ class TestPbsExecutePrologue(TestFunctional):
         """
         attr = {'resources_available.mem': '2gb',
                 'resources_available.ncpus': '1'}
-        self.server.create_vnodes(self.hostC, attr, 3, self.momC, delall=True,
-                                  usenatvnode=True)
-
+        self.momC.create_vnodes(attr, 3,
+                                delall=True, usenatvnode=True)
         hook_name = "prologue_exception"
         hook_body = ("import pbs\n"
                      "e = pbs.event()\n"
@@ -180,7 +178,7 @@ class TestPbsExecutePrologue(TestFunctional):
         attr = {'event': 'execjob_prologue',
                 'enabled': 'True'}
         self.server.create_import_hook(hook_name, attr, hook_body)
-        self.server.expect(HOOK, {'fail_action': 'none'})
+        self.server.expect(HOOK, {'fail_action': 'none'}, id=hook_name)
 
         self.server.manager(MGR_CMD_SET, HOOK,
                             {'fail_action': 'offline_vnodes'},
@@ -230,7 +228,7 @@ class TestPbsExecutePrologue(TestFunctional):
                 'fail_action': 'offline_vnodes'}
         try:
             self.server.create_import_hook(hook_name, attr, hook_body)
-        except PbsManagerError, e:
+        except PbsManagerError as e:
             exp_err = "Can't set hook fail_action value to 'offline_vnodes':"
             exp_err += " hook event must"
             exp_err += " contain at least one of execjob_begin"
@@ -252,7 +250,9 @@ class TestPbsExecutePrologue(TestFunctional):
 
         j = Job(TEST_USER, {'Resource_List.select': '2:ncpus=1',
                             'Resource_List.place': 'scatter'})
-        j.create_script('#!/bin/sh\npbsdsh  hostname\nsleep 10\n')
+        pbsdsh_path = os.path.join(self.server.pbs_conf['PBS_EXEC'],
+                                   "bin", "pbsdsh")
+        j.create_script('#!/bin/sh\n%s  hostname\nsleep 10\n' % pbsdsh_path)
         jid = self.server.submit(j)
         attribs = self.server.status(JOB, id=jid)
         self.server.expect(JOB, 'queue', op=UNSET, id=jid, offset=10)
@@ -260,8 +260,9 @@ class TestPbsExecutePrologue(TestFunctional):
         ret = self.du.cat(hostname=host, filename=opath, runas=TEST_USER)
         _msg = "cat command failed with error: %s" % ret['err']
         self.assertEqual(ret['rc'], 0, _msg)
-        mom1 = ret['out'][2].split(".")[0]
-        mom2 = ret['out'][3].split(".")[0]
+        ret['out'] = ret['out'][-2:]
+        mom1 = ret['out'][0].split(".")[0]
+        mom2 = ret['out'][1].split(".")[0]
         self.exec_mom1 = self.moms[mom1]
         self.exec_mom2 = self.moms[mom2]
         self.exec_mom1.log_match("Job;%s;executed prologue hook" % jid)
@@ -274,6 +275,7 @@ class TestPbsExecutePrologue(TestFunctional):
         Jobs should all start, fail (due to prologue hook error),
         requeue, and rerun several times before eventually getting held
         due to too many failed attempts.
+        The test also confirms that all execjob_end hooks get executed.
         """
         hook_name = "prologue_exception"
         hook_body = ("import pbs\n"
@@ -281,8 +283,23 @@ class TestPbsExecutePrologue(TestFunctional):
                      "if not e.job.in_ms_mom():\n"
                      "    raise NameError\n")
 
-        attr = {'event': 'execjob_prologue',
-                'enabled': 'True'}
+        attr = {'event': 'execjob_prologue', 'enabled': 'True'}
+        self.server.create_import_hook(hook_name, attr, hook_body)
+
+        hook_name = "endjob_hook1"
+        hook_body = ("import pbs\n"
+                     "e = pbs.event()\n"
+                     "pbs.logjobmsg(e.job.id, 'executed endjob hook 1')\n")
+
+        attr = {'event': 'execjob_end', 'enabled': 'True'}
+        self.server.create_import_hook(hook_name, attr, hook_body)
+
+        hook_name = "endjob_hook2"
+        hook_body = ("import pbs\n"
+                     "e = pbs.event()\n"
+                     "pbs.logjobmsg(e.job.id, 'executed endjob hook 2')\n")
+
+        attr = {'event': 'execjob_end', 'enabled': 'True'}
         self.server.create_import_hook(hook_name, attr, hook_body)
 
         attr = {'Resource_List.select': '3:ncpus=1',
@@ -291,6 +308,7 @@ class TestPbsExecutePrologue(TestFunctional):
 
         num_jobs = 3
         job_list = []
+        search_after = time.time()
         for _ in range(num_jobs):
             j = Job(TEST_USER, attrs=attr)
             jid = self.server.submit(j)
@@ -299,4 +317,13 @@ class TestPbsExecutePrologue(TestFunctional):
         held_cmt = "job held, too many failed attempts to run"
         criteria = {'job_state': 'H', 'comment': held_cmt}
         for jid in job_list:
-            self.server.expect(JOB, criteria, attrop=PTL_AND, id=jid)
+            for _ in range(21):
+                self.momA.log_match("Job;%s;executed endjob hook 1" % jid,
+                                    max_attempts=10, interval=1,
+                                    starttime=search_after)
+                self.momA.log_match("Job;%s;executed endjob hook 2" % jid,
+                                    max_attempts=10, interval=1,
+                                    starttime=search_after)
+                search_after = time.time()
+            self.server.expect(JOB, criteria, id=jid, max_attempts=100,
+                               interval=2)

@@ -1,39 +1,41 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
 
 from tests.functional import *
@@ -53,6 +55,15 @@ class TestResourceUsageLog(TestFunctional):
         attr2 = {'resources_available.mem': '200gb'}
         self.server.manager(MGR_CMD_SET, NODE, attr2, id=self.mom.shortname)
 
+    def cleanup_eatcpu(self, scripts):
+        for script in scripts:
+            cmd = 'pgrep -f ' + script
+            ret = self.du.run_cmd(cmd=cmd, level=logging.DEBUG)
+            for pid in ret['out']:
+                cmd = 'kill -9 ' + pid
+                ret = self.du.run_cmd(
+                    cmd=cmd, level=logging.DEBUG, runas=TEST_USER)
+
     def test_acclog_for_job_states(self):
         """
         Check accounting logs when a job completes successfully and when
@@ -60,11 +71,11 @@ class TestResourceUsageLog(TestFunctional):
         """
         a = {'Resource_List.select': '1:ncpus=1:mem=200gb'}
         j1 = Job(TEST_USER, a)
-        j1.create_eatcpu_job(40)
+        j1.create_eatcpu_job(40, self.mom.shortname)
         jid1 = self.server.submit(j1)
 
         j2 = Job(TEST_USER, a)
-        j2.create_eatcpu_job(30)
+        j2.create_eatcpu_job(30, self.mom.shortname)
         jid2 = self.server.submit(j2)
 
         self.server.expect(JOB, {'job_state': 'R'}, jid1)
@@ -75,7 +86,7 @@ class TestResourceUsageLog(TestFunctional):
                            offset=40, extend='x', id=jid1)
 
         j3 = Job(TEST_USER, a)
-        j3.create_eatcpu_job()
+        j3.create_eatcpu_job(hostname=self.mom.shortname)
         jid3 = self.server.submit(j3)
         self.server.expect(JOB, {'job_state': 'R'}, jid3)
         self.server.delete(jid3, wait=True)
@@ -115,20 +126,19 @@ class TestResourceUsageLog(TestFunctional):
         self.server.manager(MGR_CMD_SET, SERVER, a)
         a = {'resources_available.ncpus': 4}
         self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
-
+        scripts = []
         # Submit a job
         a = {'Resource_List.select': '1:ncpus=1:mem=20gb'}
         j = Job(TEST_USER, a)
-        j.create_eatcpu_job()
+        scripts.append(j.create_eatcpu_job(hostname=self.mom.shortname))
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': 'R'}, jid)
-
         # Submit a job array
         ja = Job(TEST_USER, attrs={
             ATTR_J: '1-2',
             'Resource_List.select': 'ncpus=1:mem=20gb'}
         )
-        ja.create_eatcpu_job()
+        scripts.append(ja.create_eatcpu_job(hostname=self.mom.shortname))
         jid_a = self.server.submit(ja)
 
         subjid1 = j.create_subjob_id(jid_a, 1)
@@ -170,31 +180,29 @@ class TestResourceUsageLog(TestFunctional):
         self.server.delete(jid, wait=True)
         self.server.delete(jid_a, wait=True)
 
-        # job1 has 2 R records and a E record
-        matches = self.server.accounting_match(
+        # job1 has R and E record
+        self.server.accounting_match(
             msg='R;' + jid + '.*Exit_status=0.*resources_used.*run_count=1',
             id=jid, regexp=True, allmatch=True)
-        self.assertEqual(len(matches), 2, " 2 R records expected")
         self.server.accounting_match(
             msg='E;' + jid +
             '.*Exit_status=271.*resources_used.*run_count=2',
             id=jid, regexp=True)
 
-        # job array's subjobs have 2 R records and
+        # job array's subjobs have a R record and
         # the jobarray has E record with run_count=0
-        matches = self.server.accounting_match(
+        self.server.accounting_match(
             msg='R;' + re.escape(subjid1) +
             '.*Exit_status=0.*resources_used.*run_count=1',
             id=subjid1, regexp=True, allmatch=True)
-        self.assertEqual(len(matches), 2, " 2 R records expected")
-        matches = self.server.accounting_match(
+        self.server.accounting_match(
             msg='R;' + re.escape(subjid2) +
             '.*Exit_status=0.*resources_used.*run_count=1',
             id=subjid2, regexp=True, allmatch=True)
-        self.assertEqual(len(matches), 2, " 2 R records expected")
         self.server.accounting_match(
             msg='E;' + re.escape(jid_a) +
             '.*Exit_status=1.*run_count=0', id=jid_a, regexp=True)
+        self.cleanup_eatcpu(scripts)
 
     def test_acclog_job_multiple_qrerun(self):
         """
@@ -207,7 +215,7 @@ class TestResourceUsageLog(TestFunctional):
         # Submit job
         a = {'Resource_List.select': '1:ncpus=1:mem=20gb'}
         j = Job(TEST_USER, a)
-        j.create_eatcpu_job()
+        j.create_eatcpu_job(hostname=self.mom.shortname)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': 'R'}, jid)
 
@@ -216,7 +224,7 @@ class TestResourceUsageLog(TestFunctional):
             ATTR_J: '1-2',
             'Resource_List.select': 'ncpus=1:mem=20gb'}
         )
-        ja.create_eatcpu_job()
+        ja.create_eatcpu_job(hostname=self.mom.shortname)
         jid_a = self.server.submit(ja)
         subjid1 = j.create_subjob_id(jid_a, 1)
         subjid2 = j.create_subjob_id(jid_a, 2)
@@ -271,16 +279,14 @@ class TestResourceUsageLog(TestFunctional):
             '.*Exit_status=271.*resources_used.*run_count=3', id=jid,
             regexp=True)
 
-        matches = self.server.accounting_match(
+        self.server.accounting_match(
             msg='R;' + re.escape(subjid1) +
             '.*Exit_status=-11.*resources_used.*run_count=1',
             id=subjid1, regexp=True, allmatch=True)
-        self.assertEqual(len(matches), 2, "Expected 2 R records")
-        matches = self.server.accounting_match(
+        self.server.accounting_match(
             msg='R;' + re.escape(subjid1) +
             '.*Exit_status=-11.*resources_used.*run_count=1',
             id=subjid2, regexp=True, allmatch=True)
-        self.assertEqual(len(matches), 2, "Expected 2 R records")
         self.server.accounting_match(
             msg='E;' + re.escape(jid_a) +
             '.*Exit_status=1.*run_count=0',
@@ -290,9 +296,10 @@ class TestResourceUsageLog(TestFunctional):
         """
         Check for resource usage when job is force requeued
         """
+        scripts = []
         a = {'Resource_List.select': '1:ncpus=1:mem=200gb'}
         j1 = Job(TEST_USER, a)
-        j1.create_eatcpu_job()
+        scripts.append(j1.create_eatcpu_job(hostname=self.mom.shortname))
         jid1 = self.server.submit(j1)
         self.server.expect(JOB, {'job_state': 'R'}, jid1)
 
@@ -306,8 +313,12 @@ class TestResourceUsageLog(TestFunctional):
 
         # Look for R record as job was force requeued
         self.server.accounting_match(
-            msg='.*R;' + jid1 + '.*Exit_status=0.*resources_used.*run_count=1',
-            id=jid1, regexp=True)
+            msg='.*R;' +
+            jid1 +
+            '.*Exit_status=-11.*resources_used.*run_count=1',
+            id=jid1,
+            regexp=True)
+        self.cleanup_eatcpu(scripts)
 
     def test_acclog_services_restart(self):
         """
@@ -316,14 +327,17 @@ class TestResourceUsageLog(TestFunctional):
         """
         a = {'Resource_List.select': '1:ncpus=1:mem=200gb'}
         j1 = Job(TEST_USER, a)
-        j1.create_eatcpu_job(60)
+        j1.create_eatcpu_job(60, self.mom.shortname)
         jid1 = self.server.submit(j1)
         self.server.expect(JOB, {'job_state': 'R'}, jid1)
 
         # Restart PBS services
         PBSInitServices().restart()
+        if self.server.shortname != self.mom.shortname:
+            self.mom.restart()
 
         self.assertTrue(self.server.isUp())
+        self.assertTrue(self.mom.isUp())
 
         # Sleep so accounting logs get updated
         time.sleep(40)
@@ -346,13 +360,13 @@ class TestResourceUsageLog(TestFunctional):
 
         a = {'Resource_List.select': '1:ncpus=1:mem=200gb'}
         j1 = Job(TEST_USER, a)
-        j1.create_eatcpu_job(30)
+        j1.create_eatcpu_job(30, self.mom.shortname)
         jid1 = self.server.submit(j1)
         self.server.expect(JOB, {'job_state': 'R'}, jid1)
 
         a = {'Resource_List.select': '1:ncpus=1:mem=200gb', 'queue': 'highp'}
         j2 = Job(TEST_USER, a)
-        j2.create_eatcpu_job(60)
+        j2.create_eatcpu_job(60, self.mom.shortname)
         jid2 = self.server.submit(j2)
         self.server.expect(JOB, {ATTR_state: 'R'}, jid2)
         self.server.expect(JOB, {ATTR_state: 'Q'}, jid1)

@@ -1,45 +1,44 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
-#ifndef	_SIMULATE_H
-#define	_SIMULATE_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
+
+#ifndef _SIMULATE_H
+#define _SIMULATE_H
 
 #include "data_types.h"
 #include "constant.h"
@@ -49,13 +48,13 @@ extern "C" {
  */
 unsigned int
 simulate_events(status *policy, server_info *sinfo,
-	enum schd_simulate_cmd cmd, void *arg, time_t *sim_time);
+		enum schd_simulate_cmd cmd, void *arg, time_t *sim_time);
 
 /*
  *	is_timed - check if a resresv is a timed event
  * 			 (i.e. has a start and end time)
  */
-int is_timed(event_ptr_t *resresv);
+int is_timed(event_ptr_t *event_ptr);
 
 /*
  *      get_next_event - get the next_event from an event list
@@ -133,11 +132,12 @@ void set_timed_event_disabled(timed_event *te, int disabled);
  *
  */
 timed_event *
-find_timed_event(timed_event *te_list, int ignore_disabled, char *name,
-	enum timed_event_types event_type, time_t event_time);
-
-
-
+find_timed_event(timed_event *te_list, const std::string &name, int ignore_disabled,
+		 enum timed_event_types event_type, time_t event_time);
+timed_event *find_timed_event(timed_event *te_list, int ignore_disabled, enum timed_event_types event_type, time_t event_time);
+timed_event *find_timed_event(timed_event *te_list, enum timed_event_types event_type);
+timed_event *find_timed_event(timed_event *te_list, const std::string &name, enum timed_event_types event_type, time_t event_time);
+timed_event *find_timed_event(timed_event *te_list, time_t event_time);
 
 /*
  *      next_event - move an event_list to the next event and return it
@@ -146,7 +146,7 @@ find_timed_event(timed_event *te_list, int ignore_disabled, char *name,
  *
  *      \return the next event or NULL if there are no more events
  */
-timed_event *next_event(server_info *sinfo, int dont_move);
+timed_event *next_event(server_info *sinfo, int advance);
 
 /*
  *      perform_event - takes a timed_event and performs any actions
@@ -181,11 +181,13 @@ event_list *create_event_list(server_info *sinfo);
  *	returns 1: there exists a run event
  *		0: there doesn't exist a run event
  */
-int exists_run_event(event_list *calendar, time_t end_time);
+int exists_run_event(event_list *calendar, time_t end);
+
+/* Checks to see if there is a run event on a node before the end time */
+int exists_run_event_on_node(node_info *ninf, time_t end);
 
 /* Checks if a reservation run event exists between now and 'end' */
 int exists_resv_event(event_list *calendar, time_t end);
-
 
 /*
  *      create_events - creates an timed_event list from running jobs
@@ -215,7 +217,7 @@ event_list *new_event_list();
  *
  *      \return duplicated event_list
  */
-event_list *dup_event_list(event_list *oel, server_info *nsinfo);
+event_list *dup_event_list(event_list *oelist, server_info *nsinfo);
 
 /*
  * free_event_list - event_list destructor
@@ -289,7 +291,6 @@ void free_event_list(event_list *el);
  */
 timed_event *find_event_by_name(timed_event *events, char *name);
 
-
 /*
  *      add_timed_event - add an event to a sorted list of events
  *
@@ -317,7 +318,7 @@ int add_event(event_list *calendar, timed_event *te);
 /*
  *	delete_event - delete a timed event from an event list
  */
-int delete_event(server_info *sinfo, timed_event *e, unsigned int flags);
+void delete_event(server_info *sinfo, timed_event *e);
 
 /*
  *      create_event - create a timed_event with the passed in arguemtns
@@ -330,9 +331,8 @@ int delete_event(server_info *sinfo, timed_event *e, unsigned int flags);
  */
 timed_event *
 create_event(enum timed_event_types event_type,
-	time_t event_time, event_ptr_t *event_ptr,
-	event_func_t event_func, void *event_func_arg);
-
+	     time_t event_time, event_ptr_t *event_ptr,
+	     event_func_t event_func, void *event_func_arg);
 
 /*
  *	calc_run_time - calculate the run time of a job
@@ -340,7 +340,7 @@ create_event(enum timed_event_types event_type,
  *	returns time_t of when the job will run
  *		or -1 on error
  */
-time_t calc_run_time(char *job_name, server_info *sinfo, int flags);
+time_t calc_run_time(const std::string &name, server_info *sinfo, int flags);
 
 /*
  *
@@ -375,7 +375,7 @@ int determine_event_name(timed_event *te);
  *
  *	\return success 1 or failure/error 0
  */
-int dedtime_change(status *policy, void  *arg);
+int dedtime_change(status *policy, void *arg);
 
 /*
  *	add_dedtime_events - add the dedicated time events from conf
@@ -402,7 +402,7 @@ int add_dedtime_events(event_list *elist, struct status *policy);
  */
 schd_resource *
 simulate_resmin(schd_resource *reslist, time_t end, event_list *calendar,
-	resource_resv **incl_arr, resource_resv *exclude);
+		resource_resv **incl_arr, resource_resv *exclude);
 
 /*
  *
@@ -412,8 +412,7 @@ simulate_resmin(schd_resource *reslist, time_t end, event_list *calendar,
  *
  *	return printable string name of policy change event
  */
-char *policy_change_to_str(timed_event *te);
-
+const char *policy_change_to_str(timed_event *te);
 
 /*
  * policy_change_info - should we do anything on policy change events
@@ -439,8 +438,7 @@ int add_prov_event(event_list *calendar, time_t event_time, node_info *node);
  */
 int
 generic_sim(event_list *calendar, unsigned int event_mask, time_t end, int default_ret,
-	int (*func)(timed_event*, void*, void*), void *arg1, void *arg2);
-
+	    int (*func)(timed_event *, void *, void *), void *arg1, void *arg2);
 
 te_list *new_te_list();
 
@@ -452,8 +450,4 @@ void free_te_list(te_list *tel);
 int add_te_list(te_list **tel, timed_event *te);
 int remove_te_list(te_list **tel, timed_event *e);
 
-
-#ifdef	__cplusplus
-}
-#endif
 #endif /* _SIMULATE_H */

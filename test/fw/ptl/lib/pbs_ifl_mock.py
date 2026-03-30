@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 MGR_OBJ_NONE = -1
 MGR_OBJ_SERVER = 0
@@ -84,6 +87,7 @@ ATTR_N = 'Job_Name'
 ATTR_S = 'Shell_Path_List'
 ATTR_W = 'Additional_Attributes'  # Not in pbs_ifl.h
 ATTR_array_indices_submitted = ATTR_J
+ATTR_max_run_subjobs = 'max_run_subjobs'
 ATTR_depend = 'depend'
 ATTR_inter = 'interactive'
 ATTR_sandbox = 'sandbox'
@@ -93,12 +97,13 @@ ATTR_resvTag = 'reserve_Tag'
 ATTR_resv_start = 'reserve_start'
 ATTR_resv_end = 'reserve_end'
 ATTR_resv_duration = 'reserve_duration'
+ATTR_resv_alter_revert = 'reserve_alter_revert'
 ATTR_resv_state = 'reserve_state'
 ATTR_resv_substate = 'reserve_substate'
+ATTR_del_idle_time = 'delete_idle_time'
 ATTR_auth_u = 'Authorized_Users'
 ATTR_auth_g = 'Authorized_Groups'
 ATTR_auth_h = 'Authorized_Hosts'
-ATTR_pwd = 'pwd'
 ATTR_cred = 'cred'
 ATTR_nodemux = 'no_stdio_sockets'
 ATTR_umask = 'umask'
@@ -123,6 +128,7 @@ ATTR_mtime = 'mtime'
 ATTR_qtime = 'qtime'
 ATTR_session = 'session_id'
 ATTR_jobdir = 'jobdir'
+ATTR_job = 'reserve_job'
 ATTR_euser = 'euser'
 ATTR_egroup = 'egroup'
 ATTR_project = 'project'
@@ -163,7 +169,6 @@ ATTR_ReqCredEnable = 'require_cred_enable'
 ATTR_ReqCred = 'require_cred'
 ATTR_runcount = 'run_count'
 ATTR_stime = 'stime'
-ATTR_pset = 'pset'
 ATTR_executable = 'executable'
 ATTR_Arglist = 'argument_list'
 ATTR_version = 'pbs_version'
@@ -177,7 +182,6 @@ ATTR_exit_status = 'Exit_status'
 ATTR_submit_arguments = 'Submit_arguments'
 ATTR_resv_name = 'Reserve_Name'
 ATTR_resv_owner = 'Reserve_Owner'
-ATTR_resv_type = 'reserve_type'
 ATTR_resv_Tag = 'reservation_Tag'
 ATTR_resv_ID = 'reserve_ID'
 ATTR_resv_retry = 'reserve_retry'
@@ -227,6 +231,7 @@ ATTR_logfile = 'log_file'
 ATTR_mailfrom = 'mail_from'
 ATTR_nodepack = 'node_pack'
 ATTR_nodefailrq = 'node_fail_requeue'
+ATTR_resendtermdelay = 'resend_term_delay'
 ATTR_operators = 'operators'
 ATTR_queryother = 'query_other_jobs'
 ATTR_resccost = 'resources_cost'
@@ -252,7 +257,6 @@ ATTR_aclResvuren = 'acl_resv_user_enable'
 ATTR_aclResvuser = 'acl_resv_users'
 ATTR_NodeGroupEnable = 'node_group_enable'
 ATTR_NodeGroupKey = 'node_group_key'
-ATTR_ssignon_enable = 'single_signon_password_enable'
 ATTR_dfltqdelargs = 'default_qdel_arguments'
 ATTR_dfltqsubargs = 'default_qsub_arguments'
 ATTR_rpp_retry = 'rpp_retry'
@@ -266,7 +270,7 @@ ATTR_license_count = 'license_count'
 ATTR_job_sort_formula = 'job_sort_formula'
 ATTR_EligibleTimeEnable = 'eligible_time_enable'
 ATTR_resv_retry_init = 'reserve_retry_init'
-ATTR_resv_retry_cutoff = 'reserve_retry_cutoff'
+ATTR_resv_retry_time = 'reserve_retry_time'
 ATTR_JobHistoryEnable = 'job_history_enable'
 ATTR_JobHistoryDuration = 'job_history_duration'
 ATTR_max_concurrent_prov = 'max_concurrent_provision'
@@ -284,6 +288,14 @@ ATTR_released = 'resources_released'
 ATTR_restrict_res_to_release_on_suspend = 'restrict_res_to_release_on_suspend'
 ATTR_sched_preempt_enforce_resumption = 'sched_preempt_enforce_resumption'
 ATTR_tolerate_node_failures = 'tolerate_node_failures'
+ATTR_HOOK_type = 'type'
+ATTR_HOOK_enable = 'enable'
+ATTR_HOOK_event = 'event'
+ATTR_HOOK_alarm = 'alarm'
+ATTR_HOOK_order = 'order'
+ATTR_HOOK_debug = 'debug'
+ATTR_HOOK_fail_action = 'fail_action'
+ATTR_HOOK_user = 'user'
 ATTR_NODE_Host = 'Host'
 ATTR_NODE_Mom = 'Mom'
 ATTR_NODE_Port = 'Port'
@@ -310,6 +322,7 @@ ATTR_NODE_LicenseInfo = 'license_info'
 ATTR_NODE_TopologyInfo = 'topology_info'
 ATTR_NODE_last_used_time = 'last_used_time'
 ATTR_NODE_last_state_change_time = 'last_state_change_time'
+ATTR_sched_server_dyn_res_alarm = 'server_dyn_res_alarm'
 ATTR_RESC_TYPE = 'type'
 ATTR_RESC_FLAG = 'flag'
 

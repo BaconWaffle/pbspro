@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 
@@ -100,10 +103,10 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         end = start + 120
         self.scheduler.add_dedicated_time(start=start, end=end)
 
-        temp += 180
         j1 = Job(TEST_USER)
+        jtime = int(time.time())
         j1.set_attributes({ATTR_l + '.select': '1:ncpus=2',
-                           ATTR_l + '.walltime': temp})
+                           ATTR_l + '.walltime': start - jtime - 10})
         jid1 = self.server.submit(j1)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
 
@@ -184,12 +187,12 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
 
         j1 = Job(TEST_USER)
         j1.set_attributes({ATTR_l + '.select': '1:ncpus=4',
-                           ATTR_l + '.walltime': 30})
+                           ATTR_l + '.walltime': 90})
         jid1 = self.server.submit(j1)
 
         j2 = Job(TEST_USER)
         j2.set_attributes({ATTR_l + '.select': '1:ncpus=2',
-                           ATTR_l + '.walltime': 18})
+                           ATTR_l + '.walltime': 30})
         jid2 = self.server.submit(j2)
 
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
@@ -198,7 +201,7 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         j3 = Job(TEST_USER)
         j3.set_attributes({ATTR_l + '.select': '1:ncpus=2',
                            ATTR_q: 'expressq',
-                           ATTR_l + '.walltime': 20})
+                           ATTR_l + '.walltime': 50})
         jid3 = self.server.submit(j3)
 
         self.server.expect(JOB, {ATTR_state: 'S'}, id=jid1)
@@ -206,9 +209,10 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid3)
 
         j4 = Job(TEST_USER)
+        j4.set_sleep_time(30)
         j4.set_attributes({ATTR_l + '.select': '1:ncpus=2',
                            ATTR_q: 'expressq',
-                           ATTR_l + '.walltime': 5})
+                           ATTR_l + '.walltime': 30})
         jid4 = self.server.submit(j4)
 
         self.server.expect(JOB, {ATTR_state: 'S'}, id=jid1)
@@ -359,3 +363,66 @@ class TestSchedPreemptEnforceResumption(TestFunctional):
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid2)
         self.server.expect(JOB, {ATTR_state: 'Q'}, id=jid3)
         self.server.expect(JOB, {ATTR_state: 'Q'}, id=jid4)
+
+    def test_filler_stf(self):
+        """
+        Test that confirms filler shrink to fit jobs will shrink correctly
+        """
+        a = {'resources_available.ncpus': 3}
+        self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
+
+        a = {ATTR_l + '.select': '1:ncpus=3',
+             ATTR_l + '.walltime': 50}
+        jid1 = self.server.submit(Job(attrs=a))
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
+
+        a = {ATTR_l + '.select': '1:ncpus=1',
+             ATTR_l + '.walltime': 115,
+             ATTR_q: 'expressq'}
+        jid2 = self.server.submit(Job(attrs=a))
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid2)
+        self.server.expect(JOB, {ATTR_state: 'S'}, id=jid1)
+
+        a = {ATTR_l + '.select': '1:ncpus=1',
+             ATTR_l + '.min_walltime': 70,
+             ATTR_l + '.max_walltime': 90}
+        jid3 = self.server.submit(Job(attrs=a))
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid3)
+        self.scheduler.log_match('Job;%s;Job will run for duration=00:01:' %
+                                 (jid3))
+
+        a = {ATTR_l + '.select': '1:ncpus=1',
+             ATTR_l + '.min_walltime': '01:00',
+             ATTR_l + '.max_walltime': '10:00'}
+        jid4 = self.server.submit(Job(attrs=a))
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid4)
+        self.scheduler.log_match('Job;%s;Job will run for duration=00:01:' %
+                                 (jid4))
+
+        a = {ATTR_l + '.select': '1:ncpus=1',
+             ATTR_l + '.min_walltime': '02:30',
+             ATTR_l + '.max_walltime': '05:00'}
+        jid5 = self.server.submit(Job(attrs=a))
+        self.server.expect(JOB, {ATTR_state: 'Q'}, id=jid5)
+
+        stat = self.server.status(JOB, id=jid1)[0]
+        j1start = datetime.datetime.strptime(stat['estimated.start_time'],
+                                             '%c')
+
+        stat = self.server.status(JOB, id=jid3)[0]
+        t = datetime.datetime.strptime(stat[ATTR_l + '.walltime'], '%H:%M:%S')
+        j3dur = datetime.timedelta(hours=t.hour,
+                                   minutes=t.minute,
+                                   seconds=t.second)
+        j3start = datetime.datetime.strptime(stat[ATTR_stime], '%c')
+        self.assertGreaterEqual(j1start, j3start + j3dur)
+        self.assertGreaterEqual(j3dur.total_seconds(), 70)
+        self.assertLessEqual(j3dur.total_seconds(), 90)
+
+        stat = self.server.status(JOB, id=jid4)[0]
+        t = datetime.datetime.strptime(stat[ATTR_l + '.walltime'], '%H:%M:%S')
+        j4dur = datetime.timedelta(hours=t.hour,
+                                   minutes=t.minute,
+                                   seconds=t.second)
+        j4start = datetime.datetime.strptime(stat[ATTR_stime], '%c')
+        self.assertEquals(j4start + j4dur, j1start)

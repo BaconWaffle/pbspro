@@ -1,41 +1,45 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
+from ptl.utils.pbs_logutils import PBSLogUtils
 
 
 class TestPythonRestartSettings(TestFunctional):
@@ -48,6 +52,7 @@ class TestPythonRestartSettings(TestFunctional):
     This test suite is to validate the server attributes. Actual memory
     leak test is still manual
     """
+    logutils = PBSLogUtils()
 
     def test_non_integer(self):
         """
@@ -61,21 +66,21 @@ class TestPythonRestartSettings(TestFunctional):
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_max_hooks': '-1'},
                                 runas=ROOT_USER, logerr=True)
-        except PbsManagerError, e:
+        except PbsManagerError as e:
             self.assertTrue(exp_err in e.msg[0],
                             "Error message is not expected")
         try:
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_max_objects': '-1'},
                                 runas=ROOT_USER, logerr=True)
-        except PbsManagerError, e:
+        except PbsManagerError as e:
             self.assertTrue(exp_err in e.msg[0],
                             "Error message is not expected")
         try:
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_min_interval': '-1'},
                                 runas=ROOT_USER, logerr=True)
-        except PbsManagerError, e:
+        except PbsManagerError as e:
             self.assertTrue(exp_err in e.msg[0],
                             "Error message is not expected")
         # 0 will also give error
@@ -83,85 +88,86 @@ class TestPythonRestartSettings(TestFunctional):
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_max_hooks': 0},
                                 runas=ROOT_USER, logerr=True)
-        except PbsManagerError, e:
+        except PbsManagerError as e:
             self.assertTrue(exp_err in e.msg[0],
                             "Error message is not expected")
         try:
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_max_objects': 0},
                                 runas=ROOT_USER, logerr=True)
-        except PbsManagerError, e:
+        except PbsManagerError as e:
             self.assertTrue(exp_err in e.msg[0],
                             "Error message is not expected")
         try:
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_min_interval': 0},
                                 runas=ROOT_USER, logerr=True)
-        except PbsManagerError, e:
+        except PbsManagerError as e:
             self.assertTrue(exp_err in e.msg[0],
                             "Error message is not expected")
         try:
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_min_interval': "00:00:00"},
                                 runas=ROOT_USER, logerr=True)
-        except PbsManagerError, e:
+        except PbsManagerError as e:
             self.assertTrue(exp_err in e.msg[0],
                             "Error message is not expected")
         try:
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_min_interval': "HH:MM:SS"},
                                 runas=ROOT_USER, logerr=True)
-        except PbsManagerError, e:
+        except PbsManagerError as e:
             self.assertTrue(exp_err in e.msg[0],
                             "Error message is not expected")
 
     def test_non_manager(self):
         """
-        Test that values are not set as operator or users
+        Test that hook values can not be set as operator or users.
         """
+        exp_err = "Cannot set attribute, read only or insufficient permission"
+        try:
+            self.server.manager(MGR_CMD_SET, SERVER,
+                                {'python_restart_max_hooks': 30},
+                                runas=OPER_USER, logerr=True)
+        except PbsManagerError as e:
+            self.assertIn(exp_err, e.msg[0],
+                          "Error message is not expected")
+        try:
+            self.server.manager(MGR_CMD_SET, SERVER,
+                                {'python_restart_max_objects': 2000},
+                                runas=OPER_USER, logerr=True)
+        except PbsManagerError as e:
+            self.assertIn(exp_err, e.msg[0],
+                          "Error message is not expected")
+        try:
+            self.server.manager(MGR_CMD_SET, SERVER,
+                                {'python_restart_min_interval': 10},
+                                runas=OPER_USER, logerr=True)
+        except PbsManagerError as e:
+            self.assertIn(exp_err, e.msg[0],
+                          "Error message is not expected")
         exp_err = "Unauthorized Request"
         try:
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_max_hooks': 30},
-                                runas=OPER_USER, logerr=True)
-        except PbsManagerError, e:
-            self.assertTrue(exp_err in e.msg[0],
-                            "Error message is not expected")
-        try:
-            self.server.manager(MGR_CMD_SET, SERVER,
-                                {'python_restart_max_objects': 2000},
-                                runas=OPER_USER, logerr=True)
-        except PbsManagerError, e:
-            self.assertTrue(exp_err in e.msg[0],
-                            "Error message is not expected")
-        try:
-            self.server.manager(MGR_CMD_SET, SERVER,
-                                {'python_restart_min_interval': 10},
-                                runas=OPER_USER, logerr=True)
-        except PbsManagerError, e:
-            self.assertTrue(exp_err in e.msg[0],
-                            "Error message is not expected")
-        try:
-            self.server.manager(MGR_CMD_SET, SERVER,
-                                {'python_restart_max_hooks': 30},
                                 runas=TEST_USER, logerr=True)
-        except PbsManagerError, e:
-            self.assertTrue(exp_err in e.msg[0],
-                            "Error message is not expected")
+        except PbsManagerError as e:
+            self.assertIn(exp_err, e.msg[0],
+                          "Error message is not expected")
         try:
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_max_objects': 2000},
                                 runas=TEST_USER, logerr=True)
-        except PbsManagerError, e:
-            self.assertTrue(exp_err in e.msg[0],
-                            "Error message is not expected")
+        except PbsManagerError as e:
+            self.assertIn(exp_err, e.msg[0],
+                          "Error message is not expected")
         try:
             self.server.manager(MGR_CMD_SET, SERVER,
                                 {'python_restart_min_interval': 10},
                                 runas=TEST_USER, logerr=True)
-        except PbsManagerError, e:
-            self.assertTrue(exp_err in e.msg[0],
-                            "Error message is not expected")
+        except PbsManagerError as e:
+            self.assertIn(exp_err, e.msg[0],
+                          "Error message is not expected")
 
     def test_log_message(self):
         """
@@ -277,7 +283,7 @@ pbs.event().accept()
         self.server.manager(MGR_CMD_SET, SERVER, {"log_events": 2047})
         # Set time to start scanning logs
         time.sleep(1)
-        stime = int(time.time())
+        stime = time.time()
         # Set max_hooks to low to hit max_hooks only
         self.server.manager(MGR_CMD_SET, SERVER,
                             {'python_restart_max_hooks': 1},
@@ -301,22 +307,26 @@ pbs.event().accept()
         # every 3s
         logs = self.server.log_match(
             "Restarting Python interpreter to reduce mem usage",
-            allmatch=True, starttime=stime, max_attempts=8)
+            allmatch=True, starttime=stime, max_attempts=8, n="ALL")
         self.assertTrue(len(logs) > 1)
         log1 = logs[0][1]
         log2 = logs[1][1]
-        pattern = '%m/%d/%Y %H:%M:%S'
         tmp = log1.split(';')
         # Convert the time into epoch time
-        time1 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time1 = int(self.logutils.convert_date_time(tmp[0]))
         tmp = log2.split(';')
-        time2 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time2 = int(self.logutils.convert_date_time(tmp[0]))
         # Difference between log message should not be less than 3
         diff = time2 - time1
         self.logger.info("Time difference between log message is " +
                          str(diff) + " seconds")
         # Leave a little wiggle room for slow systems
-        self.assertTrue(diff >= 3 and diff <= 5)
+        self.assertTrue(diff > 2, "time between Python restart log messages"
+                        " (%s seconds) is too short;"
+                        " expected roughly 3 seconds" % str(diff))
+        self.assertTrue(diff <= 10, "time between Python restart log messages"
+                        " (%s seconds) is too long;"
+                        " expected roughly 3 seconds" % str(diff))
         # This message only gets printed if /proc/self/statm is present
         if os.path.isfile("/proc/self/statm"):
             self.server.log_match("Current memory usage:",
@@ -355,7 +365,7 @@ pbs.event().accept()
         self.server.manager(MGR_CMD_SET, SERVER, {"log_events": 2047})
         # Set time to start scanning logs
         time.sleep(1)
-        stime = int(time.time())
+        stime = time.time()
         # Set max_objects only
         self.server.manager(MGR_CMD_SET, SERVER,
                             {'python_restart_max_objects': 1},

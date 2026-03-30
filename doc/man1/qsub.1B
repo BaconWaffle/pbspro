@@ -1,39 +1,42 @@
-.\" Copyright (C) 1994-2019 Altair Engineering, Inc.
+.\"
+.\" Copyright (C) 1994-2021 Altair Engineering, Inc.
 .\" For more information, contact Altair at www.altair.com.
 .\"
-.\" This file is part of the PBS Professional ("PBS Pro") software.
+.\" This file is part of both the OpenPBS software ("OpenPBS")
+.\" and the PBS Professional ("PBS Pro") software.
 .\"
 .\" Open Source License Information:
 .\"
-.\" PBS Pro is free software. You can redistribute it and/or modify it under the
-.\" terms of the GNU Affero General Public License as published by the Free
-.\" Software Foundation, either version 3 of the License, or (at your option) any
-.\" later version.
+.\" OpenPBS is free software. You can redistribute it and/or modify it under
+.\" the terms of the GNU Affero General Public License as published by the
+.\" Free Software Foundation, either version 3 of the License, or (at your
+.\" option) any later version.
 .\"
-.\" PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-.\" WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-.\" FOR A PARTICULAR PURPOSE.
-.\" See the GNU Affero General Public License for more details.
+.\" OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+.\" ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+.\" FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+.\" License for more details.
 .\"
 .\" You should have received a copy of the GNU Affero General Public License
 .\" along with this program.  If not, see <http://www.gnu.org/licenses/>.
 .\"
 .\" Commercial License Information:
 .\"
-.\" For a copy of the commercial license terms and conditions,
-.\" go to: (http://www.pbspro.com/UserArea/agreement.html)
-.\" or contact the Altair Legal Department.
+.\" PBS Pro is commercially licensed software that shares a common core with
+.\" the OpenPBS software.  For a copy of the commercial license terms and
+.\" conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+.\" Altair Legal Department.
 .\"
-.\" Altair’s dual-license business model allows companies, individuals, and
-.\" organizations to create proprietary derivative works of PBS Pro and
+.\" Altair's dual-license business model allows companies, individuals, and
+.\" organizations to create proprietary derivative works of OpenPBS and
 .\" distribute them - whether embedded or bundled with other software -
 .\" under a commercial license agreement.
 .\"
-.\" Use of Altair’s trademarks, including but not limited to "PBS™",
-.\" "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-.\" trademark licensing policies.
+.\" Use of Altair's trademarks, including but not limited to "PBS™",
+.\" "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+.\" subject to Altair's trademark licensing policies.
 .\"
-.TH qsub 1B "4 March 2019" Local "PBS Professional"
+.TH qsub 1B "25 January 2021" Local "PBS Professional"
 .SH NAME
 .B qsub 
 \- submit a job to PBS 
@@ -47,7 +50,7 @@
 .br
 [-I [-G [-- <GUI application/script>]] | [-X]] [-j <join>] 
 .br
-[-J <range>] [-k <discard>] [-l <resource list>] 
+[-J <range> [%<max subjobs]] [-k <discard>] [-l <resource list>] 
 .br
 [-m <mail events>] [-M <user list>] [-N <name>] [-o <path>]
 .br
@@ -144,7 +147,7 @@ Any PBS directives
 The user's tasks: programs, commands, or applications 
 
 Optional comments (Under Windows, comments can contain only ASCII
-characters.  See the PBS Professional User's Guide.)
+characters.)
 .RE
 
 .B Using Shells and Interpreters
@@ -164,13 +167,14 @@ For example:
 .B qsub -S /bin/bash myscript.sh
 .RE
 
-In the first line of your script.  For example:
+You can specify a different interpreter in the first line of your script.
+For example:
 .RS 3
 .nf
 .B cat myscript.sh
-#!/bin/sh
+#!/bin/bash
 #PBS -N MyHelloJob
-print "Hello"
+echo "Hello"
 .fi
 .RE
 
@@ -201,18 +205,16 @@ print "Hello"
 .fi
 .RE
 
-To run a Python job script under Linux, use the Python path on the execution host:
+So long as the first line of the script is the "#!/usr/bin/python" line
+or similar, you don't need to do anything special to run a python script.
 .RS 3
-.I qsub -S <Python path on execution host> <script name>
-
-For example, 
-.br
-.B qsub -S $PBS_EXEC/bin/pbs_python <script name>
+.I qsub <script name>
 .RE
 
-To run a Python job script under Windows, use the Python path on the execution host: 
+To run a Python job script under Windows, use the path to the pbs_python
+executable on the execution host:
 .RS 3
-.I qsub -S <Python path on execution host> <script name>
+.I qsub -S <pbs_python path on execution host> <script name>
 
 For example, 
 .br
@@ -272,7 +274,7 @@ when the Windows command interpreter tries to execute that last line.
 To submit a PBS job by typing job specifications at the command line,
 you type:
 .br
-.I qsub [<options>]  [-] <return>  
+.I qsub [<options>] [-] <return>
 .br
 then type any directives, then any tasks, followed by:
 .RS 3
@@ -318,6 +320,12 @@ For example, to run myprog with the arguments a and b:
 For example, to run myprog with the arguments a and b, naming the job "JobA":
 .RS 3
 .B qsub -N JobA -- myprog a b <return>
+.RE
+
+On Linux, you need to specify the path to myprog, so the previous example
+becomes:
+.RS 3
+.B qsub -N JobA -- /path/to/myprog a b <return>
 .RE
 
 .B Requesting Resources and Placing Jobs
@@ -453,12 +461,6 @@ See the
 .I pbs_node_attributes.7B
 man page.
 
-For more on resources, resource requests, usage limits, and job
-placement, see the
-.I PBS Professional Administrator's Guide 
-and the 
-.I PBS Professional User's Guide.
-
 .B Caveats for Requesting Resources
 .br
 Do not mix old-style resource or vnode specifications with the new
@@ -485,9 +487,7 @@ command or by using
 Most qsub options set a job attribute, and have a corresponding PBS
 directive with the same syntax as the option.  Attributes set via
 command-line options take precedence over those set using PBS
-directives.  See the 
-.I PBS Professional User's Guide, 
-or 
+directives. See
 .I pbs_job_attributes.7B.
 
 .B Changing qsub Behavior
@@ -584,9 +584,6 @@ An
 .I $action
 script is required to checkpoint the job.  
 
-See the 
-.I PBS Professional User's Guide.
-
 The argument 
 .I checkpoint spec
 can take on one of the following values:
@@ -622,13 +619,11 @@ Format:
 No checkpointing.
 .IP s 5
 Checkpoint only when the server is shut down.
-
 .IP u 5
 Unset.  Defaults to behavior when 
 .I interval
 argument is set to 
 .I s.
-.I 
 .LP
 Default: 
 .I u
@@ -649,7 +644,7 @@ argument is a null string, qsub
 does not scan the script file for directives.
 Overrides the PBS_DPREFIX environment variable and the default.
 The string "PBS_DPREFIX" cannot be used as a PBS directive.
-Length limit: 4096 charactes.
+Length limit: 4096 characters.
 
 .IP "-e <path>" 8
 Path to be used for the job's standard error stream.
@@ -771,9 +766,6 @@ terminal session in which
 is running.
 If a job script is given, only its directives are processed.  When the job
 begins execution, all input to the job is taken from the terminal session.
-See the 
-.I PBS Professional User's Guide
-for additional information on interactive jobs.
 
 Interactive jobs are not rerunnable.
 
@@ -782,7 +774,6 @@ Job arrays cannot be interactive.
 When used with 
 .I -Wblock=true, 
 no exit status is returned.
-
 
 .IP "-j <join>" 8
 Specifies whether and how to join the job's standard error and standard output streams.
@@ -807,11 +798,12 @@ Standard error and standard output are merged into standard error.
 Standard error and standard output are not merged.
 .RE
 
-.IP "-J <range>" 8
+.IP "-J <range> [%<max subjobs>]" 8
 Makes this job an array job.  Sets job's 
 .I array
 attribute to 
 .I True.
+
 Use the
 .I range 
 argument to specify the indices of the subjobs of the array.
@@ -829,6 +821,13 @@ is the stepping factor.  For example,  2-7:2 will produce indices of 2, 4, and
 .I Z 
 is not specified, it is taken to be 1.  Indices must be greater than or 
 equal to zero.
+
+Use the optional 
+.I %max subjobs 
+argument to set a limit on the number of subjobs that can be running
+at one time.  This sets the value of the 
+.I max_run_subjobs 
+job attribute to the specified maximum.
 
 Job arrays are always rerunnable.
 
@@ -973,9 +972,7 @@ attribute and name to
 .I name.  
 
 Format: 
-.I Job Name;
-See the 
-.I PBS Professional Reference Guide.
+.I Job Name
 
 Default: if a script is used to submit the job, the job's name is the
 name of the script.  If no script is used, the job's name is "STDIN".
@@ -1000,15 +997,17 @@ is interpreted as follows:
 If
 .I path 
 is relative, it is taken to be relative to 
-the current working directory of the command, where it is executing 
-on the current host.  
+the current working directory of the
+.B qsub
+command, where it is executing on the current host.
 
 If
 .I path
 is absolute, it is taken to be an absolute path on 
-the current host where the command is executing.
+the current host where the
+.B qsub
+command is executing.
 .IP hostname:path
-
 If 
 .I path
 is relative, it is taken to be relative to the user's 
@@ -1065,9 +1064,7 @@ attribute to
 .I project.
 
 Format: 
-.I Project Name;
-see the
-.I PBS Professional Reference Guide.
+.I Project Name
 
 Default value: "_pbs_project_default"
 
@@ -1221,9 +1218,9 @@ Default: job owner (username on submission host)
 
 .IP "-v <variable list>"
 Lists environment variables and shell functions to be exported to the job.
-This is the list of environment variables which is added to 
+This is the list of environment variables that are added to
 those already automatically exported.  These variables exist in
-the user's login environment, from which 
+the user's environment from which
 .B qsub
 is run.
 The job's 
@@ -1255,7 +1252,7 @@ enclose the value.  For example:
 .RS 3
 qsub -v "var1='A,B,C,D'" job.sh
 .br
-qsub -v a=10, "var2='A,B'", c=20, HOME=/home/zzz job.sh
+qsub -v "a=10,var2='A,B',c=20,d='Hello world'" job.sh
 .RE
 
 Default: no environment variables are added to the job's variable list.
@@ -1263,7 +1260,7 @@ Default: no environment variables are added to the job's variable list.
 
 .IP "-V" 8
 All environment variables and shell functions in the user's
-login environment where 
+environment where
 .B qsub
 is run are exported to the job.
 The job's
@@ -1305,6 +1302,31 @@ See
 .B EXIT STATUS
 section in this man page.
 .LP
+.RE
+
+.I "create_resv_from_job=<value>"
+.RS 3
+When this job starts, immediately creates and confirms a job-specific
+start reservation on the same resources as the job (including
+resources inherited by the job), and places the job in the
+job-specific reservation queue.  Sets the job's
+.I create_resv_from_job 
+attribute to 
+.I True.  
+Sets the job-specific reservation's 
+.I reserve_job 
+attribute to the ID of the job from which the reservation was created.
+The new reservation's duration and start time are the same as the
+job's walltime and start time.  If the job is peer scheduled, the
+job-specific reservation is created in the pulling complex.
+.br
+Format: 
+.I Boolean 
+.br
+Example: 
+.B qsub myscript.sh -Wcreate_resv_from_job=1 
+
+Cannot be used with job arrays or jobs being submitted into a reservation.
 .RE
 
 .I "depend=<dependency list>"
@@ -1364,6 +1386,9 @@ was deleted without ever having been run.
 Jobs in 
 .I arg list 
 may begin execution once this job has begun execution.
+It is uncommon for users to specify a before condition. Rather,
+PBS adds before dependencies automatically to the targets of
+after dependencies.
 
 .IP  "beforeok: <arg list>" 4
 Jobs in 
@@ -1417,11 +1442,16 @@ which the newly submitted job is performed after the job is queued.
 If an error is detected, the new job is deleted by the server.  Mail
 is sent to the job submitter stating the error.
 
-Dependency examples:
+Dependency example:
 .RS 3
-.B "qsub -W depend=afterok:123.host1.domain.com /tmp/script"
+In this example, we save the output (the jobid) from the first qsub into
+shell variable "jobid" so we can supply it to the depend option on the
+second job.
+.LP
+.B "jobid=`qsub first_step.sh`"
 .br
-.B "qsub -W depend=before:234.host1.com:235.host1.com /tmp/script"
+.B "qsub -W depend=afterok:$jobid second_step.sh"
+.br
 .RE
 .RE
 
@@ -1462,7 +1492,7 @@ Default: Login group name of job owner
 .RS 3
 These forms prompt the user for a password.  A space between
 .I W
-and 
+and
 .I pwd
 is optional.  Spaces between the quotes are optional.
 Examples:
@@ -1471,7 +1501,7 @@ Examples:
     qsub ... -W pwd='' <return>
     qsub ... -W pwd="  " <return>
 .fi
-Available on Windows and supported Linux x86 and x86_64 platforms only.
+Available on supported Linux platforms only.
 .RE
 
 .I release_nodes_on_stageout=<value>
@@ -1481,11 +1511,7 @@ When set to
 all of the job's vnodes not on the primary execution
 host are released when stageout begins.
 
-Cannot be used with vnodes managed by cpuset MoMs, (whose 
-.I arch 
-is
-.I linux_cpuset), 
-or with vnodes tied to Cray X* series systems.
+Cannot be used with vnodes tied to Cray X* series systems.
 
 When cgroups is enabled and this is used with some but not all vnodes
 from one MoM, resources on those vnodes that are part of a cgroup are
@@ -1576,8 +1602,8 @@ The name
 .I storage_path
 is the path on 
 .I <hostname>. 
-The name can be relative to the staging and execution directory on the
-primary execution host, or it can be an absolute path.
+The storage_path can be absolute, or it can be relative to the user's home
+directory on hostname.
 
 If 
 .I path list
@@ -1605,7 +1631,7 @@ The following example allows group and world read on the job's output:
 .B -W umask=33
 .RE
 
-Format: One to four digits; typically two
+Format: One to four octal digits; typically two
 
 Default value: 
 .I 077
@@ -1624,7 +1650,7 @@ one of the following:
 .RS 3
 .I -I 
 .br
-.I -W interactive = true 
+.I -W interactive=true
 .B (deprecated)
 .RE
 
@@ -1640,7 +1666,7 @@ Can be used with
 option.
 
 Not available under Windows.
-.LP
+.RE
 
 .IP "-z" 8
 Job identifier is not written to standard output.
@@ -1669,6 +1695,8 @@ Path to script.  Can be absolute or relative to current directory
 where 
 .B qsub 
 is run.
+The script must be the last argument to
+.BR qsub .
 .RE
 
 .I "-"
@@ -1683,10 +1711,9 @@ A single executable (preceded by two dashes) and its arguments
 
 The executable, and any arguments to the executable, are given on the
 qsub command line.  The executable is preceded by two dashes, "--".
-
-If a script or executable is specified, it must be the last argument
-to qsub.  The arguments to an executable must follow the name of the
-executable.
+All
+.B qsub
+options must come before the "--".
 
 When you run qsub this way, it runs the executable directly.  It does
 not start a shell, so no shell initialization scripts are run, and
@@ -1722,12 +1749,10 @@ Name of default server.
 Prefix string which identifies PBS directives.
 .RE
 
+PBS automatically exports the following environment variables to the job.
 Environment variables beginning with "PBS_O_" are created by 
-.B qsub.
-PBS automatically exports the following environment variables to the job, 
-and the job's 
-.I Variable_List 
-attribute is set to this list:
+.B qsub
+and included in the job's Variable_List.
 
 .IP PBS_ENVIRONMENT 8
 Set to 
@@ -1735,9 +1760,6 @@ Set to
 for a batch job.  Set to 
 .I PBS_INTERACTIVE
 for an interactive job.
-Created when 
-.B qsub
-is run.
 
 .IP PBS_JOBDIR 8
 Pathname of job's staging and execution directory on the
@@ -1745,21 +1767,13 @@ primary execution host.
 
 .IP PBS_JOBID 8
 Job identifier given by PBS when the job is submitted.
-Created when 
-.B qsub
-is run.
 
 .IP PBS_JOBNAME 8
 Job name specified by submitter.
-Created when 
-.B qsub
-is run.
 
 .IP PBS_NODEFILE 8
-Name of file containing the list of vnodes assigned to the job.
-Created when 
-.B qsub
-is run.
+Name of file containing the list of vnodes assigned to the job when
+the job runs.
 
 .IP PBS_O_HOME 8
 User's home directory.  
@@ -1788,7 +1802,7 @@ Name of the queue to which the job was submitted.
 Value taken from job submission, otherwise default queue.
 
 .IP PBS_O_SHELL 8
-Value taken from user's submission environment.
+Value of SHELL taken from user's submission environment.
 
 .IP PBS_O_SYSTEM 8
 Operating system, from 
@@ -1807,9 +1821,6 @@ Value taken from user's submission environment.
 
 .IP PBS_QUEUE 8
 Name of the queue from which the job is executed.
-Created when 
-.B qsub
-is run.
 
 .IP TMPDIR 8
 Pathname of job's scratch directory.  Set when PBS assigns it.
@@ -1837,16 +1848,12 @@ If the job is deleted without being run
 .B Warning About Exit Status with csh:
 .br
 If a job is run in csh and a .logout file
-exists in the home directory in which the job executes, the exit status
+exists in the user's home directory on the host where the job executes,
+the exit status
 of the job is that of the .logout script, not the job script.  This may
 impact any inter-job dependencies.  
 
 .SH SEE ALSO
-The
-.I PBS Professional User's Guide,
-the
-.I PBS Professional Administrator's Guide,
-.br
 pbs_job_attributes(7B),
 pbs_server_attributes(7B),
 pbs_resources(7B),

@@ -1,42 +1,46 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import sys
 import logging
+import unittest
 from nose.plugins.base import Plugin
 from ptl.utils.pbs_testsuite import PBSTestSuite
 from ptl.utils.plugins.ptl_test_tags import TAGKEY
@@ -77,7 +81,7 @@ class PTLTestInfo(Plugin):
     Load test cases from given parameter
     """
     name = 'PTLTestInfo'
-    score = sys.maxint - 1
+    score = sys.maxsize - 2
     logger = logging.getLogger(__name__)
 
     def __init__(self):
@@ -128,33 +132,23 @@ class PTLTestInfo(Plugin):
         """
         Is the class wanted?
         """
-        if not issubclass(cls, PBSTestSuite):
-            return False
-        if cls.__name__ == 'PBSTestSuite':
+        if not issubclass(cls, unittest.TestCase) or cls is PBSTestSuite \
+                or cls is unittest.TestCase:
             return False
         self._tree.setdefault(cls.__name__, cls)
         if len(cls.__bases__) > 0:
             self.wantClass(cls.__bases__[0])
-        return False
-
-    def wantFunction(self, function):
-        """
-        Is the function wanted?
-        """
-        return False
-
-    def wantMethod(self, method):
-        """
-        Is the method wanted?
-        """
-        return False
 
     def _get_hierarchy(self, cls, level=0):
         delim = '    ' * level
         msg = [delim + cls.__name__]
-        subclses = cls.__subclasses__()
-        for subcls in subclses:
-            msg.extend(self._get_hierarchy(subcls, level + 1))
+        try:
+            subclses = cls.__subclasses__()
+        except TypeError:
+            pass
+        else:
+            for subcls in subclses:
+                msg.extend(self._get_hierarchy(subcls, level + 1))
         return msg
 
     def _print_suite_info(self, suite):
@@ -178,7 +172,7 @@ class PTLTestInfo(Plugin):
                 k = getattr(suite, k)
                 try:
                     k.__name__
-                except:
+                except BaseException:
                     # not a test case, ignore
                     continue
                 self.total_case += 1
@@ -226,7 +220,7 @@ class PTLTestInfo(Plugin):
                 tc = getattr(suite, k)
                 try:
                     tc.__name__
-                except:
+                except BaseException:
                     # not a test case, ignore
                     continue
                 tcd['doc'] = str(tc.__doc__)
@@ -261,8 +255,8 @@ class PTLTestInfo(Plugin):
             self.__ts_tree[n]['tclist'] = tcs
 
     def finalize(self, result):
-        if self.list_test or self.gen_ts_tree:
-            suites = self._tree.keys()
+        if (self.list_test and not self.suites) or self.gen_ts_tree:
+            suites = list(self._tree.keys())
         else:
             suites = self.suites
         suites.sort()
@@ -274,7 +268,7 @@ class PTLTestInfo(Plugin):
         for k in suites:
             try:
                 suite = eval(k, globals(), self._tree)
-            except:
+            except BaseException:
                 unknown.append(k)
                 continue
             func(suite)

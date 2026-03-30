@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import errno
 from optparse import OptionParser
@@ -56,6 +59,9 @@ class Inventory(object):
         self.hwloclatest = 0
         self.CrayVersion = "0.0"
         self.ndevices = 0
+        self.gpudevices = 0
+        self.cardflag = False
+        self.renderflag = False
 
     def __init__(self):
         self.reset()
@@ -64,7 +70,7 @@ class Inventory(object):
         """
         counting devices by parsing topo_file
         """
-        temp = topo_file.read().split(',')
+        temp = topo_file.read().decode('utf-8').split(',')
         for item in temp:
             if item.find('sockets:') != -1:
                 self.nsockets = int(item[8:])  # len('sockets:') = 8
@@ -89,6 +95,7 @@ class Inventory(object):
         """
         Returns the number of licenses required based on specific formula
         """
+        self.ndevices += self.gpudevices
         return(int(math.ceil(self.ndevices / 4.0)))
 
     def reportsockets(self, dirs, files, options):
@@ -113,8 +120,8 @@ class Inventory(object):
         else:
             compute_socket_nodelist = False
         try:
-            maxwidth = max(map(len, files))
-        except StandardError as e:
+            maxwidth = max(list(map(len, files)))
+        except Exception as e:
             print('max/map failed: %s' % e)
             return
 
@@ -129,9 +136,13 @@ class Inventory(object):
             pathname = os.sep.join((dirs, name))
             self.reset()
             try:
-                with open(pathname, "r") as topo_file:
-
-                    if platform.system() == "Windows":
+                with open(pathname, "rb") as topo_file:
+                    temp_buf = topo_file.readline().decode('utf-8')
+                    topo_file.seek(0)
+                    # Windows topology file are not XML files. So if
+                    # a file does not start with '<', it is a Windows
+                    # topology file
+                    if not temp_buf.startswith('<'):
                         self.reportsockets_win(topo_file)
                     elif ExpatParser:
                         try:
@@ -143,13 +154,12 @@ class Inventory(object):
                                   % (name, e.lineno, e.offset))
                     else:
                         self.countsockets(topo_file)
-
                     if options.sockets:
                         print("%-*s%d" % (maxwidth + 1, name, self.nsockets))
                     else:
                         self.nnodes += self.calculate()
                         print("%-*s%d" % (maxwidth + 1, name,
-                              inventory.nnodes))
+                                          inventory.nnodes))
 
             except IOError as err:
                 (e, strerror) = err.args
@@ -171,6 +181,8 @@ class Inventory(object):
         packagepattern = r'<\s*object\s+type="Package"'
         gpupattern = r'<\s*object\s+type="OSDev"\s+name="card\d+"\s+' \
             'osdev_type="1"'
+        renderpattern = r'<\s*object\s+type="OSDev"\s+name="renderD\d+"\s+' \
+            'osdev_type="1"'
         micpattern = r'<\s*object\s+type="OSDev"\s+name="mic\d+"\s+' \
             'osdev_type="5"'
         craypattern = r'<\s*BasilResponse\s+'
@@ -180,6 +192,7 @@ class Inventory(object):
         hwloclatestpattern = r'<\s*info\s+name="hwlocVersion"\s+'
 
         for line in topo_file:
+            line = line.decode('utf-8')
             if re.search(craypattern, line):
                 start_index = line.find('protocol="') + len('protocol="')
                 self.CrayVersion = line[start_index:
@@ -209,8 +222,10 @@ class Inventory(object):
                                                             line))):
                     self.nsockets += 1
                     self.ndevices += 1
-                self.ndevices += 1 if re.search(gpupattern, line) else 0
+                self.cardflag += 1 if re.search(gpupattern, line) else 0
+                self.renderflag += 1 if re.search(renderpattern, line) else 0
                 self.ndevices += 1 if re.search(micpattern, line) else 0
+        self.gpudevices = min(self.cardflag, self.renderflag)
 
 
 def socketXMLstart(name, attrs):
@@ -218,7 +233,6 @@ def socketXMLstart(name, attrs):
     StartElementHandler for expat parser
     """
     global inventory
-
     if name == "BasilResponse":
         inventory.CrayVersion = attrs.get("protocol")
         return
@@ -247,7 +261,15 @@ def socketXMLstart(name, attrs):
         if (name == "object" and attrs.get("type") == "OSDev" and
             attrs.get("osdev_type") == "1" and
                 attrs.get("name").startswith("card")):
-            inventory.ndevices += 1
+            inventory.cardflag = True
+        elif (name == "object" and attrs.get("type") == "OSDev" and
+              attrs.get("osdev_type") == "1" and
+                attrs.get("name").startswith("renderD")):
+            if inventory.cardflag is True:
+                inventory.gpudevices += 1
+                inventory.cardflag = False
+        else:
+            inventory.cardflag = False
         if (name == "object" and attrs.get("type") == "OSDev" and
             attrs.get("osdev_type") == "5" and
                 attrs.get("name").startswith("mic")):

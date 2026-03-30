@@ -1,44 +1,49 @@
 
 #
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 #
 
 lib_LTLIBRARIES = libpbs.la
 
-libpbs_la_CPPFLAGS = -I$(top_srcdir)/src/include
+libpbs_la_CPPFLAGS = \
+	-I$(top_srcdir)/src/include \
+	@KRB5_CFLAGS@
 
 #
 # There are specific rules that must be followed when updating the library
@@ -48,9 +53,10 @@ libpbs_la_CPPFLAGS = -I$(top_srcdir)/src/include
 #
 pkgconfig_DATA = pbs.pc
 
-libpbs_la_LDFLAGS = -version-info 0:0:0
+libpbs_la_LDFLAGS = -version-info 0:0:0 @KRB5_LIBS@
 
 libpbs_la_LIBADD= \
+	@libz_lib@ \
 	-lcrypto \
 	-lpthread
 
@@ -70,7 +76,6 @@ libpbs_la_SOURCES = \
 	../Libattr/attr_func.c \
 	../Libattr/attr_resc_func.c \
 	../Libattr/Long_.c \
-	../Libattr/LTostr.c \
 	../Libattr/resc_map.c \
 	../Libattr/uLTostr.c \
 	../Libattr/strToL.c \
@@ -79,12 +84,12 @@ libpbs_la_SOURCES = \
 	../Libcmds/check_job_script.c \
 	../Libcmds/chk_Jrange.c \
 	../Libcmds/ck_job_name.c \
-	../Libcmds/cnt2mom.c \
 	../Libcmds/cnt2server.c \
 	../Libcmds/cvtdate.c \
 	../Libcmds/get_attr.c \
 	../Libcmds/get_dataservice_usr.c \
 	../Libcmds/get_server.c \
+	../Libcmds/err_handling.c \
 	../Libcmds/isjobid.c \
 	../Libcmds/locate_job.c \
 	../Libcmds/parse_at.c \
@@ -93,11 +98,10 @@ libpbs_la_SOURCES = \
 	../Libcmds/parse_equal.c \
 	../Libcmds/parse_jobid.c \
 	../Libcmds/parse_stage.c \
-	../Libcmds/pbs_json.c \
 	../Libcmds/prepare_path.c \
-	../Libcmds/prt_job_err.c \
 	../Libcmds/set_attr.c \
 	../Libcmds/set_resource.c \
+	../Libdis/dis_helpers.c \
 	../Libdis/dis.c \
 	../Libdis/dis_.h \
 	../Libdis/discui_.c \
@@ -144,60 +148,13 @@ libpbs_la_SOURCES = \
 	../Libecl/ecl_verify_object_name.c \
 	../Libecl/pbs_client_thread.c \
 	../Libifl/advise.c \
-	../Libifl/dec_Authen.c \
-	../Libifl/dec_CopyHookFile.c \
-	../Libifl/dec_DelHookFile.c \
-	../Libifl/dec_JobCred.c \
-	../Libifl/dec_JobFile.c \
-	../Libifl/dec_JobId.c \
-	../Libifl/dec_Manage.c \
-	../Libifl/dec_MsgJob.c \
-	../Libifl/dec_MoveJob.c \
-	../Libifl/dec_UserCred.c \
-	../Libifl/dec_QueueJob.c \
-	../Libifl/dec_Reg.c \
-	../Libifl/dec_ReqExt.c \
-	../Libifl/dec_ReqHdr.c \
-	../Libifl/dec_Resc.c \
-	../Libifl/dec_RunJob.c \
-	../Libifl/dec_Shut.c \
-	../Libifl/dec_Sig.c \
-	../Libifl/dec_Status.c \
-	../Libifl/dec_Track.c \
-	../Libifl/dec_attrl.c \
-	../Libifl/dec_attropl.c \
-	../Libifl/dec_rpyc.c \
-	../Libifl/dec_svrattrl.c \
-	../Libifl/dec_ModifyResv.c \
-	../Libifl/dec_PreemptJobs.c \
-	../Libifl/enc_CopyHookFile.c \
-	../Libifl/enc_CpyFil.c \
-	../Libifl/enc_DelHookFile.c \
-	../Libifl/enc_JobCred.c \
-	../Libifl/enc_JobFile.c \
-	../Libifl/enc_JobId.c \
-	../Libifl/enc_UserCred.c \
-	../Libifl/enc_Manage.c \
-	../Libifl/enc_MsgJob.c \
-	../Libifl/enc_MoveJob.c \
-	../Libifl/enc_QueueJob.c \
-	../Libifl/enc_Reg.c \
-	../Libifl/enc_ReqExt.c \
-	../Libifl/enc_ReqHdr.c \
-	../Libifl/enc_RunJob.c \
-	../Libifl/enc_Shut.c \
-	../Libifl/enc_Sig.c \
-	../Libifl/enc_Status.c \
-	../Libifl/enc_Track.c \
-	../Libifl/enc_attrl.c \
-	../Libifl/enc_attropl.c \
+	../Libifl/auth.c \
+	../Libifl/conn_table.c \
+	../Libifl/DIS_decode.c \
+	../Libifl/DIS_encode.c \
+	../Libifl/dec_reply.c \
 	../Libifl/enc_reply.c \
-	../Libifl/enc_SubmitResv.c \
-	../Libifl/enc_ModifyResv.c \
-	../Libifl/enc_PreemptJobs.c \
-	../Libifl/enc_svrattrl.c \
 	../Libifl/entlim_parse.c \
-	../Libifl/get_hostname.c \
 	../Libifl/get_svrport.c \
 	../Libifl/grunt_parse.c \
 	../Libifl/int_hook.c \
@@ -212,22 +169,23 @@ libpbs_la_SOURCES = \
 	../Libifl/int_submit_resv.c \
 	../Libifl/int_status.c \
 	../Libifl/int_ucred.c \
+	../Libifl/int_cred.c \
 	../Libifl/int_modify_resv.c \
-	../Libifl/int_preempt_jobs.c \
 	../Libifl/list_link.c \
+	../Libifl/ifl_util.c \
+	../Libifl/ifl_pointers.c \
 	../Libifl/PBS_attr.c \
-	../Libifl/PBS_data.c \
-	../Libifl/pbs_authors.c \
 	../Libifl/pbs_get_attribute_errors.c \
 	../Libifl/pbs_geterrmg.c \
 	../Libifl/pbs_geterrno.c \
 	../Libifl/pbs_loadconf.c \
 	../Libifl/pbs_quote_parse.c \
 	../Libifl/pbs_statfree.c \
-	../Libifl/pbsD_alterjo.c \
-	../Libifl/pbsD_asyrun.c \
+	../Libifl/pbs_delstatfree.c \
+	../Libifl/pbsD_alterjob.c \
 	../Libifl/pbsD_connect.c \
 	../Libifl/pbsD_deljob.c \
+	../Libifl/pbsD_deljoblist.c \
 	../Libifl/pbsD_holdjob.c \
 	../Libifl/pbsD_locjob.c \
 	../Libifl/pbsD_manager.c \
@@ -259,19 +217,31 @@ libpbs_la_SOURCES = \
 	../Libifl/pbsD_modify_resv.c \
 	../Libifl/pbsD_Preempt_Jobs.c \
 	../Libifl/ifl_impl.c \
-	../Libifl/ifl_pointers.c \
-	../Libifl/rpp.c \
+	../Libifl/rm.c \
 	../Libifl/strsep.c \
 	../Libifl/tcp_dis.c \
 	../Libifl/tm.c \
 	../Libifl/xml_encode_decode.c \
 	../Liblog/pbs_messages.c \
+	../Liblog/pbs_log.c \
+	../Liblog/log_event.c \
 	../Libsec/cs_standard.c \
+	../Libutil/avltree.c \
+	../Libutil/get_hostname.c \
 	../Libutil/misc_utils.c \
-	../Libutil/munge_supp.c \
+	../Libutil/thread_utils.c \
 	../Libutil/pbs_secrets.c \
 	../Libutil/pbs_aes_encrypt.c \
+	../Libutil/pbs_idx.c \
+	../Libutil/range.c \
+	../Libutil/dedup_jobids.c \
+	../Libnet/get_hostaddr.c \
 	../Libnet/hnls.c \
+	../Libtpp/tpp_client.c \
+	../Libtpp/tpp_em.c \
+	../Libtpp/tpp_platform.c \
+	../Libtpp/tpp_transport.c \
+	../Libtpp/tpp_util.c \
 	ecl_job_attr_def.c \
 	ecl_svr_attr_def.c \
 	ecl_sched_attr_def.c \
@@ -289,45 +259,30 @@ CLEANFILES = \
 	ecl_resc_def_all.c \
 	ecl_resv_attr_def.c
 
-ecl_job_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_job_attr_def.xml
+ecl_job_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_job_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_job_attr_def.xml \
-		-s /dev/null -e $@ -a job
+	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_job_attr_def.xml -e $@
 
-ecl_svr_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_svr_attr_def.xml
+ecl_svr_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_svr_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_svr_attr_def.xml \
-		-s /dev/null -e $@ -a server
+	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_svr_attr_def.xml -e $@
 
-ecl_node_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_node_attr_def.xml
+ecl_node_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_node_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_node_attr_def.xml \
-		-s /dev/null -e $@ -a node
+	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_node_attr_def.xml -e $@
 
-ecl_queue_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_queue_attr_def.xml
+ecl_queue_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_queue_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_queue_attr_def.xml \
-		-s /dev/null -e $@ -a queue
+	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_queue_attr_def.xml -e $@
 
-ecl_resv_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_resv_attr_def.xml
+ecl_resv_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_resv_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_resv_attr_def.xml \
-		-s /dev/null -e $@ -a resv
+	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_resv_attr_def.xml -e $@
 
-ecl_sched_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_sched_attr_def.xml
+ecl_sched_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_sched_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_sched_attr_def.xml \
-		-s /dev/null -e $@ -a sched
+	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_sched_attr_def.xml -e $@
 
-ecl_resc_def_all.c: $(top_srcdir)/src/lib/Libattr/master_resc_def_all.xml
+ecl_resc_def_all.c: $(top_srcdir)/src/lib/Libattr/master_resc_def_all.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_resc_def_all.xml \
-		-s /dev/null -e $@ -a resc
-
+	$(PYTHON) $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_resc_def_all.xml -e $@

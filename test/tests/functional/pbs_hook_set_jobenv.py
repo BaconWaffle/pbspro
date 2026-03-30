@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 import os
 from tests.functional import *
 from ptl.utils.pbs_logutils import PBSLogUtils
@@ -44,7 +47,7 @@ class TestPbsHookSetJobEnv(TestFunctional):
     This test suite to make sure hooks properly
     handle environment variables with special characters,
     values, in particular newline (\n), commas (,), semicolons (;),
-    single quotes ('), double quotes ("), and backaslashes (\).
+    single quotes ('), double quotes ("), and backaslashes.
     PRE: Set up currently executing user's environment to have variables
          whose values have the special characters.
          Job A: Submit a job using the -V option (pass current environment)
@@ -71,6 +74,7 @@ class TestPbsHookSetJobEnv(TestFunctional):
         Set environment variables
         """
         TestFunctional.setUp(self)
+        self.interactive = False
         # Set environment variables with special characters
         os.environ['TEST_COMMA'] = '1,2,3,4'
         os.environ['TEST_RETURN'] = """'3,
@@ -124,7 +128,12 @@ class TestPbsHookSetJobEnv(TestFunctional):
             os.remove(self.job_out1_tempfile)
             os.remove(self.job_out2_tempfile)
             os.remove(self.job_out3_tempfile)
-
+            for _file in [self.job_out1_tempfile, self.job_out2_tempfile,
+                          self.job_out3_tempfile]:
+                rc = self.du.isfile(hostname=self.mom.shortname,
+                                    path=_file, sudo=True)
+                if rc:
+                    self.du.rm(self.mom.hostname, _file)
         except OSError:
             pass
 
@@ -133,6 +142,10 @@ class TestPbsHookSetJobEnv(TestFunctional):
         Parse the output file and store the
         variable list in a dictionary
         """
+        if (not self.du.is_localhost(self.mom.hostname)) and self.interactive:
+            srchost = self.mom.hostname
+            destpath = self.du.get_tempdir(self.server.hostname)
+            self.du.run_copy(srchost=srchost, src=outputfile, dest=destpath)
 
         with open(outputfile) as fd:
             pkey = ""
@@ -140,18 +153,18 @@ class TestPbsHookSetJobEnv(TestFunctional):
             penv = {}
             penv_exclude = {}
             for line in fd:
-                l = line.split("=", 1)
-                if (len(l) == 2):
-                    pkey = l[0]
+                fields = line.split("=", 1)
+                if (len(fields) == 2):
+                    pkey = fields[0]
                     if pkey not in self.exclude_env:
-                        penv[pkey] = l[1]
+                        penv[pkey] = fields[1]
                         tmpenv = penv
                     else:
-                        penv_exclude[pkey] = l[1]
+                        penv_exclude[pkey] = fields[1]
                         tmpenv = penv_exclude
                 elif pkey != "":
                     # append to previous dictionary entry
-                    tmpenv[pkey] += l[0]
+                    tmpenv[pkey] += fields[0]
         if (ishook == "hook"):
             self.env_hook = penv
             self.env_hook_exclude = penv_exclude
@@ -164,9 +177,9 @@ class TestPbsHookSetJobEnv(TestFunctional):
         Validate the env variable output in daemon logs
         """
         logutils = PBSLogUtils()
-        logmsg = ["TEST_COMMA=1\,2\,3\,4",
+        logmsg = [r"TEST_COMMA=1\,2\,3\,4",
                   "TEST_SEMICOLON=;",
-                  "TEST_ENCLOSED=\\'\,\\'",
+                  r"TEST_ENCLOSED=\\'\,\\'",
                   "TEST_COLON=:",
                   "TEST_BACKSLASH=\\\\",
                   "TEST_DQUOTE=\\\"",
@@ -183,19 +196,21 @@ class TestPbsHookSetJobEnv(TestFunctional):
                   "TEST_SQUOTE6=loving\\'",
                   "TEST_SPECIAL={}[]()~@#$%^&*!",
                   "TEST_SPECIAL2=<dumb-test_text>",
-                  "TEST_RETURN=\\'3\,",
+                  r"TEST_RETURN=\\'3\,",
                   # Cannot add '\n' here because '\n' is not included in
                   # the items of the list returned by log_lines(), (though
                   # lines are split by '\n')
-                  "4\,",
+                  r"4\,",
                   "5\\',"]
 
         if (daemon == "mom"):
             self.logger.info("Matching in mom logs")
             logfile_type = self.mom
+            host = self.mom.hostname
         elif (daemon == "server"):
             self.logger.info("Matching in server logs")
             logfile_type = self.server
+            host = self.server.hostname
         else:
             self.logger.info("Provide a valid daemon name; server or mom")
             return
@@ -205,15 +220,16 @@ class TestPbsHookSetJobEnv(TestFunctional):
         nomatch_msg = ' No match for '
         for msg in logmsg:
             for attempt in range(1, 61):
-                lines = self.server.log_lines(
-                    logfile_type, starttime=self.server.ctime)
+                lines = self.server.log_lines(logfile_type,
+                                              starttime=self.server.ctime,
+                                              host=host, n='ALL')
                 match = logutils.match_msg(lines, msg=msg)
                 if match:
                     # Dont want the test to pass if there are
                     # unwanted matched for "4\," and "5\\'.
-                    if msg == "TEST_RETURN=\\'3\,":
+                    if msg == r"TEST_RETURN=\\'3\,":
                         ret_linenum = match[0]
-                    if (msg == "4\," and match[0] != (ret_linenum - 1)) or \
+                    if (msg == r"4\," and match[0] != (ret_linenum - 1)) or \
                        (msg == "5\\'" and match[0] != (ret_linenum - 2)):
                         pass
                     else:
@@ -362,6 +378,7 @@ class TestPbsHookSetJobEnv(TestFunctional):
 
         return self.server.submit(retjob)
 
+    @skipOnShasta
     def test_begin_launch(self):
         """
         Test to verify that job environment variables having special
@@ -441,6 +458,7 @@ e.env["HAPPY"] = "nights"
         # Check the values in mom logs as well
         self.common_log_match("mom")
 
+    @skipOnShasta
     def test_que(self):
         """
         Test that variable_list do not change with and without
@@ -501,6 +519,7 @@ pbs.logmsg(pbs.LOG_DEBUG,"Variable List is %s" % (e.job.Variable_List,))
 
         self.common_log_match("server")
 
+    @skipOnShasta
     def test_execjob_epi(self):
         """
         Test that Variable_List will contain environment variable
@@ -561,6 +580,7 @@ pbs.logmsg(pbs.LOG_DEBUG,"Variable_List is %s" % (j.Variable_List,))
         # Verify the env variables in logs too
         self.common_log_match("mom")
 
+    @skipOnShasta
     def test_execjob_pro(self):
         """
         Test that environment variable not gets truncated
@@ -619,6 +639,7 @@ pbs.logmsg(pbs.LOG_DEBUG,"Variable_List is %s" % (j.Variable_List,))
         # compare the values in mom_logs as well
         self.common_log_match("mom")
 
+    @skipOnShasta
     @checkModule("pexpect")
     def test_interactive(self):
         """
@@ -626,6 +647,7 @@ pbs.logmsg(pbs.LOG_DEBUG,"Variable_List is %s" % (j.Variable_List,))
         variable list with execjob_launch hook
         """
 
+        self.interactive = True
         self.exclude_env += ['happy']
 
         # submit an interactive job without hook
@@ -679,6 +701,7 @@ pbs.logmsg(pbs.LOG_DEBUG, "Variable_List is %s" % (j.Variable_List,))
         # verify the env values in logs
         self.common_log_match("mom")
 
+    @skipOnShasta
     def test_no_hook(self):
         """
         Test to verify that environment variables are
@@ -686,7 +709,7 @@ pbs.logmsg(pbs.LOG_DEBUG, "Variable_List is %s" % (j.Variable_List,))
         no hook is present
         """
 
-        os.environ['BROL'] = 'hii\\\haha'
+        os.environ['BROL'] = r'hii\\\haha'
         os.environ['BROL1'] = """'hii
 haa'"""
 
@@ -812,6 +835,7 @@ haa'"""
         # self.assertTrue("BROL1=hii\nhaa" in job_var)
         # self.assertTrue("TEST_RETURN=3\,\n4\,\n5\," in job_var)
 
+    @skipOnShasta
     @checkModule("pexpect")
     def test_interactive_no_hook(self):
         """
@@ -820,7 +844,8 @@ haa'"""
         job even when there is no hook present
         """
 
-        os.environ['BROL'] = 'hii\\\haha'
+        self.interactive = True
+        os.environ['BROL'] = r'hii\\\haha'
         os.environ['BROL1'] = """'hii
 haa'"""
 
@@ -908,6 +933,7 @@ haa'"""
         self.logger.info("BROL - " + os.environ['BROL1'] + " == " +
                          self.env_nohook['BROL1'].rstrip('\n'))
 
+    @skipOnShasta
     def test_execjob_epi2(self):
         """
         Test that Variable_List will contain environment variable
@@ -926,6 +952,12 @@ haa'"""
         POST: The epilogue hook should see the proper value to the
               Variable_List.
         """
+
+        msg = "skipped due to issue: "
+        msg += "PTL failed to parse env variable"
+        msg += " when qstat has multiline variable/attr value."
+        self.skipTest(msg)
+
         a = {'Resource_List.select': '1:ncpus=1',
              'Resource_List.walltime': 60}
         j = Job(attrs=a)

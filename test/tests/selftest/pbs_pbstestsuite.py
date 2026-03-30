@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.selftest import *
 from ptl.utils.pbs_snaputils import *
@@ -223,15 +226,15 @@ class TestPBSTestSuite(TestSelf):
                         (self.server.hostname))
 
         # Set a non-default pbs.conf variables, let's say
-        # PBS_LOG_HIGHRES_TIMESTAMP, and restart PBS
+        # PBS_LOCALLOG, and restart PBS
         self.server.pi.stop()
-        pbs_conf_val["PBS_LOG_HIGHRES_TIMESTAMP"] = "1"
+        pbs_conf_val["PBS_LOCALLOG"] = "1"
         self.du.set_pbs_config(confs=pbs_conf_val)
         self.server.pi.start()
 
         # Confirm that the pbs.conf variable is set
         pbs_conf_val = self.du.parse_pbs_config(self.server.hostname)
-        self.assertEqual(pbs_conf_val["PBS_LOG_HIGHRES_TIMESTAMP"], "1")
+        self.assertEqual(pbs_conf_val["PBS_LOCALLOG"], "1")
 
         # Now, call self.revert_pbsconf()
         self.revert_pbsconf()
@@ -239,7 +242,7 @@ class TestPBSTestSuite(TestSelf):
         # Confirm that the value gets removed from the list as it is not
         # a default setting
         pbs_conf_val = self.du.parse_pbs_config(self.server.hostname)
-        self.assertFalse("PBS_LOG_HIGHRES_TIMESTAMP" in pbs_conf_val)
+        self.assertFalse("PBS_LOCALLOG" in pbs_conf_val)
 
     def test_revert_pbsconf_fewer_vars(self):
         """
@@ -278,12 +281,31 @@ class TestPBSTestSuite(TestSelf):
         # Save a copy of default config to check it was reverted
         # correctly later
         c2 = c1.copy()
-
         a = {'$prologalarm': '280'}
         self.mom.add_config(a)
         c1.update(a)
         self.assertEqual(self.mom.parse_config(), c1)
         self.mom.revert_to_defaults()
-
         # Make sure the default config is back
         self.assertEqual(self.mom.parse_config(), c2)
+
+    def test_revert_conf_highres_logging(self):
+        """
+        Test that if PBS_LOG_HIGHRES_TIMESTAMP by default is set to 1 and
+        if its value is changed in the test it will be reverted to 1 by
+        revert_pbsconf()
+        """
+        highres_val = self.du.parse_pbs_config()\
+            .get("PBS_LOG_HIGHRES_TIMESTAMP")
+        self.assertEqual("1", highres_val)
+
+        a = {'PBS_LOG_HIGHRES_TIMESTAMP': "0"}
+        self.du.set_pbs_config(confs=a, append=True)
+        highres_val = self.du.parse_pbs_config()\
+            .get("PBS_LOG_HIGHRES_TIMESTAMP")
+        self.assertEqual("0", highres_val)
+
+        self.revert_pbsconf()
+        highres_val = self.du.parse_pbs_config()\
+            .get("PBS_LOG_HIGHRES_TIMESTAMP")
+        self.assertEqual("1", highres_val)

@@ -1,58 +1,64 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
-import os
-import time
-import tarfile
+
+import collections
 import logging
-import socket
-import random
-import shutil
+import os
 import pprint
-import shlex
+import random
 import re
-
+import shlex
+import shutil
+import socket
+import tarfile
+import time
+import platform
 from subprocess import STDOUT
-from ptl.lib.pbs_testlib import Server, Scheduler, SCHED
+from pathlib import Path
+from multiprocessing import Process
+
 from ptl.lib.pbs_ifl_mock import *
+from ptl.lib.pbs_testlib import (SCHED, BatchUtils, Scheduler, Server,
+                                 PbsAttribute)
 from ptl.utils.pbs_dshutils import DshUtils
 from ptl.utils.pbs_logutils import PBSLogUtils
-from ptl.lib.pbs_testlib import BatchUtils
-
 
 # Define an enum which is used to label various pieces of information
 (   # qstat outputs
@@ -123,7 +129,7 @@ from ptl.lib.pbs_testlib import BatchUtils
     CORE_SERVER,
     CORE_MOM,
     # Miscellaneous
-    CTIME) = range(59)
+    CTIME) = list(range(59))
 
 
 # Define paths to various files/directories with respect to the snapshot
@@ -139,6 +145,7 @@ QMGR_PQ_PATH = os.path.join(SERVER_DIR, "qmgr_pq.out")
 # server_priv/
 SVR_PRIV_PATH = "server_priv"
 ACCT_LOGS_PATH = os.path.join("server_priv", "accounting")
+RSCDEF_PATH = os.path.join("server_priv", "resourcedef")
 # server_logs/
 SVR_LOGS_PATH = "server_logs"
 # job/
@@ -291,7 +298,7 @@ class ObfuscateSnapshot(object):
                             if _val in self.skip_vals:
                                 obf = _val
                             elif _val not in self.val_obf_map:
-                                obf = self.bu.random_str(
+                                obf = PbsAttribute.random_str(
                                     length=random.randint(8, 30))
                                 self.val_obf_map[_val] = obf
                             else:
@@ -342,14 +349,13 @@ class ObfuscateSnapshot(object):
         """
         Helper function to anonymize
 
-        :param attrs_obf - list of attributes to obfuscate
-        :type attrs_obf - list
+        :param attrs_obf - set of attributes to obfuscate
+        :type attrs_obf - set
         :param file_path - path of acct log file
         :type file_path - str
         """
-        fout = self.du.create_temp_file()
-
-        with open(file_path, "r") as fd, open(fout, "w") as fdout:
+        newcontent = []
+        with open(file_path, "r") as fd:
             for record in fd:
                 # accounting log format is
                 # %Y/%m/%d %H:%M:%S;<Key>;<Id>;<key1=val1> <key2=val2> ...
@@ -357,7 +363,7 @@ class ObfuscateSnapshot(object):
                 if record_list is None or len(record_list) < 4:
                     continue
                 if record_list[1] in ("A", "L"):
-                    fdout.write(record)
+                    newcontent.append(record)
                     continue
                 content_list = shlex.split(record_list[3].strip())
 
@@ -385,7 +391,7 @@ class ObfuscateSnapshot(object):
                             if _val == "_pbs_project_default":
                                 obf.append(_val)
                             elif _val not in self.val_obf_map:
-                                obf_v = self.bu.random_str(
+                                obf_v = PbsAttribute.random_str(
                                     length=random.randint(8, 30))
                                 self.val_obf_map[_val] = obf_v
                                 obf.append(obf_v)
@@ -396,11 +402,12 @@ class ObfuscateSnapshot(object):
                 if not skip_record:
                     record = ";".join(record_list[:3]) + ";" + \
                         " ".join(["=".join(n) for n in kvl_list])
-                    fdout.write(record + "\n")
+                    newcontent.append(record + "\n")
 
-        shutil.move(fout, file_path)
+        with open(file_path, "w") as fd:
+            fd.write("".join(newcontent))
 
-    def obfuscate_acct_logs(self, snap_dir):
+    def obfuscate_acct_logs(self, snap_dir, sudo_val):
         """
         Helper function to obfuscate accounting logs
 
@@ -414,33 +421,70 @@ class ObfuscateSnapshot(object):
         # Some accounting record attributes are named differently
         acct_extras = ["user", "requestor", "group", "account"]
         attrs_to_obf += acct_extras
+        attrs_to_obf = set(attrs_to_obf)
 
         acct_path = os.path.join(snap_dir, "server_priv", "accounting")
-        acct_fnames = os.listdir(acct_path)
-        for acct_fname in acct_fnames:
-            acct_fpath = os.path.join(acct_path, acct_fname)
-            self._obfuscate_acct_file(attrs_to_obf, acct_fpath)
+        if not os.path.isdir(acct_path):
+            return
+        acct_fpaths = self.du.listdir(path=acct_path, sudo=sudo_val)
+
+        # Limit the number of cores used to 10
+        ncpus = os.cpu_count()
+        ncpus = min(ncpus, 10)
+        nfiles = len(acct_fpaths)
+        i = 0
+        while i < nfiles:
+            plist = []
+            for _ in range(ncpus):
+                acct_fpath = acct_fpaths[i]
+                p = Process(target=self._obfuscate_acct_file,
+                            args=(attrs_to_obf, acct_fpath))
+                p.start()
+                plist.append(p)
+                i += 1
+                if i >= nfiles:
+                    break
+            for p in plist:
+                p.join()
+
         if self.num_bad_acct_records > 0:
             self.logger.info("Total bad records found: " +
                              str(self.num_bad_acct_records))
 
-    def _replace_str_in_file(self, key, val, fpath):
+    def _obfuscate_with_map(self, fpath, sudo=False):
         """
-        Helper function to replace a given string (key) with another (val)
+        Helper function to obfuscate a file with obfuscation map
 
-        :param key - the string to replace
-        :type key - str
-        :param val - the string to replace with
-        :type val - str
         :param filepath - path to the file
         :type filepath - str
+        :param sudo - sudo True/False?
+        :type bool
+
+        :return str - possibly updated path to the obfuscated file
         """
         fout = self.du.create_temp_file()
-        with open(fpath, "r") as fd, open(fout, "w") as fdout:
+        pathobj = Path(fpath)
+        fname = pathobj.name
+        fparent = pathobj.parent
+        newfpath = fpath
+        with open(fpath, "r", encoding="latin-1") as fd, \
+                open(fout, "w") as fdout:
             alltext = fd.read()
-            otext = re.sub(r'\b' + key + r'\b', val, alltext)
-            fdout.write(otext)
-        shutil.move(fout, fpath)
+            # Obfuscate values from val_obf_map
+            for key, val in self.val_obf_map.items():
+                alltext = re.sub(r'\b' + key + r'\b', val, alltext)
+                if key in fname:
+                    fname = fname.replace(key, val)
+                    newfpath = os.path.join(fparent, fname)
+            # Remove the attr values from vals_to_del list
+            for val in self.vals_to_del:
+                alltext = alltext.replace(val, "")
+            fdout.write(alltext)
+
+        self.du.rm(path=fpath, sudo=sudo)
+        shutil.move(fout, newfpath)
+
+        return newfpath
 
     def obfuscate_snapshot(self, snap_dir, map_file, sudo_val):
         """
@@ -470,7 +514,7 @@ class ObfuscateSnapshot(object):
             PBSNODES_VA_PATH: [self.node_attrs_obf, []],
             PBS_RSTAT_F_PATH: [self.resv_attrs_obf, self.resv_attrs_del]
         }
-        for s_f_file, attrs in stat_f_files.iteritems():
+        for s_f_file, attrs in stat_f_files.items():
             qstat_f_path = os.path.join(snap_dir, s_f_file)
             if os.path.isfile(qstat_f_path):
                 self._obfuscate_stat(qstat_f_path, attrs[0], attrs[1])
@@ -479,7 +523,7 @@ class ObfuscateSnapshot(object):
         # We will later do a sed on the whole snapshot, that's when these
         # will get obfuscated
         custom_rscs = []
-        custrscs_path = os.path.join(snap_dir, "server_priv", "resourcedef")
+        custrscs_path = os.path.join(snap_dir, RSCDEF_PATH)
         if os.path.isfile(custrscs_path):
             with open(custrscs_path, "r") as fd:
                 for line in fd:
@@ -487,22 +531,24 @@ class ObfuscateSnapshot(object):
                     custom_rscs.append(rscs_name.strip())
         for rscs in custom_rscs:
             if rscs not in self.val_obf_map:
-                obf = self.bu.random_str(length=random.randint(8, 30))
+                obf = PbsAttribute.random_str(length=random.randint(8, 30))
                 self.val_obf_map[rscs] = obf
 
         # Obfuscate accounting logs
         # Note: We can't rely on sed to do this because there might be logs
         # From long back which have usernames & hostnames that didn't get
         # captured in the qstat/pbs_rstat/pbsnodes outputs
-        self.obfuscate_acct_logs(snap_dir)
+        self.obfuscate_acct_logs(snap_dir, sudo_val)
 
         # Until we can support obfuscating daemon logs, delete them
         svr_logs = os.path.join(snap_dir, SVR_LOGS_PATH)
         mom_logs = os.path.join(snap_dir, MOM_LOGS_PATH)
         comm_logs = os.path.join(snap_dir, COMM_LOGS_PATH)
         db_logs = os.path.join(snap_dir, PG_LOGS_PATH)
+        topology = os.path.join(snap_dir, SVR_PRIV_PATH, "topology")
         sched_logs = []
-        for dirname in os.listdir(snap_dir):
+        for dirname in self.du.listdir(path=snap_dir, sudo=sudo_val,
+                                       fullpath=False):
             if dirname.startswith(DFLT_SCHED_LOGS_PATH):
                 dirpath = os.path.join(snap_dir, str(dirname))
                 sched_logs.append(dirpath)
@@ -518,28 +564,32 @@ class ObfuscateSnapshot(object):
                               "simply be deleted")
         jobspath = os.path.join(snap_dir, MOM_PRIV_PATH, "jobs")
         jbcontent = {}
-        for name in os.listdir(jobspath):
-            if name.endswith(".JB"):
-                ret = None
-                fpath = os.path.join(jobspath, name)
-                if printjob is not None:
-                    cmd = [printjob, fpath]
-                    ret = self.du.run_cmd(cmd=cmd, sudo=sudo_val,
-                                          as_script=True)
-                self.du.rm(path=fpath)
-                if ret is not None and ret["out"] is not None:
-                    jbcontent[name] = "\n".join(ret["out"])
-            # Also delete any other files/directories inside mom_priv/jobs
-            else:
-                path = os.path.join(jobspath, name)
-                self.du.rm(path=path, recursive=True, force=True)
-        for name, content in jbcontent.iteritems():
+        jbfilelist = self.du.listdir(path=jobspath, sudo=sudo_val,
+                                     fullpath=False)
+        if jbfilelist is not None:
+            for name in jbfilelist:
+                if name.endswith(".JB"):
+                    ret = None
+                    fpath = os.path.join(jobspath, name)
+                    if printjob is not None:
+                        cmd = [printjob, fpath]
+                        ret = self.du.run_cmd(cmd=cmd, sudo=sudo_val,
+                                              as_script=True)
+                    self.du.rm(path=fpath)
+                    if ret is not None and ret["out"] is not None:
+                        jbcontent[name] = "\n".join(ret["out"])
+                # Also delete any other files/directories inside mom_priv/jobs
+                else:
+                    path = os.path.join(jobspath, name)
+                    self.du.rm(path=path, recursive=True, force=True)
+        for name, content in jbcontent.items():
             # Save the printjob outputs, these will be obfuscated later
             fpath = os.path.join(jobspath, name + "_printjob")
             with open(fpath, "w") as fd:
                 fd.write(str(content))
 
-        dirs_to_del = [svr_logs, mom_logs, comm_logs, db_logs] + sched_logs
+        dirs_to_del = [svr_logs, mom_logs, comm_logs, db_logs, topology]
+        dirs_to_del += sched_logs
         for dirpath in dirs_to_del:
             self.du.rm(path=dirpath, recursive=True, force=True)
 
@@ -548,25 +598,7 @@ class ObfuscateSnapshot(object):
         for root, _, fnames in os.walk(snap_dir):
             for fname in fnames:
                 fpath = os.path.join(root, fname)
-                new_fname = None
-
-                # Obfuscate values from val_obf_map
-                for key, val in self.val_obf_map.iteritems():
-                    self._replace_str_in_file(key, val, fpath)
-                    if key in fname:
-                        new_fname = fname.replace(key, val)
-
-                # Remove the attr values from vals_to_del list
-                fout = self.du.create_temp_file()
-                with open(fpath, "r") as fd, open(fout, "w") as fdout:
-                    data = fd.read()
-                    for val in self.vals_to_del:
-                        data = data.replace(val, "")
-                    fdout.write(data)
-                if new_fname is not None:
-                    os.remove(fpath)
-                    fpath = os.path.join(root, new_fname)
-                shutil.move(fout, fpath)
+                self._obfuscate_with_map(fpath, sudo=sudo_val)
 
         with open(map_file, "w") as fd:
             fd.write("Attributes Obfuscated:\n")
@@ -581,9 +613,11 @@ class PBSSnapUtils(object):
     This makes sure that we do necessay cleanup before destroying objects
     """
 
-    def __init__(self, out_dir, acct_logs=None, daemon_logs=None,
-                 create_tar=False, log_path=None, with_sudo=False):
+    def __init__(self, out_dir, basic=None, acct_logs=None,
+                 daemon_logs=None, create_tar=False, log_path=None,
+                 with_sudo=False):
         self.out_dir = out_dir
+        self.basic = basic
         self.acct_logs = acct_logs
         self.srvc_logs = daemon_logs
         self.create_tar = create_tar
@@ -592,9 +626,10 @@ class PBSSnapUtils(object):
         self.utils_obj = None
 
     def __enter__(self):
-        self.utils_obj = _PBSSnapUtils(self.out_dir, self.acct_logs,
-                                       self.srvc_logs, self.create_tar,
-                                       self.log_path, self.with_sudo)
+        self.utils_obj = _PBSSnapUtils(self.out_dir, self.basic,
+                                       self.acct_logs, self.srvc_logs,
+                                       self.create_tar, self.log_path,
+                                       self.with_sudo)
         return self.utils_obj
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -610,13 +645,16 @@ class _PBSSnapUtils(object):
     PBS snapshot utilities
     """
 
-    def __init__(self, out_dir, acct_logs=None, daemon_logs=None,
-                 create_tar=False, log_path=None, with_sudo=False):
+    def __init__(self, out_dir, basic=None, acct_logs=None,
+                 daemon_logs=None, create_tar=False, log_path=None,
+                 with_sudo=False):
         """
         Initialize a PBSSnapUtils object with the arguments specified
 
         :param out_dir: path to the directory where snapshot will be created
         :type out_dir: str
+        :param basic: only capture basic PBS configuration & state data?
+        :type basic: bool
         :param acct_logs: number of accounting logs to capture
         :type acct_logs: int or None
         :param daemon_logs: number of daemon logs to capture
@@ -630,6 +668,7 @@ class _PBSSnapUtils(object):
         """
         self.logger = logging.getLogger(__name__)
         self.du = DshUtils()
+        self.basic = basic
         self.server_info = {}
         self.job_info = {}
         self.node_info = {}
@@ -660,6 +699,15 @@ class _PBSSnapUtils(object):
             self.log_filename = os.path.basename(self.log_path)
         else:
             self.log_filename = None
+        self.capture_core_files = True
+
+        filecmd = "file"
+        self.filecmd = self.du.which(exe=filecmd)
+        # du.which returns the input cmd name if it can't find the cmd
+        if self.filecmd is filecmd:
+            self.capture_core_files = False
+            self.logger.info("Warning: file command not found, "
+                             "can't capture traces from any core files")
 
         # finalize() is called by the context's __exit__() automatically
         # however, finalize() is non-reenterant, so set a flag to keep
@@ -725,82 +773,88 @@ class _PBSSnapUtils(object):
         """
         if self.server_up:
             # Server information
-            value = (QSTAT_B_PATH, [QSTAT_CMD, "-B"])
-            self.server_info[QSTAT_B_OUT] = value
             value = (QSTAT_BF_PATH, [QSTAT_CMD, "-Bf"])
             self.server_info[QSTAT_BF_OUT] = value
-            value = (QMGR_PS_PATH, [QMGR_CMD, "-c", "p s"])
-            self.server_info[QMGR_PS_OUT] = value
-            value = (QSTAT_Q_PATH, [QSTAT_CMD, "-Q"])
-            self.server_info[QSTAT_Q_OUT] = value
             value = (QSTAT_QF_PATH, [QSTAT_CMD, "-Qf"])
             self.server_info[QSTAT_QF_OUT] = value
-            value = (QMGR_PR_PATH, [QMGR_CMD, "-c", "p r"])
-            self.server_info[QMGR_PR_OUT] = value
-            value = (QMGR_PQ_PATH, [QMGR_CMD, "-c", "p q @default"])
-            self.server_info[QMGR_PQ_OUT] = value
+            if not self.basic:
+                value = (QSTAT_B_PATH, [QSTAT_CMD, "-B"])
+                self.server_info[QSTAT_B_OUT] = value
+                value = (QMGR_PS_PATH, [QMGR_CMD, "-c", "p s"])
+                self.server_info[QMGR_PS_OUT] = value
+                value = (QSTAT_Q_PATH, [QSTAT_CMD, "-Q"])
+                self.server_info[QSTAT_Q_OUT] = value
+                value = (QMGR_PR_PATH, [QMGR_CMD, "-c", "p r"])
+                self.server_info[QMGR_PR_OUT] = value
+                value = (QMGR_PQ_PATH, [QMGR_CMD, "-c", "p q @default"])
+                self.server_info[QMGR_PQ_OUT] = value
 
             # Job information
-            value = (QSTAT_PATH, [QSTAT_CMD])
-            self.job_info[QSTAT_OUT] = value
             value = (QSTAT_F_PATH, [QSTAT_CMD, "-f"])
             self.job_info[QSTAT_F_OUT] = value
-            value = (QSTAT_T_PATH, [QSTAT_CMD, "-t"])
-            self.job_info[QSTAT_T_OUT] = value
             value = (QSTAT_TF_PATH, [QSTAT_CMD, "-tf"])
             self.job_info[QSTAT_TF_OUT] = value
-            value = (QSTAT_X_PATH, [QSTAT_CMD, "-x"])
-            self.job_info[QSTAT_X_OUT] = value
-            value = (QSTAT_XF_PATH, [QSTAT_CMD, "-xf"])
-            self.job_info[QSTAT_XF_OUT] = value
-            value = (QSTAT_NS_PATH, [QSTAT_CMD, "-ns"])
-            self.job_info[QSTAT_NS_OUT] = value
-            value = (QSTAT_FX_DSV_PATH, [QSTAT_CMD, "-fx", "-F", "dsv"])
-            self.job_info[QSTAT_FX_DSV_OUT] = value
-            value = (QSTAT_F_DSV_PATH, [QSTAT_CMD, "-f", "-F", "dsv"])
-            self.job_info[QSTAT_F_DSV_OUT] = value
-            value = (QSTAT_F_JSON_PATH, [QSTAT_CMD, "-f", "-F", "json"])
-            self.job_info[QSTAT_F_JSON_OUT] = value
+            if not self.basic:
+                value = (QSTAT_PATH, [QSTAT_CMD])
+                self.job_info[QSTAT_OUT] = value
+                value = (QSTAT_T_PATH, [QSTAT_CMD, "-t"])
+                self.job_info[QSTAT_T_OUT] = value
+                value = (QSTAT_X_PATH, [QSTAT_CMD, "-x"])
+                self.job_info[QSTAT_X_OUT] = value
+                value = (QSTAT_XF_PATH, [QSTAT_CMD, "-xf"])
+                self.job_info[QSTAT_XF_OUT] = value
+                value = (QSTAT_NS_PATH, [QSTAT_CMD, "-ns"])
+                self.job_info[QSTAT_NS_OUT] = value
+                value = (QSTAT_FX_DSV_PATH, [QSTAT_CMD, "-fx", "-F", "dsv"])
+                self.job_info[QSTAT_FX_DSV_OUT] = value
+                value = (QSTAT_F_DSV_PATH, [QSTAT_CMD, "-f", "-F", "dsv"])
+                self.job_info[QSTAT_F_DSV_OUT] = value
+                value = (QSTAT_F_JSON_PATH, [QSTAT_CMD, "-f", "-F", "json"])
+                self.job_info[QSTAT_F_JSON_OUT] = value
 
             # Node information
             value = (PBSNODES_VA_PATH, [PBSNODES_CMD, "-va"])
             self.node_info[PBSNODES_VA_OUT] = value
-            value = (PBSNODES_A_PATH, [PBSNODES_CMD, "-a"])
-            self.node_info[PBSNODES_A_OUT] = value
-            value = (PBSNODES_AVSJ_PATH, [PBSNODES_CMD, "-avSj"])
-            self.node_info[PBSNODES_AVSJ_OUT] = value
-            value = (PBSNODES_ASJ_PATH, [PBSNODES_CMD, "-aSj"])
-            self.node_info[PBSNODES_ASJ_OUT] = value
-            value = (PBSNODES_AVS_PATH, [PBSNODES_CMD, "-avS"])
-            self.node_info[PBSNODES_AVS_OUT] = value
-            value = (PBSNODES_AS_PATH, [PBSNODES_CMD, "-aS"])
-            self.node_info[PBSNODES_AS_OUT] = value
-            value = (PBSNODES_AFDSV_PATH, [PBSNODES_CMD, "-aFdsv"])
-            self.node_info[PBSNODES_AFDSV_OUT] = value
-            value = (PBSNODES_AVFDSV_PATH, [PBSNODES_CMD, "-avFdsv"])
-            self.node_info[PBSNODES_AVFDSV_OUT] = value
-            value = (PBSNODES_AVFJSON_PATH, [PBSNODES_CMD, "-avFjson"])
-            self.node_info[PBSNODES_AVFJSON_OUT] = value
-            value = (QMGR_PN_PATH, [QMGR_CMD, "-c", "p n @default"])
-            self.node_info[QMGR_PN_OUT] = value
+            if not self.basic:
+                value = (PBSNODES_A_PATH, [PBSNODES_CMD, "-a"])
+                self.node_info[PBSNODES_A_OUT] = value
+                value = (PBSNODES_AVSJ_PATH, [PBSNODES_CMD, "-avSj"])
+                self.node_info[PBSNODES_AVSJ_OUT] = value
+                value = (PBSNODES_ASJ_PATH, [PBSNODES_CMD, "-aSj"])
+                self.node_info[PBSNODES_ASJ_OUT] = value
+                value = (PBSNODES_AVS_PATH, [PBSNODES_CMD, "-avS"])
+                self.node_info[PBSNODES_AVS_OUT] = value
+                value = (PBSNODES_AS_PATH, [PBSNODES_CMD, "-aS"])
+                self.node_info[PBSNODES_AS_OUT] = value
+                value = (PBSNODES_AFDSV_PATH, [PBSNODES_CMD, "-aFdsv"])
+                self.node_info[PBSNODES_AFDSV_OUT] = value
+                value = (PBSNODES_AVFDSV_PATH, [PBSNODES_CMD, "-avFdsv"])
+                self.node_info[PBSNODES_AVFDSV_OUT] = value
+                value = (PBSNODES_AVFJSON_PATH, [PBSNODES_CMD, "-avFjson"])
+                self.node_info[PBSNODES_AVFJSON_OUT] = value
+                value = (QMGR_PN_PATH, [QMGR_CMD, "-c", "p n @default"])
+                self.node_info[QMGR_PN_OUT] = value
 
             # Hook information
-            value = (QMGR_PH_PATH, [QMGR_CMD, "-c", "p h @default"])
-            self.hook_info[QMGR_PH_OUT] = value
             value = (QMGR_LPBSHOOK_PATH, [QMGR_CMD, "-c", "l pbshook"])
             self.hook_info[QMGR_LPBSHOOK_OUT] = value
+            if not self.basic:
+                value = (QMGR_PH_PATH, [QMGR_CMD, "-c", "p h @default"])
+                self.hook_info[QMGR_PH_OUT] = value
 
             # Reservation information
-            value = (PBS_RSTAT_PATH, [PBS_RSTAT_CMD])
-            self.resv_info[PBS_RSTAT_OUT] = value
             value = (PBS_RSTAT_F_PATH, [PBS_RSTAT_CMD, "-f"])
             self.resv_info[PBS_RSTAT_F_OUT] = value
+            if not self.basic:
+                value = (PBS_RSTAT_PATH, [PBS_RSTAT_CMD])
+                self.resv_info[PBS_RSTAT_OUT] = value
 
             # Scheduler information
             value = (QMGR_LSCHED_PATH, [QMGR_CMD, "-c", "l sched"])
             self.sched_info[QMGR_LSCHED_OUT] = value
-            value = (QMGR_PSCHED_PATH, [QMGR_CMD, "-c", "p sched"])
-            self.sched_info[QMGR_PSCHED_OUT] = value
+            if not self.basic:
+                value = (QMGR_PSCHED_PATH, [QMGR_CMD, "-c", "p sched"])
+                self.sched_info[QMGR_PSCHED_OUT] = value
 
         if self.server_info_avail:
             # Server priv and logs
@@ -843,33 +897,34 @@ class _PBSSnapUtils(object):
             self.core_info[CORE_SCHED] = value
 
         # System information
-        value = (PBS_PROBE_PATH, [PBS_PROBE_CMD, "-v"])
-        self.sys_info[PBS_PROBE_OUT] = value
-        # We'll append hostname to this later (see capture_system_info)
-        value = (PBS_HOSTN_PATH, [PBS_HOSTN_CMD, "-v"])
-        self.sys_info[PBS_HOSTN_OUT] = value
-        value = (PBS_ENV_PATH, None)
-        self.sys_info[PBS_ENVIRONMENT] = value
-        value = (OS_PATH, None)
-        self.sys_info[OS_INFO] = value
-        value = (PROCESS_PATH, ["ps", "aux", "|", "grep", "[p]bs"])
-        self.sys_info[PROCESS_INFO] = value
-        value = (ETC_HOSTS_PATH,
-                 ["cat", os.path.join(os.sep, "etc", "hosts")])
-        self.sys_info[ETC_HOSTS] = value
-        value = (ETC_NSSWITCH_PATH,
-                 ["cat", os.path.join(os.sep, "etc", "nsswitch.conf")])
-        self.sys_info[ETC_NSSWITCH_CONF] = value
-        value = (LSOF_PBS_PATH, ["lsof", "|", "grep", "[p]bs"])
-        self.sys_info[LSOF_PBS_OUT] = value
-        value = (VMSTAT_PATH, ["vmstat"])
-        self.sys_info[VMSTAT_OUT] = value
-        value = (DF_H_PATH, ["df", "-h"])
-        self.sys_info[DF_H_OUT] = value
-        value = (DMESG_PATH, ["dmesg"])
-        self.sys_info[DMESG_OUT] = value
-        value = (PS_LEAF_PATH, ["ps", "-leaf"])
-        self.sys_info[PS_LEAF_OUT] = value
+        if not self.basic:
+            value = (PBS_PROBE_PATH, [PBS_PROBE_CMD, "-v"])
+            self.sys_info[PBS_PROBE_OUT] = value
+            # We'll append hostname to this later (see capture_system_info)
+            value = (PBS_HOSTN_PATH, [PBS_HOSTN_CMD, "-v"])
+            self.sys_info[PBS_HOSTN_OUT] = value
+            value = (PBS_ENV_PATH, None)
+            self.sys_info[PBS_ENVIRONMENT] = value
+            value = (OS_PATH, None)
+            self.sys_info[OS_INFO] = value
+            value = (PROCESS_PATH, ["ps", "aux", "|", "grep", "[p]bs"])
+            self.sys_info[PROCESS_INFO] = value
+            value = (ETC_HOSTS_PATH,
+                     ["cat", os.path.join(os.sep, "etc", "hosts")])
+            self.sys_info[ETC_HOSTS] = value
+            value = (ETC_NSSWITCH_PATH,
+                     ["cat", os.path.join(os.sep, "etc", "nsswitch.conf")])
+            self.sys_info[ETC_NSSWITCH_CONF] = value
+            value = (LSOF_PBS_PATH, ["lsof", "|", "grep", "[p]bs"])
+            self.sys_info[LSOF_PBS_OUT] = value
+            value = (VMSTAT_PATH, ["vmstat"])
+            self.sys_info[VMSTAT_OUT] = value
+            value = (DF_H_PATH, ["df", "-h"])
+            self.sys_info[DF_H_OUT] = value
+            value = (DMESG_PATH, ["dmesg", "-T"])
+            self.sys_info[DMESG_OUT] = value
+            value = (PS_LEAF_PATH, ["ps", "-leaf"])
+            self.sys_info[PS_LEAF_OUT] = value
 
     def __initialize_snapshot(self):
         """
@@ -888,7 +943,8 @@ class _PBSSnapUtils(object):
                                      NODE_DIR, SCHED_DIR])
         if self.server_info_avail:
             dirs_in_snapshot.extend([SVR_PRIV_PATH, SVR_LOGS_PATH,
-                                     ACCT_LOGS_PATH, DATASTORE_DIR])
+                                     ACCT_LOGS_PATH, DATASTORE_DIR,
+                                     PG_LOGS_PATH])
         if self.mom_info_avail:
             dirs_in_snapshot.extend([MOM_PRIV_PATH, MOM_LOGS_PATH])
         if self.comm_info_avail:
@@ -899,7 +955,7 @@ class _PBSSnapUtils(object):
 
         for item in dirs_in_snapshot:
             rel_path = os.path.join(self.snapdir, item)
-            os.makedirs(rel_path, 0755)
+            os.makedirs(rel_path, 0o755)
 
     def __capture_cmd_output(self, out_path, cmd, as_script=False,
                              ret_out=False, sudo=False):
@@ -1116,12 +1172,16 @@ quit()
 
         :returns: True if this was a valid core file, otherwise False
         """
+        if not self.capture_core_files:
+            return False
+
         if not self.du.isfile(path=file_path, sudo=self.with_sudo):
             self.logger.debug("Could not find file path " + str(file_path))
             return False
 
         # Get the header of this file
-        ret = self.du.run_cmd(cmd=["file", file_path], sudo=self.with_sudo)
+        ret = self.du.run_cmd(cmd=[self.filecmd, file_path],
+                              sudo=self.with_sudo)
         if ret['err'] is not None and len(ret['err']) != 0:
             self.logger.error(
                 "\'file\' command failed with error: " + ret['err'] +
@@ -1144,7 +1204,7 @@ quit()
         filename = os.path.basename(file_path)
         core_dest = os.path.join(core_dir, filename)
         if not os.path.isdir(core_dir):
-            os.makedirs(core_dir, 0755)
+            os.makedirs(core_dir, 0o755)
         self.__capture_trace_from_core(file_path, exec_name,
                                        core_dest)
 
@@ -1210,7 +1270,7 @@ quit()
                 # Make sure that the directory exists in the snapshot
                 if not self.du.isdir(path=item_dest_path):
                     # Create the directory
-                    os.makedirs(item_dest_path, 0755)
+                    os.makedirs(item_dest_path, 0o755)
                 # Recursive call to copy contents of the directory
                 self.__copy_dir_with_core(item_src_path, item_dest_path,
                                           core_dir, except_list, only_core,
@@ -1358,14 +1418,26 @@ quit()
                                           sudo=self.with_sudo)
 
         if self.server_info_avail:
-            # Copy over 'server_priv', everything except accounting logs
-            snap_server_priv = os.path.join(self.snapdir, SVR_PRIV_PATH)
-            pbs_server_priv = os.path.join(self.pbs_home, "server_priv")
-            core_dir = os.path.join(self.snapdir, CORE_SERVER_PATH)
-            exclude_list = ["accounting"]
-            self.__copy_dir_with_core(pbs_server_priv,
-                                      snap_server_priv, core_dir, exclude_list,
-                                      sudo=self.with_sudo)
+            if self.basic:
+                # Only copy over the resourcedef file
+                snap_rscdef = os.path.join(self.snapdir, RSCDEF_PATH)
+                pbs_rscdef = os.path.join(self.pbs_home, RSCDEF_PATH)
+                self.du.run_copy(src=pbs_rscdef, dest=snap_rscdef,
+                                 recursive=False,
+                                 preserve_permission=False,
+                                 level=logging.DEBUG, sudo=self.with_sudo)
+                if self.create_tar:
+                    self.__add_to_archive(snap_rscdef)
+
+            else:
+                # Copy over 'server_priv', everything except accounting logs
+                snap_server_priv = os.path.join(self.snapdir, SVR_PRIV_PATH)
+                pbs_server_priv = os.path.join(self.pbs_home, "server_priv")
+                core_dir = os.path.join(self.snapdir, CORE_SERVER_PATH)
+                exclude_list = ["accounting"]
+                self.__copy_dir_with_core(pbs_server_priv,
+                                          snap_server_priv, core_dir,
+                                          exclude_list, sudo=self.with_sudo)
 
             if with_svr_logs and self.num_daemon_logs > 0:
                 # Capture server logs
@@ -1432,8 +1504,9 @@ quit()
 
         # Collect mom logs and priv
         if self.mom_info_avail:
-            # Capture mom_priv info
-            self.__capture_mom_priv()
+            if not self.basic:
+                # Capture mom_priv info
+                self.__capture_mom_priv()
 
             if with_mom_logs and self.num_daemon_logs > 0:
                 # Capture mom_logs
@@ -1459,7 +1532,7 @@ quit()
 
         # If not already capturing server information, copy over server_priv
         # as pbs_comm runs out of it
-        if not self.server_info_avail:
+        if not self.server_info_avail and not self.basic:
             pbs_server_priv = os.path.join(self.pbs_home, "server_priv")
             snap_server_priv = os.path.join(self.snapdir, SVR_PRIV_PATH)
             core_dir = os.path.join(self.snapdir, CORE_SERVER_PATH)
@@ -1523,10 +1596,11 @@ quit()
                             line.split("=")[1]
 
             for sched_name in sched_details:
+                pbs_sched_priv = None
                 # Capture sched_priv for the scheduler
                 if len(sched_details) == 1:  # For pre-multisched outputs
                     pbs_sched_priv = os.path.join(self.pbs_home, "sched_priv")
-                else:
+                elif "sched_priv" in sched_details[sched_name]:
                     pbs_sched_priv = sched_details[sched_name]["sched_priv"]
                 if sched_name == "default" or len(sched_details) == 1:
                     snap_sched_priv = os.path.join(self.snapdir,
@@ -1536,18 +1610,20 @@ quit()
                     dirname = DFLT_SCHED_PRIV_PATH + "_" + sched_name
                     coredirname = CORE_SCHED_PATH + "_" + sched_name
                     snap_sched_priv = os.path.join(self.snapdir, dirname)
-                    os.makedirs(snap_sched_priv, 0755)
+                    os.makedirs(snap_sched_priv, 0o755)
                     core_dir = os.path.join(self.snapdir, coredirname)
 
-                self.__copy_dir_with_core(pbs_sched_priv,
-                                          snap_sched_priv, core_dir,
-                                          sudo=self.with_sudo)
+                if pbs_sched_priv and os.path.isdir(pbs_sched_priv):
+                    self.__copy_dir_with_core(pbs_sched_priv,
+                                              snap_sched_priv, core_dir,
+                                              sudo=self.with_sudo)
                 if with_sched_logs and self.num_daemon_logs > 0:
+                    pbs_sched_log = None
                     # Capture scheduler logs
                     if len(sched_details) == 1:  # For pre-multisched outputs
                         pbs_sched_log = os.path.join(self.pbs_home,
                                                      "sched_logs")
-                    else:
+                    elif "sched_log" in sched_details[sched_name]:
                         pbs_sched_log = sched_details[sched_name]["sched_log"]
                     if sched_name == "default" or len(sched_details) == 1:
                         snap_sched_log = os.path.join(self.snapdir,
@@ -1555,9 +1631,11 @@ quit()
                     else:
                         dirname = DFLT_SCHED_LOGS_PATH + "_" + sched_name
                         snap_sched_log = os.path.join(self.snapdir, dirname)
-                        os.makedirs(snap_sched_log, 0755)
+                        os.makedirs(snap_sched_log, 0o755)
 
-                    self.__capture_sched_logs(pbs_sched_log, snap_sched_log)
+                    if pbs_sched_log and os.path.isdir(pbs_sched_log):
+                        self.__capture_sched_logs(pbs_sched_log,
+                                                  snap_sched_log)
 
         elif self.sched_info_avail:
             # We don't know about other multi-scheds,
@@ -1680,6 +1758,9 @@ quit()
         """
         self.logger.info("capturing system information")
 
+        if self.basic:
+            return
+
         sudo_cmds = [PBS_PROBE_OUT, LSOF_PBS_OUT, DMESG_OUT]
         as_script_cmds = [PROCESS_INFO, LSOF_PBS_OUT]
         pbs_cmds = [PBS_PROBE_OUT, PBS_HOSTN_OUT]
@@ -1690,7 +1771,7 @@ quit()
             win_platform = True
 
         # Capture information that's dependent on commands
-        for (key, values) in self.sys_info.iteritems():
+        for (key, values) in self.sys_info.items():
             sudo = False
             (path, cmd_list) = values
             if cmd_list is None:
@@ -1723,7 +1804,8 @@ quit()
                     # PTL run_cmd's sudo will try to run the script
                     # itself with sudo, not the cmd
                     # So, append sudo as a prefix to the cmd instead
-                    cmd_list_cpy[0] = "sudo " + cmd_list_cpy[0]
+                    cmd_list_cpy[0] = (' '.join(self.du.sudo_cmd) +
+                                       ' ' + cmd_list_cpy[0])
             else:
                 as_script = False
                 if key in sudo_cmds:
@@ -1745,7 +1827,7 @@ quit()
         self.logger.info("capturing OS information")
         snap_ospath = os.path.join(self.snapdir, OS_PATH)
         with open(snap_ospath, "w") as osfd:
-            osinfo = self.du.get_os_info()
+            osinfo = platform.platform()
             osfd.write(osinfo + "\n")
             # If /etc/os-release is available then save that as well
             fpath = os.path.join(os.sep, "etc", "os-release")
@@ -1761,7 +1843,7 @@ quit()
         snap_envpath = os.path.join(self.snapdir, PBS_ENV_PATH)
         if self.server.pbs_env is not None:
             with open(snap_envpath, "w") as envfd:
-                for k, v in self.server.pbs_env.iteritems():
+                for k, v in self.server.pbs_env.items():
                     envfd.write(k + "=" + v + "\n")
         if self.create_tar:
             self.__add_to_archive(snap_envpath)
@@ -1773,11 +1855,11 @@ quit()
 
     def capture_pbs_logs(self):
         """
-        Capture PBSPro logs from all relevant hosts
+        Capture PBS logs from all relevant hosts
 
         :returns: name of the output directory/tarfile containing the snapshot
         """
-        self.logger.info("capturing PBSPro logs")
+        self.logger.info("capturing PBS logs")
 
         if self.num_daemon_logs > 0:
             # Capture server logs

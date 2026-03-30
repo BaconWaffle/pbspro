@@ -1,40 +1,43 @@
 
 """
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 """
 
@@ -49,7 +52,7 @@ import sys
 import os
 import pbs
 from pbs.v1._pmi_utils import _get_hosts, _get_vnode_names, _running_excl
-from _exc_types import *
+from pbs.v1._exc_types import *
 
 
 class InternalError(Exception):
@@ -83,7 +86,7 @@ class Power:
 
         try:
             _temp = __import__("pbs.v1._pmi_" + self.pmi_type,
-                               globals(), locals(), ['Pmi'], -1)
+                               globals(), locals(), ['Pmi'], 0)
         except Exception as e:
             raise InternalError(
                 "could not import: " + self.pmi_type + ": " + str(e))
@@ -100,7 +103,8 @@ class Power:
         """
         if os.path.exists('/proc/cray_xt/cname'):
             return "cray"
-        if os.path.exists('/opt/clmgr/power-service') or os.path.exists('/opt/sgi'):
+        if (os.path.exists('/opt/clmgr/power-service') or
+            os.path.exists('/opt/sgi')):
             return "sgi"
         return "none"
 
@@ -157,7 +161,7 @@ class Power:
                 for h in hosts:
                     try:
                         pbs.event().vnode_list[h].current_eoe = profile_name
-                    except:
+                    except Exception:
                         pass
             return ret
         except BackendError as e:
@@ -171,7 +175,7 @@ class Power:
                     mynode.resources_available["eoe"] = names
                     pbs.logmsg(pbs.LOG_WARNING,
                                "PMI:activate: set eoe: %s" % names)
-                except:
+                except Exception:
                     pass
             raise BackendError(e)
         except InternalError as e:
@@ -191,7 +195,7 @@ class Power:
             for h in _get_vnode_names(job):
                 try:
                     pbs.event().vnode_list[h].current_eoe = None
-                except:
+                except Exception:
                     pass
         return self.__pmi._deactivate_profile(job)
 

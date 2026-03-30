@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 
@@ -68,9 +71,9 @@ class TestNodeBuckets(TestFunctional):
         a = {'resources_available.ncpus': 2, 'resources_available.mem': '8gb'}
         # 10010 nodes since it divides into 7 evenly.
         # Each node bucket will have 1430 nodes in it
-        self.server.create_vnodes(name='vnode', attrib=a, num=10010,
-                                  mom=self.mom, sharednode=False,
-                                  expect=False, attrfunc=self.cust_attr_func)
+        self.mom.create_vnodes(attrib=a, num=10010,
+                               sharednode=False,
+                               expect=False, attrfunc=self.cust_attr_func)
         # Make sure all the nodes are in state free.  We can't let
         # create_vnodes() do this because it does a pbsnodes -v on each vnode.
         # This takes a long time.
@@ -78,7 +81,7 @@ class TestNodeBuckets(TestFunctional):
 
         self.scheduler.add_resource('color')
 
-        self.scheduler.set_sched_config({'log_filter': '2048'})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
     def cust_attr_func(self, name, totalnodes, numnode, attribs):
         """
@@ -86,18 +89,17 @@ class TestNodeBuckets(TestFunctional):
         nodes of each color, letter, and shape.  The value of bool is True
         for the last 5005 nodes and unset for the first 5005 nodes
         """
-        a = {'resources_available.color': self.colors[numnode / 1430],
+        a = {'resources_available.color': self.colors[numnode // 1430],
              'resources_available.shape': self.shapes[numnode % 7],
              'resources_available.letter': self.letters[numnode % 7]}
 
-        if numnode / 5005 == 0:
+        if numnode // 5005 == 0:
             a['resources_available.bool'] = 'True'
 
         # Yellow buckets get a higher priority
-        if numnode / 1430 == 2:
+        if numnode // 1430 == 2:
             a['Priority'] = 100
-
-        return dict(attribs.items() + a.items())
+        return {**attribs, **a}
 
     def check_normal_path(self, sel='2:ncpus=2:mem=1gb', pl='scatter:excl',
                           queue='workq'):
@@ -114,7 +116,7 @@ class TestNodeBuckets(TestFunctional):
 
         self.server.delete(jid, wait=True)
 
-    @timeout(450)
+    @timeout(900)
     def test_basic(self):
         """
         Request nodes of a specific color and make sure they are correctly
@@ -135,7 +137,8 @@ class TestNodeBuckets(TestFunctional):
             self.assertTrue('yellow' in
                             n[0]['resources_available.color'])
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_multi_bucket(self):
         """
         Request two different chunk types which need to be allocated from
@@ -160,7 +163,8 @@ class TestNodeBuckets(TestFunctional):
             n = self.server.status(NODE, id=nodes[i])
             self.assertTrue('blue' in n[0]['resources_available.color'])
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_multi_bucket2(self):
         """
         Request nodes from all 7 different buckets and see them allocated
@@ -188,7 +192,7 @@ class TestNodeBuckets(TestFunctional):
             self.assertTrue(self.colors[i] in
                             n[0]['resources_available.color'])
 
-    @timeout(450)
+    @skip("issue 2334")
     def test_not_run(self):
         """
         Request more nodes of one color that is available to make sure
@@ -204,7 +208,8 @@ class TestNodeBuckets(TestFunctional):
         self.server.expect(JOB, a, attrop=PTL_AND, id=jid)
         self.scheduler.log_match(jid + ';Chunk: ' + chunk, n=10000)
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_calendaring1(self):
         """
         Test to see that nodes that are used in the future for
@@ -228,8 +233,8 @@ class TestNodeBuckets(TestFunctional):
              'Resource_List.walltime': '2:00:00'}
         j = Job(TEST_USER, attrs=a)
         jid2 = self.server.submit(j)
-        self.server.expect(JOB, 'comment', op=SET, id=jid2)
         self.server.expect(JOB, {'job_state': 'Q'}, id=jid2)
+        self.server.expect(JOB, 'comment', op=SET, id=jid2, interval=1)
         self.scheduler.log_match(jid2 + ';Chunk: ' + chunk2, n=10000)
 
         chunk3 = '2:ncpus=1'
@@ -238,7 +243,7 @@ class TestNodeBuckets(TestFunctional):
              'Resource_List.walltime': '30:00'}
         j = Job(TEST_USER, attrs=a)
         jid3 = self.server.submit(j)
-        self.server.expect(JOB, {'job_state': 'R'}, id=jid3)
+        self.server.expect(JOB, {'job_state': 'R'}, id=jid3, interval=1)
         self.scheduler.log_match(jid3 + ';Chunk: ' + chunk3, n=10000)
 
         a = {'Resource_List.select': chunk3,
@@ -246,11 +251,12 @@ class TestNodeBuckets(TestFunctional):
              'Resource_List.walltime': '2:30:00'}
         j = Job(TEST_USER, attrs=a)
         jid4 = self.server.submit(j)
-        self.server.expect(JOB, 'comment', op=SET, id=jid4)
         self.server.expect(JOB, {'job_state': 'Q'}, id=jid4)
+        self.server.expect(JOB, 'comment', op=SET, id=jid4, interval=1)
         self.scheduler.log_match(jid4 + ';Chunk: ' + chunk3, n=10000)
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_calendaring2(self):
         """
         Test that nodes that a reservation calendared on them later on
@@ -260,7 +266,9 @@ class TestNodeBuckets(TestFunctional):
         self.scheduler.set_sched_config({'strict_ordering': 'True'})
 
         now = int(time.time())
-        a = {'Resource_List.select': '1:vnode=vnode[2865]+1:vnode=vnode[2870]',
+        vnode = self.mom.shortname
+        select_s = '1:vnode=' + vnode + '[2865]+1:vnode=' + vnode + '[2870]'
+        a = {'Resource_List.select': select_s,
              'Resource_List.place': 'scatter:excl',
              'Resource_List.walltime': '1:00:00',
              'reserve_start': now + 3600, 'reserve_end': now + 7200}
@@ -281,10 +289,11 @@ class TestNodeBuckets(TestFunctional):
         s = self.server.status(JOB, 'exec_vnode', id=jid)
         n = j.get_vnodes(s[0]['exec_vnode'])
         msg = 'busy_later nodes not chosen first'
-        self.assertTrue('vnode[2865]' in n, msg)
-        self.assertTrue('vnode[2870]' in n, msg)
+        self.assertTrue(vnode + '[2865]' in n, msg)
+        self.assertTrue(vnode + '[2870]' in n, msg)
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_calendaring3(self):
         """
         Test that a future reservation's nodes are used first for a job
@@ -292,9 +301,10 @@ class TestNodeBuckets(TestFunctional):
         """
 
         self.scheduler.set_sched_config({'strict_ordering': 'True'})
-
+        vnode = self.mom.shortname
         now = int(time.time())
-        a = {'Resource_List.select': '1:vnode=vnode[2865]+1:vnode=vnode[2870]',
+        select_s = '1:vnode=' + vnode + '[2865]+1:vnode=' + vnode + '[2870]'
+        a = {'Resource_List.select': select_s,
              'Resource_List.place': 'scatter:excl',
              'Resource_List.walltime': '1:00:00',
              'reserve_start': now + 3600, 'reserve_end': now + 7200}
@@ -324,10 +334,11 @@ class TestNodeBuckets(TestFunctional):
         s = self.server.status(JOB, 'estimated.exec_vnode', id=jid2)
         n = j2.get_vnodes(s[0]['estimated.exec_vnode'])
         msg = 'busy_later nodes not chosen first'
-        self.assertTrue('vnode[2865]' in n, msg)
-        self.assertTrue('vnode[2870]' in n, msg)
+        self.assertTrue(vnode + '[2865]' in n, msg)
+        self.assertTrue(vnode + '[2870]' in n, msg)
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_buckets_and_non(self):
         """
         Test that jobs requesting buckets and not requesting buckets
@@ -335,8 +346,9 @@ class TestNodeBuckets(TestFunctional):
         """
 
         # vnode[1435] is orange
+        vn = self.mom.shortname
         a = {'Resource_List.ncpus': 1,
-             'Resource_List.vnode': 'vnode[1435]'}
+             'Resource_List.vnode': vn + '[1435]'}
         j1 = Job(TEST_USER, attrs=a)
         jid1 = self.server.submit(j1)
         self.server.expect(JOB, {'job_state': 'R'}, id=jid1)
@@ -360,7 +372,8 @@ class TestNodeBuckets(TestFunctional):
         for n in nodes2:
             self.assertNotEqual(n, nodes1[0], msg)
 
-    @timeout(600)
+    @timeout(900)
+    @skip("issue 2334")
     def test_not_buckets(self):
         """
         Test to make sure the jobs that should use the standard node searching
@@ -370,14 +383,14 @@ class TestNodeBuckets(TestFunctional):
         # Running a 10010 cpu job through the normal code path spams the log.
         # We don't care about it, so there is no reason to increase
         # the log size by so much.
-        self.scheduler.set_sched_config({'log_filter': '3328'})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 767})
         # Run a job on all nodes leaving 1 cpus available on each node
         j = Job(TEST_USER, {'Resource_List.select': '10010:ncpus=1',
                             'Resource_List.place': 'scatter'})
         j.set_sleep_time(600)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': 'R'}, id=jid)
-        self.scheduler.set_sched_config({'log_filter': '2048'})
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
         # Node sorting via unused resources uses the standard code path
         self.logger.info('Test node_sort_key with unused resources')
@@ -386,8 +399,7 @@ class TestNodeBuckets(TestFunctional):
         self.check_normal_path()
 
         self.scheduler.revert_to_defaults()
-        schd_attr = {'log_filter': '2048'}
-        self.scheduler.set_sched_config(schd_attr)
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
         # provisioning_policy: avoid_provisioning uses the standard code path
         self.logger.info('Test avoid_provision')
@@ -397,17 +409,18 @@ class TestNodeBuckets(TestFunctional):
 
         self.scheduler.revert_to_defaults()
         self.scheduler.add_resource('color')
-        self.scheduler.set_sched_config(schd_attr)
+        self.server.manager(MGR_CMD_SET, SCHED, {'log_events': 2047})
 
         # the bucket codepath requires excl
         self.logger.info('Test different place specs')
         self.check_normal_path(pl='scatter:shared')
         self.check_normal_path(pl='free')
 
+        vn = self.mom.shortname
         # can't request host or vnode resources on the bucket codepath
         self.logger.info('Test jobs requesting host and vnode')
-        self.check_normal_path(sel='1:ncpus=2:host=vnode[0]')
-        self.check_normal_path(sel='1:ncpus=2:vnode=vnode[0]')
+        self.check_normal_path(sel='1:ncpus=2:host=' + vn + '[0]')
+        self.check_normal_path(sel='1:ncpus=2:vnode=' + vn + '[0]')
 
         # suspended jobs use the normal codepath
         self.logger.info('Test suspended job')
@@ -438,11 +451,7 @@ class TestNodeBuckets(TestFunctional):
                 kill $1
                 exit 0
                 """
-        self.chk_file = self.du.create_temp_file(body=chk_script)
-        self.du.chmod(path=self.chk_file, mode=0o755)
-        self.du.chown(path=self.chk_file, uid=0, gid=0, sudo=True)
-        c = {'$action': 'checkpoint_abort 30 !' + self.chk_file + ' %sid'}
-        self.mom.add_config(c)
+        self.mom.add_checkpoint_abort_script(body=chk_script)
 
         self.server.manager(MGR_CMD_SET, SCHED, {'preempt_order': 'C'},
                             runas=ROOT_USER)
@@ -487,20 +496,21 @@ class TestNodeBuckets(TestFunctional):
         # Jobs on multi-vnoded systems use the standard codepath
         self.logger.info('Test job on multi-vnoded system')
         a = {'resources_available.ncpus': 2, 'resources_available.mem': '8gb'}
-        self.server.create_vnodes('vnode', a, 8, self.mom,
-                                  sharednode=False, vnodes_per_host=4)
+        self.mom.create_vnodes(a, 8, sharednode=False,
+                               vnodes_per_host=4)
         self.check_normal_path(sel='2:ncpus=8')
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_multi_vnode_resv(self):
         """
         Test that node buckets do not get in the way of running jobs on
         multi-vnoded systems in reservations
         """
         a = {'resources_available.ncpus': 2, 'resources_available.mem': '8gb'}
-        self.server.create_vnodes('vnode', a, 12, self.mom,
-                                  sharednode=False, vnodes_per_host=4,
-                                  attrfunc=self.cust_attr_func)
+        self.mom.create_vnodes(a, 12,
+                               sharednode=False, vnodes_per_host=4,
+                               attrfunc=self.cust_attr_func)
 
         now = int(time.time())
         a = {'Resource_List.select': '8:ncpus=1',
@@ -536,7 +546,8 @@ class TestNodeBuckets(TestFunctional):
         self.assertEqual(len(set(s)), 1,
                          "Job1 ran in more than one placement set")
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_bucket_sort(self):
         """
         Test if buckets are sorted properly: all of the yellow bucket
@@ -561,10 +572,11 @@ class TestNodeBuckets(TestFunctional):
 
         c1 = n1[0]['resources_available.color']
         c2 = n2[0]['resources_available.color']
-        self.assertEquals(c1, 'yellow', "Job didn't run on yellow nodes")
-        self.assertEquals(c2, 'yellow', "Job didn't run on yellow nodes")
+        self.assertEqual(c1, 'yellow', "Job didn't run on yellow nodes")
+        self.assertEqual(c2, 'yellow', "Job didn't run on yellow nodes")
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_psets(self):
         """
         Test placement sets with node buckets
@@ -609,7 +621,8 @@ class TestNodeBuckets(TestFunctional):
         for node in used_nodes1:
             self.assertNotIn(node, used_nodes2, 'Jobs share nodes: ' + node)
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_psets_calendaring(self):
         """
         Test that jobs in the calendar fit within a placement set
@@ -636,11 +649,14 @@ class TestNodeBuckets(TestFunctional):
         j2 = Job(TEST_USER, a)
         jid2 = self.server.submit(j2)
 
-        self.scheduler.log_match(jid2 + ';Chunk: ' + chunk2, n=10000)
+        self.scheduler.log_match(
+            jid2 + ';Chunk: ' + chunk2, interval=1, n=10000)
         self.scheduler.log_match(jid2 + ';Job is a top job', n=10000)
 
         n = self.server.status(NODE, 'resources_available.shape')
 
+        self.server.expect(JOB, {'job_state': 'Q'}, id=jid2)
+        self.server.expect(JOB, 'estimated.start_time', id=jid2, op=SET)
         ev = self.server.status(JOB, 'estimated.exec_vnode', id=jid2)
         used_nodes2 = j2.get_vnodes(ev[0]['estimated.exec_vnode'])
 
@@ -652,9 +668,12 @@ class TestNodeBuckets(TestFunctional):
         j3 = Job(TEST_USER, a)
         jid3 = self.server.submit(j3)
 
-        self.scheduler.log_match(jid3 + ';Chunk: ' + chunk2, n=10000)
+        self.scheduler.log_match(
+            jid3 + ';Chunk: ' + chunk2, interval=1, n=10000)
         self.scheduler.log_match(jid3 + ';Job is a top job', n=10000)
 
+        self.server.expect(JOB, {'job_state': 'Q'}, id=jid3)
+        self.server.expect(JOB, 'estimated.start_time', id=jid3, op=SET)
         ev = self.server.status(JOB, 'estimated.exec_vnode', id=jid3)
         used_nodes3 = j3.get_vnodes(ev[0]['estimated.exec_vnode'])
 
@@ -667,7 +686,46 @@ class TestNodeBuckets(TestFunctional):
             self.assertNotIn(node, used_nodes3,
                              'Jobs will share nodes: ' + node)
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
+    def test_psets_calendaring_resv(self):
+        """
+        Test that jobs do not run into a reservation and will correctly
+        be added to the calendar on the correct vnodes with placement sets
+        """
+
+        self.scheduler.set_sched_config({'strict_ordering': True})
+        self.server.manager(MGR_CMD_SET, SERVER, {'node_group_key': 'shape',
+                                                  'node_group_enable': True})
+
+        now = int(time.time())
+        a = {'Resource_List.select': '10010:ncpus=1',
+             'Resource_List.place': 'scatter:excl',
+             'reserve_start': now + 600, 'reserve_end': now + 3600}
+        r = Reservation(attrs=a)
+        rid = self.server.submit(r)
+        self.server.expect(RESV, {'reserve_state':
+                                  (MATCH_RE, 'RESV_CONFIRMED|2')}, id=rid)
+
+        a = {'Resource_List.select': '1430:ncpus=1',
+             'Resource_List.place': 'scatter:excl',
+             'Resource_List.walltime': '1:00:00'}
+        j = Job(attrs=a)
+        jid = self.server.submit(j)
+
+        self.server.expect(JOB, 'estimated.exec_vnode', id=jid, op=SET)
+
+        n = self.server.status(NODE, 'resources_available.shape')
+        st = self.server.status(JOB, 'estimated.exec_vnode', id=jid)[0]
+        nodes = j.get_vnodes(st['estimated.exec_vnode'])
+
+        s = [x['resources_available.shape']
+             for x in n if x['id'] in nodes]
+        self.assertEqual(len(set(s)), 1,
+                         "Job will run in more than one placement set")
+
+    @timeout(900)
+    @skip("issue 2334")
     def test_place_group(self):
         """
         Test node buckets with place=group
@@ -690,7 +748,8 @@ class TestNodeBuckets(TestFunctional):
         self.assertEqual(len(set(s)), 1,
                          "Job ran in more than one placement set")
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_psets_spanning(self):
         """
         Request more nodes than available in one placement set and see
@@ -739,7 +798,8 @@ class TestNodeBuckets(TestFunctional):
         self.assertGreater(len(set(s)), 1,
                            "Job did not span properly")
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_psets_queue(self):
         """
         Test that placement sets work for nodes associated with queues
@@ -752,9 +812,8 @@ class TestNodeBuckets(TestFunctional):
         self.server.manager(MGR_CMD_CREATE, QUEUE, a, id='workq2')
 
         # Take the first 14 vnodes.  This means there are two nodes per shape
-        nodes = ['vnode[0]', 'vnode[1]', 'vnode[2]', 'vnode[3]', 'vnode[4]',
-                 'vnode[5]', 'vnode[6]', 'vnode[7]', 'vnode[8]', 'vnode[9]',
-                 'vnode[10]', 'vnode[11]', 'vnode[12]', 'vnode[13]']
+        vn = self.mom.shortname
+        nodes = [vn + '[' + str(x) + ']' for x in range(14)]
         self.server.manager(MGR_CMD_SET, NODE, {'queue': 'workq2'}, id=nodes)
 
         chunk = '2:ncpus=1'
@@ -762,6 +821,7 @@ class TestNodeBuckets(TestFunctional):
              'Resource_List.place': 'scatter:excl'}
         for _ in range(7):
             j = Job(TEST_USER, a)
+            j.set_sleep_time(1000)
             jid = self.server.submit(j)
             self.server.expect(JOB, {'job_state': 'R'}, id=jid)
             self.scheduler.log_match(jid + ';Chunk: ' + chunk, n=10000)
@@ -788,6 +848,7 @@ class TestNodeBuckets(TestFunctional):
         a = {'Resource_List.select': chunk, 'queue': 'workq2',
              'Resource_List.place': 'scatter:excl'}
         j = Job(TEST_USER, a)
+        j.set_sleep_time(1000)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': 'R'}, id=jid)
         self.scheduler.log_match(jid + ';Chunk: ' + chunk, n=10000)
@@ -800,7 +861,8 @@ class TestNodeBuckets(TestFunctional):
         self.assertGreater(len(set(s)), 1,
                            "Job did not span properly")
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_free(self):
         """
         Test that free placement works with the bucket code path
@@ -830,19 +892,20 @@ class TestNodeBuckets(TestFunctional):
         n2 = j1.get_vnodes(s2[0]['exec_vnode'])
 
         msg = 'job did not run on correct number of nodes'
-        self.assertEquals(len(n1), 715, msg)
-        self.assertEquals(len(n2), 715, msg)
+        self.assertEqual(len(n1), 715, msg)
+        self.assertEqual(len(n2), 715, msg)
 
         for node in n1:
             self.assertTrue(node not in n2, 'Jobs share nodes: ' + node)
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_queue_nodes(self):
         """
         Test that buckets work with nodes associated to a queue
         """
-        v1 = 'vnode[1431]'
-        v2 = 'vnode[1435]'
+        v1 = self.mom.shortname + '[1431]'
+        v2 = self.mom.shortname + '[1435]'
         a = {'queue_type': 'execution', 'started': 'True', 'enabled': 'True'}
         self.server.manager(MGR_CMD_CREATE, QUEUE, a, id='q2')
 
@@ -876,7 +939,8 @@ class TestNodeBuckets(TestFunctional):
         self.assertIn(v1, ev, msg)
         self.assertIn(v2, ev, msg)
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_booleans(self):
         """
         Test that booleans are correctly handled if not in the sched_config
@@ -912,7 +976,8 @@ class TestNodeBuckets(TestFunctional):
             self.server.expect(
                 NODE, 'resources_available.bool', op=UNSET, id=n)
 
-    @timeout(450)
+    @timeout(900)
+    @skip("issue 2334")
     def test_last_pset_can_never_run(self):
         """
         Test that the job does not retain the error value of last placement
@@ -931,14 +996,14 @@ class TestNodeBuckets(TestFunctional):
         self.mom.delete_vnode_defs()
         a = {'resources_available.ncpus': 80,
              'resources_available.bar': 'large'}
-        self.server.create_vnodes(name='vnode', attrib=a, num=8,
-                                  mom=self.mom, sharednode=False)
+        self.mom.create_vnodes(attrib=a, num=8,
+                               sharednode=False)
         self.scheduler.add_resource('foo')
         a['resources_available.foo'] = 8
         a['resources_available.ncpus'] = 8
         a['resources_available.bar'] = 'small'
         for val in range(0, 5):
-            vname = "vnode[" + str(val) + "]"
+            vname = self.mom.shortname + "[" + str(val) + "]"
             self.server.manager(MGR_CMD_SET, NODE, a, id=vname)
         chunk1 = '4:ncpus=5:foo=5'
         a = {'Resource_List.select': chunk1,

@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 
@@ -49,8 +52,8 @@ class TestQsub_remove_files(TestFunctional):
         are getting deleted when remove_files option is used.
         """
         j = Job(TEST_USER, attrs={ATTR_R: 'oe'})
-        j.set_sleep_time(1)
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        j.set_sleep_time(5)
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, {ATTR_R: 'oe'}, id=jid)
         self.server.expect(JOB, 'job_state', op=UNSET, id=jid)
@@ -65,8 +68,8 @@ class TestQsub_remove_files(TestFunctional):
         and job is submitted with -Wsandbox=private.
         """
         j = Job(TEST_USER, attrs={ATTR_R: 'oe', ATTR_sandbox: 'private'})
-        j.set_sleep_time(1)
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        j.set_sleep_time(5)
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, {ATTR_R: 'oe'}, id=jid)
         self.server.expect(JOB, 'job_state', op=UNSET, id=jid)
@@ -80,8 +83,8 @@ class TestQsub_remove_files(TestFunctional):
         gets deleted after job finishes
         """
         j = Job(TEST_USER, attrs={ATTR_R: 'o'})
-        j.set_sleep_time(1)
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        j.set_sleep_time(5)
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, {ATTR_R: 'o'}, id=jid)
         self.server.expect(JOB, 'job_state', op=UNSET, id=jid)
@@ -95,18 +98,19 @@ class TestQsub_remove_files(TestFunctional):
             sub_dir) if os.path.isfile(os.path.join(sub_dir, name))])
         self.assertEqual(1, file_count)
 
+    @requirements(mom_on_server=True)
     def test_remove_files_error_file(self):
         """
         submit a job with -Re option and make sure the error file
         gets deleted after job finishes and works with direct_write
         """
         j = Job(TEST_USER, attrs={ATTR_k: 'de', ATTR_R: 'e'})
-        j.set_sleep_time(1)
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
-        mapping_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        j.set_sleep_time(5)
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
+        mapping_dir = self.du.create_temp_dir(asuser=TEST_USER)
         self.mom.add_config(
-            {'$usecp': self.server.hostname + ':' + sub_dir
-             + ' ' + mapping_dir})
+            {'$usecp': self.mom.hostname + ':' + sub_dir +
+             ' ' + mapping_dir})
         self.mom.restart()
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, {ATTR_R: 'e'}, id=jid)
@@ -127,13 +131,13 @@ class TestQsub_remove_files(TestFunctional):
         are getting deleted from custom path provided in
         -e and -o option when -Roe is set.
         """
-        tmp_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        tmp_dir = self.du.create_temp_dir(asuser=TEST_USER)
         err_file = os.path.join(tmp_dir, 'error_file')
         out_file = os.path.join(tmp_dir, 'output_file')
         a = {ATTR_e: err_file, ATTR_o: out_file, ATTR_R: 'oe'}
         j = Job(TEST_USER, attrs=a)
-        j.set_sleep_time(1)
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        j.set_sleep_time(5)
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, {ATTR_R: 'oe'}, id=jid)
         self.server.expect(JOB, 'job_state', op=UNSET, id=jid)
@@ -147,11 +151,11 @@ class TestQsub_remove_files(TestFunctional):
         are getting deleted from custom directory path
         provided in -e and -o option when -Roe is set.
         """
-        tmp_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        tmp_dir = self.du.create_temp_dir(asuser=TEST_USER)
         a = {ATTR_e: tmp_dir, ATTR_o: tmp_dir, ATTR_R: 'oe'}
         j = Job(TEST_USER, attrs=a)
-        j.set_sleep_time(1)
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        j.set_sleep_time(5)
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, {ATTR_R: 'oe'}, id=jid)
         self.server.expect(JOB, 'job_state', op=UNSET, id=jid)
@@ -166,10 +170,10 @@ class TestQsub_remove_files(TestFunctional):
         directory when default_qsub_arguments is set to -Roe.
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(1)
+        j.set_sleep_time(5)
         self.server.manager(MGR_CMD_SET, SERVER, {
                             'default_qsub_arguments': '-Roe'})
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, {ATTR_R: 'oe'}, id=jid)
         self.server.expect(JOB, 'job_state', op=UNSET, id=jid)
@@ -184,8 +188,8 @@ class TestQsub_remove_files(TestFunctional):
         option is used.
         """
         j = Job(TEST_USER, attrs={ATTR_R: 'oe'})
-        j.set_execargs('sleep', 1)
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        j.set_execargs('hostname')
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, 'job_state', op=UNSET, id=jid)
         file_count = len([name for name in os.listdir(
@@ -198,24 +202,16 @@ class TestQsub_remove_files(TestFunctional):
         alter the job with -Roe and check whether it is
         reflecting in qstat -f output.
         """
-        mydate = int(time.time()) + 60
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'False'})
         j = Job(TEST_USER)
-        attribs = {
-            ATTR_a: time.strftime(
-                '%m%d%H%M',
-                time.localtime(
-                    float(mydate)))}
-        j.set_attributes(attribs)
         jid = self.server.submit(j)
+        self.server.expect(JOB, {'job_state': 'Q'}, id=jid)
         attribs = {ATTR_R: 'oe'}
         try:
             self.server.alterjob(jid, attribs)
-            if self.server.expect(JOB, {'job_state': 'W'},
-                                  id=jid):
-                self.server.expect(JOB, attribs,
-                                   id=jid)
+            self.server.expect(JOB, attribs, id=jid)
         except PbsAlterError as e:
-            print str(e)
+            print(str(e))
 
     def test_qalter_direct_write_error(self):
         """
@@ -242,13 +238,13 @@ class TestQsub_remove_files(TestFunctional):
         """
         script = \
             "#!/bin/sh\n"\
-            "/bin/sleep 3;\n"\
+            "%s 3;\n"\
             "if [ $PBS_ARRAY_INDEX -eq 2 ]; then\n"\
-            "exit 1; fi; exit 0;"
+            "exit 1; fi; exit 0;" % (self.mom.sleep_cmd)
         j = Job(TEST_USER, attrs={ATTR_R: 'oe', ATTR_J: '1-3'},
                 jobname='JOB_NAME')
         j.create_script(script)
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, {ATTR_state: 'B'}, id=jid)
         self.server.expect(JOB, ATTR_state, op=UNSET, id=jid)
@@ -259,8 +255,8 @@ class TestQsub_remove_files(TestFunctional):
         std_files = ['JOB_NAME.o' + idn + '.2', 'JOB_NAME.e' + idn + '.2']
         for f_name in std_files:
             if f_name not in file_list:
-                raise self.failureException("std file " + f_name
-                                            + " not found")
+                raise self.failureException("std file " + f_name +
+                                            " not found")
 
     def test_remove_file_custom_path_job_array(self):
         """
@@ -271,14 +267,14 @@ class TestQsub_remove_files(TestFunctional):
         """
         script = \
             "#!/bin/sh\n"\
-            "/bin/sleep 3;\n"\
+            "%s 3;\n"\
             "if [ $PBS_ARRAY_INDEX -eq 2 ]; then\n"\
-            "exit 1; fi; exit 0;"
-        tmp_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+            "exit 1; fi; exit 0;" % (self.mom.sleep_cmd)
+        tmp_dir = self.du.create_temp_dir(asuser=TEST_USER)
         j = Job(TEST_USER, attrs={ATTR_e: tmp_dir, ATTR_o: tmp_dir,
                                   ATTR_R: 'oe', ATTR_J: '1-3'})
         j.create_script(script)
-        sub_dir = self.du.mkdtemp(uid=TEST_USER.uid)
+        sub_dir = self.du.create_temp_dir(asuser=TEST_USER)
         jid = self.server.submit(j, submit_dir=sub_dir)
         self.server.expect(JOB, {ATTR_state: 'B'}, id=jid)
         self.server.expect(JOB, ATTR_state, op=UNSET, id=jid)
@@ -289,5 +285,5 @@ class TestQsub_remove_files(TestFunctional):
         std_files = [subj2_id + '.OU', subj2_id + '.ER']
         for f_name in std_files:
             if f_name not in file_list:
-                raise self.failureException("std file " + f_name
-                                            + " not found")
+                raise self.failureException("std file " + f_name +
+                                            " not found")

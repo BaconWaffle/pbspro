@@ -1,39 +1,40 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
 
 /**
@@ -70,15 +71,14 @@
 #include <netdb.h>
 #include <sys/time.h>
 #include <signal.h>
+#include "pbs_idx.h"
+#include "tpp_internal.h"
+#include "auth.h"
 
-#include "rpp.h"
-#include "tpp_common.h"
-#include "tpp_platform.h"
-
-#define TPP_CONN_DISCONNECTED   1 /* Channel is disconnected */
-#define TPP_CONN_INITIATING     2 /* Channel is initiating */
-#define TPP_CONN_CONNECTING     3 /* Channel is connecting */
-#define TPP_CONN_CONNECTED      4 /* Channel is connected */
+#define TPP_CONN_DISCONNECTED 1 /* Channel is disconnected */
+#define TPP_CONN_INITIATING 2	/* Channel is initiating */
+#define TPP_CONN_CONNECTING 3	/* Channel is connecting */
+#define TPP_CONN_CONNECTED 4	/* Channel is connected */
 
 int tpp_going_down = 0;
 
@@ -88,7 +88,8 @@ int tpp_going_down = 0;
  */
 #define TPP_CONN_CONNECT_DELAY 1
 typedef struct {
-	int tfd;       /* on which physical connection */
+	int tfd;	  /* on which physical connection */
+	char cmdval;	  /* cmd type */
 	time_t conn_time; /* time at which to connect */
 } conn_event_t;
 
@@ -102,17 +103,17 @@ typedef struct {
  *
  */
 typedef struct {
-	int thrd_index;			  /* thread index for debugging */
+	int thrd_index;		  /* thread index for debugging */
 	pthread_t worker_thrd_id; /* Thread id of this thread */
-	int listen_fd;		/* If this is the thread that is also doing
+	int listen_fd;		  /* If this is the thread that is also doing
 				 * the listening, then the listening socket
 				 * descriptor
 				 */
-#ifdef NAS /* localmod 149 */
-	int nas_tpp_log_enabled;	/* controls the printing of statistics
+#ifdef NAS			  /* localmod 149 */
+	int nas_tpp_log_enabled;  /* controls the printing of statistics
 					 * to the log
 					 */
-	int NAS_TPP_LOG_PERIOD_A;	/* this should be the shortest of the
+	int NAS_TPP_LOG_PERIOD_A; /* this should be the shortest of the
 					 * logging periods, as it is also the
 					 * frequency with which we check if
 					 * statistics should be printed
@@ -140,35 +141,31 @@ typedef struct {
 	int nas_max_bytes_lrg_send_C;
 	int nas_min_bytes_lrg_send_C;
 	double nas_lrg_send_sum_kb_C;
-#endif /* localmod 149 */
-	void *em_context;         /* the em context */
-	tpp_que_t lazy_conn_que;  /* The delayed connection queue on this thread */
-	tpp_que_t close_conn_que;  /* The closed connection queue on this thread */
-	tpp_mbox_t mbox;     /* message box for this thread */
-	tpp_tls_t *tpp_tls;	/* tls data related to tpp work */
+#endif			       /* localmod 149 */
+	void *em_context;      /* the em context */
+	tpp_que_t def_act_que; /* The deferred action queue on this thread */
+	tpp_mbox_t mbox;       /* message box for this thread */
+	tpp_tls_t *tpp_tls;    /* tls data related to tpp work */
 } thrd_data_t;
 
 #ifdef NAS /* localmod 149 */
-static  char tpp_instr_flag_file[_POSIX_PATH_MAX] = "/PBS/flags/tpp_instrumentation";
+static char tpp_instr_flag_file[_POSIX_PATH_MAX] = "/PBS/flags/tpp_instrumentation";
 #endif /* localmod 149 */
 
 static thrd_data_t **thrd_pool; /* array of threads - holds the thread pool */
-static int num_threads;       /* number of threads in the thread pool */
+static int num_threads;		/* number of threads in the thread pool */
+static int max_con = MAX_CON;	/* nfiles */
 
-static int auth_type = -1;
-static int last_thrd = -1;    /* global index to rotate work amongst threads */
-static int max_con = MAX_CON; /* nfiles */
-
-static struct tpp_config *tpp_conf;  /* store a pointer to the tpp_config supplied */
+static struct tpp_config *tpp_conf; /* store a pointer to the tpp_config supplied */
 
 /*
  * Save the connection related parameters here, so we don't have to parse
  * each time.
  */
 typedef struct {
-	char *hostname; /* the host name to connect to */
-	int port;       /* the port to connect to */
-	int auth_type;  /* the type of authentication - PRIV_PORT is for now */
+	char *hostname;	   /* the host name to connect to */
+	int port;	   /* the port to connect to */
+	int need_resvport; /* bind to resv port? */
 } conn_param_t;
 
 /*
@@ -178,31 +175,33 @@ typedef struct {
  * connections as "transport fd" or tfd.
  */
 typedef struct {
-	int sock_fd;             /* socket fd (TCP) for this physical connection*/
-	int lasterr;             /* last error that was captured on this socket */
-	short net_state;         /* network status of this connection, up, down etc */
-	int can_send;            /* can we send data in this fd now, or would it block? */
+	int sock_fd;	 /* socket fd (TCP) for this physical connection*/
+	int lasterr;	 /* last error that was captured on this socket */
+	short net_state; /* network status of this connection, up, down etc */
+	int ev_mask;	 /* event mask in effect so far */
 
 	conn_param_t *conn_params; /* the connection params */
 
-	unsigned long send_queue_size;  /* total bytes waiting on send queue */
-	tpp_que_t send_queue;      /* queue of pkts to send */
-	tpp_packet_t scratch;      /* scratch to work on incoming data */
-	thrd_data_t *td;                  /* connections controller thread */
+	tpp_mbox_t send_mbox;	     /* mbox of pkts to send */
+	tpp_chunk_t scratch;	     /* scratch to work on incoming data */
+	tpp_packet_t *curr_send_pkt; /* current packet dequed from send_mbox to be sent out  */
+	thrd_data_t *td;	     /* connections controller thread */
 
-	tpp_context_t *ctx;        /* upper layers context information */
+	tpp_context_t *ctx; /* upper layers context information */
+
+	void *extra; /* extra data structure */
 } phy_conn_t;
 
 /* structure for holding an array of physical connection structures */
 typedef struct {
-	int slot_state;        /* slot is busy or free */
+	int slot_state;	  /* slot is busy or free */
 	phy_conn_t *conn; /* the physical connection using this slot */
 } conns_array_type_t;
 
 conns_array_type_t *conns_array = NULL; /* array of physical connections */
-int conns_array_size = 0;                    /* the size of physical connection array */
-pthread_mutex_t cons_array_lock;             /* mutex used to synchronize array ops */
-pthread_mutex_t thrd_array_lock;             /* mutex used to synchronize thrd assignment */
+int conns_array_size = 0;		/* the size of physical connection array */
+pthread_rwlock_t cons_array_lock;	/* rwlock used to synchronize array ops */
+pthread_mutex_t thrd_array_lock;	/* mutex used to synchronize thrd assignment */
 
 /* function forward declarations */
 static void *work(void *v);
@@ -212,15 +211,15 @@ static void handle_incoming_data(phy_conn_t *conn);
 static void send_data(phy_conn_t *conn);
 static void free_phy_conn(phy_conn_t *conn);
 static void handle_cmd(thrd_data_t *td, int tfd, int cmd, void *data);
-static int add_pkts(phy_conn_t *conn);
+static short add_pkt(phy_conn_t *conn);
 static phy_conn_t *get_transport_atomic(int tfd, int *slot_state);
 
 /**
  * @brief
- *	Enqueue an delayed connect
+ *	Enqueue an deferred action
  *
  * @par Functionality
- *	Used for initiating a connection after a delay.
+ *	Used for initiating a connection after a delay, or deferred close / reads
  *
  * @param[in] td    - The thread data for the controlling thread
  * @param[in] tfd   - The descriptor of the physical connection
@@ -233,7 +232,7 @@ static phy_conn_t *get_transport_atomic(int tfd, int *slot_state);
  *
  */
 static void
-enque_lazy_connect(thrd_data_t *td, int tfd, int delay)
+enque_deferred_event(thrd_data_t *td, int tfd, int cmd, int delay)
 {
 	conn_event_t *conn_ev;
 	tpp_que_elem_t *n;
@@ -241,14 +240,15 @@ enque_lazy_connect(thrd_data_t *td, int tfd, int delay)
 
 	conn_ev = malloc(sizeof(conn_event_t));
 	if (!conn_ev) {
-		tpp_log_func(LOG_CRIT, __func__, "Out of memory queueing a lazy connect");
+		tpp_log(LOG_CRIT, __func__, "Out of memory queueing a lazy connect");
 		return;
 	}
 	conn_ev->tfd = tfd;
+	conn_ev->cmdval = cmd;
 	conn_ev->conn_time = time(0) + delay;
 
 	n = NULL;
-	while ((n = TPP_QUE_NEXT(&td->lazy_conn_que, n))) {
+	while ((n = TPP_QUE_NEXT(&td->def_act_que, n))) {
 		conn_event_t *p;
 
 		p = TPP_QUE_DATA(n);
@@ -259,24 +259,24 @@ enque_lazy_connect(thrd_data_t *td, int tfd, int delay)
 	}
 	/* insert before this position */
 	if (n)
-		ret = tpp_que_ins_elem(&td->lazy_conn_que, n, conn_ev, 1);
+		ret = tpp_que_ins_elem(&td->def_act_que, n, conn_ev, 1);
 	else
-		ret = tpp_enque(&td->lazy_conn_que, conn_ev);
+		ret = tpp_enque(&td->def_act_que, conn_ev);
 
 	if (ret == NULL) {
-		tpp_log_func(LOG_CRIT, __func__, "Out of memory queueing a lazy connect");
+		tpp_log(LOG_CRIT, __func__, "Out of memory queueing a lazy connect");
 		free(conn_ev);
 	}
 }
 
 /**
  * @brief
- *	Trigger connects for those whose connect time has been reached
+ *	Trigger deferred action for those whose time has been reached
  *
  * @param[in] td   - The thread data for the controlling thread
  * @param[in] now  - Current time to check events with
  *
- * @return Wait time for the next connection event
+ * @return Wait time for the next deferred event
  *
  * @par Side Effects:
  *	None
@@ -285,23 +285,23 @@ enque_lazy_connect(thrd_data_t *td, int tfd, int delay)
  *
  */
 static int
-trigger_lazy_connects(thrd_data_t *td, time_t now)
+trigger_deferred_events(thrd_data_t *td, time_t now)
 {
 	conn_event_t *q;
 	tpp_que_elem_t *n = NULL;
 	int slot_state;
 	time_t wait_time = -1;
 
-	while ((n = TPP_QUE_NEXT(&td->lazy_conn_que, n))) {
+	while ((n = TPP_QUE_NEXT(&td->def_act_que, n))) {
 		q = TPP_QUE_DATA(n);
 		if (q == NULL)
 			continue;
 		if (now >= q->conn_time) {
 			(void) get_transport_atomic(q->tfd, &slot_state);
 			if (slot_state == TPP_SLOT_BUSY)
-				handle_cmd(td, q->tfd, TPP_CMD_ASSIGN, NULL);
+				handle_cmd(td, q->tfd, q->cmdval, NULL);
 
-			n = tpp_que_del_elem(&td->lazy_conn_que, n);
+			n = tpp_que_del_elem(&td->def_act_que, n);
 			free(q);
 		} else {
 			wait_time = q->conn_time - now;
@@ -333,14 +333,14 @@ tpp_transport_get_thrd_context(int tfd)
 {
 	thrd_data_t *td = NULL;
 
-	if (tpp_lock(&cons_array_lock)) {
+	if (tpp_read_lock(&cons_array_lock))
 		return NULL;
-	}
+
 	if (tfd >= 0 && tfd < conns_array_size) {
 		if (conns_array[tfd].conn && conns_array[tfd].slot_state == TPP_SLOT_BUSY)
 			td = conns_array[tfd].conn->td;
 	}
-	tpp_unlock(&cons_array_lock);
+	tpp_unlock_rwlock(&cons_array_lock);
 
 	return td;
 }
@@ -423,33 +423,29 @@ tpp_cr_server_socket(int port)
 	memset(&(serveraddr.sin_zero), '\0', sizeof(serveraddr.sin_zero));
 
 	if ((sd = tpp_sock_socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_sock_socket() error, errno=%d", errno);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		tpp_log(LOG_CRIT, __func__, "tpp_sock_socket() error, errno=%d", errno);
 		return -1;
 	}
 	if (tpp_sock_setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_sock_setsockopt() error, errno=%d", errno);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		tpp_log(LOG_CRIT, __func__, "tpp_sock_setsockopt() error, errno=%d", errno);
 		return -1;
 	}
 	if (tpp_sock_bind(sd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) == -1) {
 		char *msgbuf;
 #ifdef HAVE_STRERROR_R
-		char buf[TPP_LOGBUF_SZ + 1];
+		char buf[TPP_GEN_BUF_SZ];
 
 		if (strerror_r(errno, buf, sizeof(buf)) == 0)
 			pbs_asprintf(&msgbuf, "%s while binding to port %d", buf, port);
 		else
 #endif
 			pbs_asprintf(&msgbuf, "Error %d while binding to port %d", errno, port);
-		tpp_log_func(LOG_CRIT, NULL, msgbuf);
-		fprintf(stderr, "%s", msgbuf);
+		tpp_log(LOG_CRIT, NULL, msgbuf);
 		free(msgbuf);
 		return -1;
 	}
 	if (tpp_sock_listen(sd, 1000) == -1) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_sock_listen() error, errno=%d", errno);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		tpp_log(LOG_CRIT, __func__, "tpp_sock_listen() error, errno=%d", errno);
 		return -1;
 	}
 	return sd;
@@ -483,37 +479,46 @@ int
 tpp_transport_init(struct tpp_config *conf)
 {
 	int i;
+	char mbox_name[TPP_MBOX_NAME_SZ];
 
 	if (conf->node_type == TPP_LEAF_NODE || conf->node_type == TPP_LEAF_NODE_LISTEN) {
 		if (conf->numthreads != 1) {
-			tpp_log_func(LOG_CRIT, NULL, "Leaves should start exactly one thread");
+			tpp_log(LOG_CRIT, NULL, "Leaves should start exactly one thread");
 			return -1;
 		}
 	} else {
 		if (conf->numthreads < 2) {
-			tpp_log_func(LOG_CRIT, NULL, "pbs_comms should have at least 2 threads");
+			tpp_log(LOG_CRIT, NULL, "pbs_comms should have at least 2 threads");
 			return -1;
 		}
 		if (conf->numthreads > 100) {
-			tpp_log_func(LOG_CRIT, NULL, "pbs_comms should have <= 100 threads");
+			tpp_log(LOG_CRIT, NULL, "pbs_comms should have <= 100 threads");
 			return -1;
 		}
 	}
 
-	tpp_log_func(LOG_INFO, NULL, "Initializing TPP transport Layer");
-	if (tpp_init_lock(&thrd_array_lock)) {
+	tpp_log(LOG_INFO, NULL, "Initializing TPP transport Layer");
+	if (tpp_init_lock(&thrd_array_lock))
+		return -1;
+
+	if (tpp_init_rwlock(&cons_array_lock))
+		return -1;
+
+#ifndef WIN32
+	/* for unix, set a pthread_atfork handler */
+	if (pthread_atfork(tpp_nslookup_atfork_prepare, tpp_nslookup_atfork_parent, tpp_nslookup_atfork_child) != 0) {
+		tpp_log(LOG_CRIT, __func__, "tpp nslookup mutex atfork handler failed");
 		return -1;
 	}
-	if (tpp_init_lock(&cons_array_lock)) {
-		return -1;
-	}
+#endif
+
 	tpp_sock_layer_init();
 
 	max_con = tpp_get_nfiles();
 	if (max_con < TPP_MAXOPENFD) {
-		tpp_log_func(LOG_WARNING, NULL, "Max files too low - you may want to increase it.");
+		tpp_log(LOG_WARNING, NULL, "Max files too low - you may want to increase it.");
 		if (max_con < 100) {
-			tpp_log_func(LOG_CRIT, NULL, "Max files < 100, cannot continue");
+			tpp_log(LOG_CRIT, NULL, "Max files < 100, cannot continue");
 			return -1;
 		}
 	}
@@ -529,20 +534,20 @@ tpp_transport_init(struct tpp_config *conf)
 	max_con--;
 
 	if (set_pipe_disposition() != 0) {
-		tpp_log_func(LOG_CRIT, __func__, "Could not query SIGPIPEs disposition");
+		tpp_log(LOG_CRIT, __func__, "Could not query SIGPIPEs disposition");
 		return -1;
 	}
 
 	/* create num_threads worker threads */
 	if ((thrd_pool = calloc(conf->numthreads, sizeof(thrd_data_t *))) == NULL) {
-		tpp_log_func(LOG_CRIT, __func__, "Out of memory allocating threads");
+		tpp_log(LOG_CRIT, __func__, "Out of memory allocating threads");
 		return -1;
 	}
 
 	for (i = 0; i < conf->numthreads; i++) {
 		thrd_pool[i] = calloc(1, sizeof(thrd_data_t));
 		if (thrd_pool[i] == NULL) {
-			tpp_log_func(LOG_CRIT, __func__, "Out of memory creating threadpool");
+			tpp_log(LOG_CRIT, __func__, "Out of memory creating threadpool");
 			return -1;
 		}
 		tpp_invalidate_thrd_handle(&(thrd_pool[i]->worker_thrd_id));
@@ -575,24 +580,21 @@ tpp_transport_init(struct tpp_config *conf)
 #endif /* localmod 149 */
 
 		thrd_pool[i]->listen_fd = -1;
-		TPP_QUE_CLEAR(&thrd_pool[i]->lazy_conn_que);
-		TPP_QUE_CLEAR(&thrd_pool[i]->close_conn_que);
+		TPP_QUE_CLEAR(&thrd_pool[i]->def_act_que);
 
 		if ((thrd_pool[i]->em_context = tpp_em_init(max_con)) == NULL) {
-			snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "em_init() error, errno=%d", errno);
-			tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+			tpp_log(LOG_CRIT, __func__, "em_init() error, errno=%d", errno);
 			return -1;
 		}
 
-		if (tpp_mbox_init(&thrd_pool[i]->mbox) != 0) {
-			snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_mbox_init() error, errno=%d", errno);
-			tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		snprintf(mbox_name, sizeof(mbox_name), "Th_%d", (char) i);
+		if (tpp_mbox_init(&thrd_pool[i]->mbox, mbox_name, -1) != 0) {
+			tpp_log(LOG_CRIT, __func__, "tpp_mbox_init() error, errno=%d", errno);
 			return -1;
 		}
 
 		if (tpp_mbox_monitor(thrd_pool[i]->em_context, &thrd_pool[i]->mbox) != 0) {
-			snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "em_mbox_enable_monitoing() error, errno=%d", errno);
-			tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+			tpp_log(LOG_CRIT, __func__, "em_mbox_enable_monitoing() error, errno=%d", errno);
 			return -1;
 		}
 
@@ -602,54 +604,50 @@ tpp_transport_init(struct tpp_config *conf)
 	if (conf->node_type == TPP_ROUTER_NODE) {
 		char *host;
 		int port;
-		
+
 		if ((host = tpp_parse_hostname(conf->node_name, &port)) == NULL) {
-			tpp_log_func(LOG_CRIT, __func__, "Out of memory parsing pbs_comm name");
+			tpp_log(LOG_CRIT, __func__, "Out of memory parsing pbs_comm name");
 			return -1;
 		}
 		free(host);
 
 		if ((thrd_pool[0]->listen_fd = tpp_cr_server_socket(port)) == -1) {
-			tpp_log_func(LOG_CRIT, __func__, "pbs_comm socket creation failed");
+			tpp_log(LOG_CRIT, __func__, "pbs_comm socket creation failed");
 			return -1;
 		}
 
 		if (tpp_em_add_fd(thrd_pool[0]->em_context, thrd_pool[0]->listen_fd, EM_IN) == -1) {
-			tpp_log_func(LOG_CRIT, __func__, "Multiplexing failed");
+			tpp_log(LOG_CRIT, __func__, "Multiplexing failed");
 			return -1;
 		}
 	}
 
 	tpp_conf = conf;
-	auth_type = conf->auth_type;
 	num_threads = conf->numthreads;
 
 	for (i = 0; i < conf->numthreads; i++) {
 		/* leave the write side of the command pipe to block */
 		if (tpp_cr_thrd(work, &(thrd_pool[i]->worker_thrd_id), thrd_pool[i]) != 0) {
-			tpp_log_func(LOG_CRIT, __func__, "Failed to create thread");
+			tpp_log(LOG_CRIT, __func__, "Failed to create thread");
 			return -1;
 		}
 	}
-	tpp_log_func(LOG_INFO, NULL, "TPP initialization done");
+	tpp_log(LOG_INFO, NULL, "TPP initialization done");
 
 	return 0;
 }
 
 /* the function pointer to the upper layer received packet handler */
-int (*the_pkt_handler)(int tfd, void *data, int len, void *ctx) = NULL;
+int (*the_pkt_handler)(int tfd, void *data, int len, void *ctx, void *extra) = NULL;
 
 /* the function pointer to the upper layer connection close handler */
-int (*the_close_handler)(int tfd, int error, void *ctx) = NULL;
+int (*the_close_handler)(int tfd, int error, void *ctx, void *extra) = NULL;
 
 /* the function pointer to the upper layer connection restore handler */
-int (*the_post_connect_handler)(int tfd, void *data, void *ctx) = NULL;
+int (*the_post_connect_handler)(int tfd, void *data, void *ctx, void *extra) = NULL;
 
 /* the function pointer to the upper layer pre packet send handler */
-int (*the_pkt_presend_handler)(int tfd, tpp_packet_t *pkt) = NULL;
-
-/* the function pointer to the upper layer post packet send handler */
-int (*the_pkt_postsend_handler)(int tfd, tpp_packet_t *pkt) = NULL;
+int (*the_pkt_presend_handler)(int tfd, tpp_packet_t *pkt, void *ctx, void *extra) = NULL;
 
 /* upper layer timer handler */
 int (*the_timer_handler)(time_t now) = NULL;
@@ -659,7 +657,6 @@ int (*the_timer_handler)(time_t now) = NULL;
  *	Function to register the upper layer handler functions
  *
  * @param[in] pkt_presend_handler  - function ptr to presend handler
- * @param[in] pkt_postsend_handler - function ptr to postsend handler
  * @param[in] pkt_handler          - function ptr to pkt recvd handler
  * @param[in] close_handler        - function ptr to net close handler
  * @param[in] post_connect_handler - function ptr to post_connect_handler
@@ -672,17 +669,16 @@ int (*the_timer_handler)(time_t now) = NULL;
  *
  */
 void
-tpp_transport_set_handlers(int (*pkt_presend_handler)(int phy_con, tpp_packet_t *pkt),
-	int (*pkt_postsend_handler)(int phy_con, tpp_packet_t *pkt),
-	int (*pkt_handler)(int, void *data, int len, void *),
-	int (*close_handler)(int, int, void *),
-	int (*post_connect_handler)(int sd, void *data, void *ctx),
+tpp_transport_set_handlers(
+	int (*pkt_presend_handler)(int tfd, tpp_packet_t *pkt, void *ctx, void *extra),
+	int (*pkt_handler)(int tfd, void *data, int len, void *ctx, void *extra),
+	int (*close_handler)(int tfd, int error, void *ctx, void *extra),
+	int (*post_connect_handler)(int tfd, void *data, void *ctx, void *extra),
 	int (*timer_handler)(time_t now))
 {
 	the_pkt_handler = pkt_handler;
 	the_close_handler = close_handler;
 	the_post_connect_handler = post_connect_handler;
-	the_pkt_postsend_handler = pkt_postsend_handler;
 	the_pkt_presend_handler = pkt_presend_handler;
 	the_timer_handler = timer_handler;
 }
@@ -707,23 +703,30 @@ tpp_transport_set_handlers(int (*pkt_presend_handler)(int phy_con, tpp_packet_t 
  * @par MT-safe: No
  *
  */
-static phy_conn_t*
+static phy_conn_t *
 alloc_conn(int tfd)
 {
 	phy_conn_t *conn;
+	char mbox_name[TPP_MBOX_NAME_SZ];
 
 	conn = calloc(1, sizeof(phy_conn_t));
 	if (!conn) {
-		tpp_log_func(LOG_CRIT, __func__, "Out of memory allocating physical connection");
+		tpp_log(LOG_CRIT, __func__, "Out of memory allocating physical connection");
 		return NULL;
 	}
 	conn->sock_fd = tfd;
-	conn->send_queue_size = 0;
-	TPP_QUE_CLEAR(&conn->send_queue);
+	conn->extra = NULL;
+
+	snprintf(mbox_name, sizeof(mbox_name), "Conn_%d", conn->sock_fd);
+	if (tpp_mbox_init(&conn->send_mbox, mbox_name, TPP_MAX_MBOX_SIZE) != 0) {
+		free(conn);
+		tpp_log(LOG_CRIT, __func__, "tpp_mbox_init() error, errno=%d", errno);
+		return NULL;
+	}
 	/* initialize the send queue to empty */
 
 	/* set to stream array */
-	if (tpp_lock(&cons_array_lock)) {
+	if (tpp_write_lock(&cons_array_lock)) {
 		free(conn);
 		return NULL;
 	}
@@ -736,8 +739,8 @@ alloc_conn(int tfd)
 		p = realloc(conns_array, sizeof(conns_array_type_t) * newsize);
 		if (!p) {
 			free(conn);
-			tpp_unlock(&cons_array_lock);
-			tpp_log_func(LOG_CRIT, __func__, "Out of memory expanding connection array");
+			tpp_unlock_rwlock(&cons_array_lock);
+			tpp_log(LOG_CRIT, __func__, "Out of memory expanding connection array");
 			return NULL;
 		}
 		conns_array = (conns_array_type_t *) p;
@@ -750,9 +753,9 @@ alloc_conn(int tfd)
 		conns_array_size = newsize;
 	}
 	if (conns_array[tfd].slot_state != TPP_SLOT_FREE) {
-		tpp_log_func(LOG_ERR, __func__, "Internal error - slot not free");
+		tpp_log(LOG_ERR, __func__, "Internal error - slot not free");
 		free(conn);
-		tpp_unlock(&cons_array_lock);
+		tpp_unlock_rwlock(&cons_array_lock);
 		return NULL;
 	}
 
@@ -761,14 +764,14 @@ alloc_conn(int tfd)
 
 	if (tpp_set_keep_alive(conn->sock_fd, tpp_conf) == -1) {
 		free(conn);
-		tpp_unlock(&cons_array_lock);
+		tpp_unlock_rwlock(&cons_array_lock);
 		return NULL;
 	}
 
 	conns_array[tfd].slot_state = TPP_SLOT_BUSY;
 	conns_array[tfd].conn = conn;
 
-	tpp_unlock(&cons_array_lock);
+	tpp_unlock_rwlock(&cons_array_lock);
 
 	return conn;
 }
@@ -779,7 +782,6 @@ alloc_conn(int tfd)
  *	a leaf.
  *
  * @param[in] hostname - hostname to connect to
- * @param[in] authtype - The type of authentication mechanism to use
  * @param[in] delay    - Connect after delay of this much seconds
  * @param[in] ctx      - Associate the passed ctx with the connection fd
  * @param[in] tctx     - Transport thrd context of the caller
@@ -796,7 +798,7 @@ alloc_conn(int tfd)
  *
  */
 int
-tpp_transport_connect_spl(char *hostname, int authtype, int delay, void *ctx, int *ret_tfd, void *tctx)
+tpp_transport_connect_spl(char *hostname, int delay, void *ctx, int *ret_tfd, void *tctx)
 {
 	phy_conn_t *conn;
 	int fd;
@@ -804,15 +806,14 @@ tpp_transport_connect_spl(char *hostname, int authtype, int delay, void *ctx, in
 	int port;
 
 	if ((host = tpp_parse_hostname(hostname, &port)) == NULL) {
-		tpp_log_func(LOG_CRIT, __func__, "Out of memory while parsing hostname");
+		tpp_log(LOG_CRIT, __func__, "Out of memory while parsing hostname");
 		free(host);
 		return -1;
 	}
 
 	fd = tpp_sock_socket(AF_INET, SOCK_STREAM, 0);
 	if (fd < 0) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "socket() error, errno=%d", errno);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+		tpp_log(LOG_CRIT, __func__, "socket() error, errno=%d", errno);
 		free(host);
 		return -1;
 	}
@@ -834,12 +835,18 @@ tpp_transport_connect_spl(char *hostname, int authtype, int delay, void *ctx, in
 
 	conn->conn_params = calloc(1, sizeof(conn_param_t));
 	if (!conn->conn_params) {
-		free(conn);
+		tpp_log(LOG_CRIT, __func__, "Out of memory allocating connection params");
+		if (tpp_write_lock(&cons_array_lock))
+			return -1;
+		conns_array[fd].slot_state = TPP_SLOT_FREE;
+		conns_array[fd].conn = NULL;
+		tpp_unlock_rwlock(&cons_array_lock);
+		free_phy_conn(conn);
 		tpp_sock_close(fd);
 		free(host);
 		return -1;
 	}
-	conn->conn_params->auth_type = authtype;
+	conn->conn_params->need_resvport = strcmp(tpp_conf->auth_config->auth_method, AUTH_RESVPORT_NAME) == 0;
 	conn->conn_params->hostname = host;
 	conn->conn_params->port = port;
 
@@ -855,13 +862,12 @@ tpp_transport_connect_spl(char *hostname, int authtype, int delay, void *ctx, in
 
 /**
  * @brief
- *	Wrapper to the call to tpp_transport_connect_specific, It calls
+ *	Wrapper to the call to tpp_transport_connect_spl, It calls
  *	tpp_transport_connect_spl with the tctx parameter as NULL.
  *
  * @param[in] hostname - hostname to connect to
- * @param[in] authtype - The type of authentication mechanism to use
  * @param[in] delay    - Connect after delay of this much seconds
- * @param[in] ctx	   - Associate the passed ctx with the connection fd
+ * @param[in] ctx     - Associate the passed ctx with the connection fd
  * @param[out] ret_tfd - The fd of the connection returned
  *
  * @return  Error code
@@ -875,9 +881,9 @@ tpp_transport_connect_spl(char *hostname, int authtype, int delay, void *ctx, in
  *
  */
 int
-tpp_transport_connect(char *hostname, int authtype, int delay, void *ctx, int *ret_tfd)
+tpp_transport_connect(char *hostname, int delay, void *ctx, int *ret_tfd)
 {
-	return tpp_transport_connect_spl(hostname, authtype, delay, ctx, ret_tfd, NULL);
+	return tpp_transport_connect_spl(hostname, delay, ctx, ret_tfd, NULL);
 }
 
 /**
@@ -908,14 +914,14 @@ get_transport_atomic(int tfd, int *slot_state)
 	phy_conn_t *conn = NULL;
 	*slot_state = TPP_SLOT_FREE;
 
-	if (tpp_lock(&cons_array_lock)) {
+	if (tpp_read_lock(&cons_array_lock))
 		return NULL;
-	}
+
 	if (tfd >= 0 && tfd < conns_array_size) {
 		conn = conns_array[tfd].conn;
 		*slot_state = conns_array[tfd].slot_state;
 	}
-	tpp_unlock(&cons_array_lock);
+	tpp_unlock_rwlock(&cons_array_lock);
 
 	return conn;
 }
@@ -942,103 +948,35 @@ get_transport_atomic(int tfd, int *slot_state)
  *
  */
 static int
-tpp_post_cmd(int tfd, int cmd, tpp_packet_t *pkt)
+tpp_post_cmd(int tfd, char cmd, tpp_packet_t *pkt)
 {
+	int rc;
+	int slot_state;
+	phy_conn_t *conn = NULL;
 	thrd_data_t *td = NULL;
 
 	errno = 0;
 
-	if (tpp_lock(&cons_array_lock)) {
-		return -1;
-	}
+	conn = get_transport_atomic(tfd, &slot_state);
+	if (conn)
+		td = conn->td;
 
-	if (tfd >= 0 && tfd < conns_array_size) {
-		if (conns_array[tfd].conn && conns_array[tfd].slot_state == TPP_SLOT_BUSY)
-			td = conns_array[tfd].conn->td;
-	}
-
-	if (!td) {
-		tpp_unlock(&cons_array_lock);
+	if (!conn || slot_state != TPP_SLOT_BUSY || !td) {
 		errno = EBADF;
 		return -1;
 	}
 
-	/* write to worker threads send pipe */
-	if (tpp_mbox_post(&td->mbox, tfd, cmd, (void*) pkt) != 0) {
-		tpp_unlock(&cons_array_lock);
-		return -1;
+	if (cmd == TPP_CMD_SEND) {
+		/* data associated that needs to be sent out, put directly into target mbox */
+		/* write to worker threads send pipe */
+		rc = tpp_mbox_post(&conn->send_mbox, tfd, cmd, (void *) pkt, pkt->totlen);
+		if (rc != 0)
+			return rc;
 	}
 
-	tpp_unlock(&cons_array_lock);
-	return 0;
-}
-
-/**
- * @brief
- *	Queue a raw (without adding header) packet to the IO thread
- *
- * @param[in] tfd - The file descriptor of the connection
- * @param[in] pkt - The raw packet (possibly one that already has a header)
- *		    (mostly used for retransmitting already formatted packets)
- *
- * @return  Error code
- * @retval  -1  - Failure
- * @retval   0  - Success
- *
- * @par Side Effects:
- *	None
- *
- * @par MT-safe: No
- *
- */
-int
-tpp_transport_send_raw(int tfd, tpp_packet_t *pkt)
-{
-	/* write to worker threads send pipe */
-	if (tpp_post_cmd(tfd, TPP_CMD_SEND, (void*) pkt) != 0) {
-		return -1;
-	}
-	return 0;
-}
-
-/**
- * @brief
- *	Queue data to be sent out by the IO thread
- *
- * @param[in] tfd  - The file descriptor of the connection
- * @param[in] data - The ptr to the data buffer to be sent
- * @param[in] len  - The length of the data buffer
- *
- * @return  Error code
- * @retval  -1 - Failure
- * @retval   0 - Success
- *
- * @par Side Effects:
- *	None
- *
- * @par MT-safe: No
- *
- */
-int
-tpp_transport_send(int tfd, void *data, int len)
-{
-	tpp_packet_t *pkt;
-	int nlen;
-
-	pkt = tpp_cr_pkt(NULL, len + sizeof(int), 1);
-	if (!pkt)
-		return -1;
-
-	nlen = htonl(len);
-	memcpy(pkt->data, &nlen, sizeof(int));
-	memcpy(pkt->data + sizeof(int), data, len);
-
-	/* write to worker threads send pipe */
-	if (tpp_post_cmd(tfd, TPP_CMD_SEND, (void*) pkt) != 0) {
-		tpp_free_pkt(pkt);
-		return -1;
-	}
-	return 0;
+	/* write to worker threads send pipe, to wakeup thread */
+	rc = tpp_mbox_post(&td->mbox, tfd, cmd, NULL, 0);
+	return rc;
 }
 
 /**
@@ -1062,33 +1000,12 @@ tpp_transport_send(int tfd, void *data, int len)
 int
 tpp_transport_wakeup_thrd(int tfd)
 {
+	if (tfd < 0)
+		return -1;
+
 	if (tpp_post_cmd(tfd, TPP_CMD_WAKEUP, NULL) != 0) {
 		return -1;
 	}
-	return 0;
-}
-
-/**
- * @brief
- *	Check the amount of data queued on a outgoing connection. If the buffered
- *	(and unsent) data is greater than some limit specified per connection,
- *	then that connection is closed.
- *
- * @param[in] conn   - The connection that has to be checked
- *
- * @return  Error code
- * @retval  -1 - buffered data exceeds specified limits
- * @retval   0 - buffered data within limits
- *
- * @par Side Effects:
- *	None
- *
- * @par MT-safe: No
- *
- */
-int
-check_buffer_limits(phy_conn_t *conn)
-{
 	return 0;
 }
 
@@ -1105,6 +1022,7 @@ check_buffer_limits(phy_conn_t *conn)
  *
  * @return  Error code
  * @retval  -1 - Failure
+ * @retval  -2 - transport buffers full
  * @retval   0 - Success
  *
  * @par Side Effects:
@@ -1114,66 +1032,39 @@ check_buffer_limits(phy_conn_t *conn)
  *
  */
 int
-tpp_transport_vsend_extra(int tfd, tpp_chunk_t *chunk, int count, void *extra)
+tpp_transport_vsend(int tfd, tpp_packet_t *pkt)
 {
-	tpp_packet_t *pkt;
-	int i;
-	int ntotlen;
-	int totlen = 0;
+	/* compute the length in network byte order for the whole packet */
+	tpp_chunk_t *first_chunk = GET_NEXT(pkt->chunks);
+	void *p_ntotlen = (void *) (first_chunk->data);
+	int wire_len = htonl(pkt->totlen);
+	int rc;
 
-	errno = 0;
-
-	for (i = 0; i < count; i++)
-		totlen += chunk[i].len;
-
-	pkt = tpp_cr_pkt(NULL, totlen + sizeof(int), 1);
-	if (!pkt)
-		return -1;
-
-	ntotlen = htonl(totlen);
-	memcpy(pkt->pos, &ntotlen, sizeof(int));
-	pkt->pos = pkt->pos + sizeof(int);
-
-	for (i = 0; i < count; i++) {
-		memcpy(pkt->pos, chunk[i].data, chunk[i].len);
-		pkt->pos = pkt->pos + chunk[i].len;
-	}
-	pkt->len = totlen + sizeof(int);
-	pkt->pos = pkt->data;
-	pkt->extra_data = extra;
-
-	/* write to worker threads send pipe */
-	if (tpp_post_cmd(tfd, TPP_CMD_SEND, (void *) pkt) != 0) {
+	if (tfd < 0) {
 		tpp_free_pkt(pkt);
 		return -1;
 	}
-	return 0;
-}
 
-/**
- * @brief
- *	Wrapper over tpp_transport_vsend_extra, calls tpp_transport_vsend_extra
- *	with a NULL set for the parameter extra.
- *
- * @param[in] tfd   - The file descriptor of the connection
- * @param[in] chunk - Array of chunks that describes each data buffer
- * @param[in] count - Number of chunks in the array of chunks
- * @param[in] totlen  - total length of data to be sent out
- *
- * @return  Error code
- * @retval  -1 - Failure
- * @retval   0 - Success
- *
- * @par Side Effects:
- *	None
- *
- * @par MT-safe: No
- *
- */
-int
-tpp_transport_vsend(int tfd, tpp_chunk_t *chunk, int count)
-{
-	return (tpp_transport_vsend_extra(tfd, chunk, count, NULL));
+	TPP_DBPRT("sending total length = %d", pkt->totlen);
+
+	/* write the total packet length as the first byte of the packet header
+	 * every packet header type has a ntotlen as the exact first element
+	 * The total length of all the chunks of the packet is only know at this
+	 * function, when all chunks are complete, so we compute the total length
+	 * and set to the ntotlen element of the packet header
+	 */
+	memcpy(p_ntotlen, &wire_len, sizeof(int));
+
+	/* write to worker threads send pipe */
+	rc = tpp_post_cmd(tfd, TPP_CMD_SEND, (void *) pkt);
+	if (rc != 0) {
+		if (rc == -1)
+			tpp_log(LOG_CRIT, __func__, "Error writing to thread cmd mbox");
+		else if (rc == -2)
+			tpp_log(LOG_CRIT, __func__, "thread cmd mbox is full");
+		tpp_free_pkt(pkt);
+	}
+	return rc;
 }
 
 /**
@@ -1222,7 +1113,7 @@ tpp_transport_isresvport(int tfd)
  * @return	Error code
  * @retval	1	Failure
  * @retval	0	Success
- * 
+ *
  * @par Side Effects:
  *	None
  *
@@ -1234,39 +1125,30 @@ assign_to_worker(int tfd, int delay, thrd_data_t *td)
 {
 	int slot_state;
 	phy_conn_t *conn;
+	int thrd_index = 0;
 
 	conn = get_transport_atomic(tfd, &slot_state);
 	if (conn == NULL || slot_state != TPP_SLOT_BUSY)
 		return 1;
 
-	if (conn->td != NULL) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "ERROR! tfd=%d conn_td=%p, conn_td_index=%d, thrd_td=%p, thrd_td_index=%d", tfd, conn->td, conn->td->thrd_index, td, td->thrd_index);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
-	}
+	if (conn->td != NULL)
+		tpp_log(LOG_CRIT, __func__, "ERROR! tfd=%d conn_td=%p, conn_td_index=%d, thrd_td=%p, thrd_td_index=%d", tfd, conn->td, conn->td->thrd_index, td, td ? td->thrd_index : -1);
 
 	if (td == NULL) {
-		int iters = 0;
-
 		if (tpp_lock(&thrd_array_lock)) {
 			return 1;
 		}
 		/* find a thread index to assign to, since none provided */
-		do {
-			last_thrd++;
-			if (last_thrd >= num_threads) {
-				last_thrd = 0;
-				iters++;
-			}
-		} while (thrd_pool[last_thrd]->listen_fd != -1 && iters < 2);
-		conn->td = thrd_pool[last_thrd];
+		if (num_threads > 1)
+			thrd_index = 1 + (tfd % (num_threads - 1));
+		conn->td = thrd_pool[thrd_index];
 		tpp_unlock(&thrd_array_lock);
 	} else
 		conn->td = td;
 
-	if (tpp_mbox_post(&conn->td->mbox, tfd, TPP_CMD_ASSIGN, (void *)(long) delay) != 0) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tfd=%d, Error writing to mbox", tfd);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
-	}
+	if (tpp_mbox_post(&conn->td->mbox, tfd, TPP_CMD_ASSIGN, (void *) (long) delay, 0) != 0)
+		tpp_log(LOG_CRIT, __func__, "tfd=%d, Error writing to mbox", tfd);
+
 	return 0;
 }
 
@@ -1298,7 +1180,7 @@ add_transport_conn(phy_conn_t *conn)
 		int fd = conn->sock_fd;
 
 		/* authentication */
-		if (conn->conn_params->auth_type == TPP_AUTH_RESV_PORT) {
+		if (conn->conn_params->need_resvport) {
 			int tryport;
 			int start;
 			int rc = -1;
@@ -1306,7 +1188,7 @@ add_transport_conn(phy_conn_t *conn)
 			srand(time(NULL));
 			start = (rand() % (IPPORT_RESERVED - 1)) + 1;
 			tryport = start;
-			
+
 			while (1) {
 				struct sockaddr_in serveraddr;
 				/* bind this socket to a reserved port */
@@ -1326,66 +1208,68 @@ add_transport_conn(phy_conn_t *conn)
 					break;
 			}
 			if (rc == -1) {
-				tpp_log_func(LOG_WARNING, NULL, "No reserved ports available");
+				tpp_log(LOG_WARNING, NULL, "No reserved ports available");
 				return (-1);
 			}
 		}
 
 		conn->net_state = TPP_CONN_CONNECTING;
-		if (tpp_em_add_fd(conn->td->em_context, conn->sock_fd,
-			EM_OUT | EM_ERR | EM_HUP) == -1) {
-			tpp_log_func(LOG_ERR, __func__, "Multiplexing failed");
+
+		conn->ev_mask = EM_OUT | EM_ERR | EM_HUP;
+		TPP_DBPRT("New socket, Added EM_OUT to ev_mask, now=%x", conn->ev_mask);
+		if (tpp_em_add_fd(conn->td->em_context, conn->sock_fd, conn->ev_mask) == -1) {
+			tpp_log(LOG_ERR, __func__, "Multiplexing failed");
 			return -1;
 		}
-
-		conn->can_send = 0;
 
 		if (tpp_sock_attempt_connection(conn->sock_fd, conn->conn_params->hostname, conn->conn_params->port) == -1) {
 			if (errno != EINPROGRESS && errno != EWOULDBLOCK && errno != EAGAIN) {
 				char *msgbuf;
 #ifdef HAVE_STRERROR_R
-				char buf[TPP_LOGBUF_SZ + 1];
+				char buf[TPP_GEN_BUF_SZ];
 
 				if (strerror_r(errno, buf, sizeof(buf)) == 0)
-					pbs_asprintf(&msgbuf,
-						"%s while connecting to %s:%d", buf,
-						conn->conn_params->hostname,
-						conn->conn_params->port);
+					pbs_asprintf(&msgbuf, "%s while connecting to %s:%d", buf, conn->conn_params->hostname, conn->conn_params->port);
 				else
 #endif
-					pbs_asprintf(&msgbuf,
-						"Error %d while connecting to %s:%d", errno,
-						conn->conn_params->hostname,
-						conn->conn_params->port);
-				tpp_log_func(LOG_ERR, NULL, msgbuf);
+					pbs_asprintf(&msgbuf, "Error %d while connecting to %s:%d", errno, conn->conn_params->hostname, conn->conn_params->port);
+				tpp_log(LOG_ERR, NULL, msgbuf);
 				free(msgbuf);
 				return -1;
 			}
 		} else {
-			TPP_DBPRT(("phy_con %d connected", fd));
+			TPP_DBPRT("phy_con %d connected", fd);
 			conn->net_state = TPP_CONN_CONNECTED;
 
-			/* since we connected, remove EMOUT from the list */
-			if (tpp_em_mod_fd(conn->td->em_context, conn->sock_fd, EM_IN | EM_ERR | EM_HUP) == -1) {
-				tpp_log_func(LOG_CRIT, __func__, "Multiplexing failed");
+			/* since we connected, remove EM_OUT from the list and add EM_IN */
+			conn->ev_mask = EM_IN | EM_ERR | EM_HUP;
+			TPP_DBPRT("Connected, Removed EM_OUT and added EM_IN to ev_mask, now=%x", conn->ev_mask);
+			if (tpp_em_mod_fd(conn->td->em_context, conn->sock_fd, conn->ev_mask) == -1) {
+				tpp_log(LOG_CRIT, __func__, "Multiplexing failed");
 				return -1;
 			}
-			conn->can_send = 1;
-			if (the_post_connect_handler)
-				the_post_connect_handler(fd, NULL, conn->ctx);
+			if (the_post_connect_handler) {
+				if (the_post_connect_handler(fd, NULL, conn->ctx, conn->extra)) {
+					/* e.g.: the tpp_handle_auth_handshake could have failed */
+					tpp_log(LOG_CRIT, __func__, "the_post_connect_handler failed");
+					return -1;
+				}
+			}
 		}
-	} else if (conn->net_state == TPP_CONN_CONNECTED) {/* accepted socket */
+	} else if (conn->net_state == TPP_CONN_CONNECTED) { /* accepted socket */
+		/* since we connected, remove EM_OUT from the list and add EM_IN */
+		conn->ev_mask = EM_IN | EM_ERR | EM_HUP;
+		TPP_DBPRT("Connected, Removed EM_OUT and added EM_IN to ev_mask, now=%x", conn->ev_mask);
 
 		/* add it to my own monitored list */
-		if (tpp_em_add_fd(conn->td->em_context, conn->sock_fd, EM_IN | EM_ERR | EM_HUP) == -1) {
-			tpp_log_func(LOG_ERR, __func__, "Multiplexing failed");
+		if (tpp_em_add_fd(conn->td->em_context, conn->sock_fd, conn->ev_mask) == -1) {
+			tpp_log(LOG_ERR, __func__, "Multiplexing failed");
 			return -1;
 		}
-		conn->can_send = 1;
 
-		TPP_DBPRT(("Phy Con %d accepted", conn->sock_fd));
+		TPP_DBPRT("Phy Con %d accepted", conn->sock_fd);
 	} else {
-		tpp_log_func(LOG_CRIT, __func__, "Bad net state - internal error");
+		tpp_log(LOG_CRIT, __func__, "Bad net state - internal error");
 		return -1;
 	}
 	return 0;
@@ -1426,16 +1310,14 @@ handle_cmd(thrd_data_t *td, int tfd, int cmd, void *data)
 
 	conn = get_transport_atomic(tfd, &slot_state);
 
-	if(conn && (conn->td != td)) {
-		sprintf(tpp_get_logbuf(), "ERROR! tfd=%d conn_td=%p, conn_td_index=%d, thrd_td=%p, thrd_td_index=%d, cmd=%d", tfd, conn->td, conn->td->thrd_index, td, td->thrd_index, cmd);
-		tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
-	}
+	if (conn && (conn->td != td))
+		tpp_log(LOG_CRIT, __func__, "ERROR! tfd=%d conn_td=%p, conn_td_index=%d, thrd_td=%p, thrd_td_index=%d, cmd=%d", tfd, conn->td, conn->td->thrd_index, td, td->thrd_index, cmd);
 
 	if (cmd == TPP_CMD_CLOSE) {
 		handle_disconnect(conn);
+
 	} else if (cmd == TPP_CMD_EXIT) {
 		int i;
-		tpp_tls_t *p;
 
 		for (i = 0; i < conns_array_size; i++) {
 			conn = get_transport_atomic(i, &slot_state);
@@ -1446,68 +1328,51 @@ handle_cmd(thrd_data_t *td, int tfd, int cmd, void *data)
 			}
 		}
 
-		tpp_mbox_destroy(&td->mbox, 1);
-		tpp_em_destroy(td->em_context);
+		tpp_mbox_destroy(&td->mbox);
 		if (td->listen_fd > -1)
 			tpp_sock_close(td->listen_fd);
 
 		/* clean up the lazy conn queue */
-		while ((conn_ev = tpp_deque(&td->lazy_conn_que))) {
+		while ((conn_ev = tpp_deque(&td->def_act_que)))
 			free(conn_ev);
-		}
 
-		/* clean up the close queue and piled up send data */
-		while ((conn = tpp_deque(&td->close_conn_que))) {
-			tpp_sock_close(conn->sock_fd);
-			free_phy_conn(conn);
-		}
+		tpp_log(LOG_INFO, NULL, "Thrd exiting, had %d connections", num_cons);
 
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "Thrd exiting, had %d connections", num_cons);
-		tpp_log_func(LOG_INFO, NULL, tpp_get_logbuf());
-
-		/* clean up any tls memory, just for valgrind's sake */
-		if ((p = tpp_get_tls())) {
-			free(p->log_data);
-			free(p->avl_data);
-			free(p);
-			td->tpp_tls = NULL;
-		}
+		/* destory the AVL tls */
+		free_avl_tls();
 
 		pthread_exit(NULL);
 		/* no execution after this */
 
-	} else if (cmd == TPP_CMD_ASSIGN) {
-		int delay = (int)(long) data;
+	} else if ((cmd == TPP_CMD_ASSIGN) || (cmd == TPP_CMD_CONNECT)) {
+		int delay = (int) (long) data;
 
 		if (conn == NULL || slot_state != TPP_SLOT_BUSY) {
-			snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "Phy Con %d (cmd = %d) already deleted/closing", tfd, cmd);
-			tpp_log_func(LOG_WARNING, __func__, tpp_get_logbuf());
+			tpp_log(LOG_WARNING, __func__, "Phy Con %d (cmd = %d) already deleted/closing", tfd, cmd);
 			return;
 		}
-		if (delay == 0) {
+		if ((delay == 0) || (cmd == TPP_CMD_CONNECT)) {
 			if (add_transport_conn(conn) != 0) {
 				handle_disconnect(conn);
 			}
 		} else {
-			enque_lazy_connect(td, tfd, delay);
+			enque_deferred_event(td, tfd, TPP_CMD_CONNECT, delay);
 		}
+
 	} else if (cmd == TPP_CMD_SEND) {
 		tpp_packet_t *pkt = (tpp_packet_t *) data;
 
 		if (conn == NULL || slot_state != TPP_SLOT_BUSY) {
-			snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "Phy Con %d (cmd = %d) already deleted/closing", tfd, cmd);
-			tpp_log_func(LOG_WARNING, __func__, tpp_get_logbuf());
+			tpp_log(LOG_WARNING, __func__, "Phy Con %d (cmd = %d) already deleted/closing", tfd, cmd);
 			tpp_free_pkt(pkt);
 			return;
 		}
-		if (tpp_enque(&conn->send_queue, pkt) == NULL) {
-			tpp_log_func(LOG_CRIT, __func__, "Out of memory enqueing to send queue");
-			return;
-		}
-		conn->send_queue_size += pkt->len;
 
 		/* handle socket add calls */
 		send_data(conn);
+
+	} else if (cmd == TPP_CMD_READ) {
+		add_pkt(conn);
 	}
 }
 
@@ -1531,7 +1396,7 @@ tpp_get_thrd_index()
 	if ((tls = tpp_get_tls()) == NULL)
 		return -1;
 
-	td = (thrd_data_t *)(tpp_get_tls()->td);
+	td = (thrd_data_t *) (tpp_get_tls()->td);
 	if (td == NULL)
 		return -1;
 
@@ -1571,7 +1436,7 @@ tpp_get_thrd_index()
  * @par MT-safe: No
  *
  */
-static void*
+static void *
 work(void *v)
 {
 	thrd_data_t *td = (thrd_data_t *) v;
@@ -1590,7 +1455,7 @@ work(void *v)
 	tpp_tls_t *ptr;
 #ifndef WIN32
 	int rc;
-	sigset_t	blksigs;
+	sigset_t blksigs;
 #endif
 
 	/*
@@ -1621,16 +1486,11 @@ work(void *v)
 	sigaddset(&blksigs, SIGTERM);
 
 	if ((rc = pthread_sigmask(SIG_BLOCK, &blksigs, NULL)) != 0) {
-		sprintf(tpp_get_logbuf(), "Failed in pthread_sigmask, errno=%d", rc);
-		tpp_log_func(LOG_CRIT, NULL, "Failed in pthread_sigmask");
+		tpp_log(LOG_CRIT, NULL, "Failed in pthread_sigmask, errno=%d", rc);
 		return NULL;
 	}
 #endif
-	tpp_log_func(LOG_CRIT, NULL, "Thread ready");
-
-	/* store the log and avl tls data so we can free later */
-	td->tpp_tls->log_data = log_get_tls_data();
-	td->tpp_tls->avl_data = get_avl_tls();
+	tpp_log(LOG_CRIT, NULL, "Thread ready");
 
 	/* start processing loop */
 	for (;;) {
@@ -1639,8 +1499,8 @@ work(void *v)
 		while (1) {
 			now = time(0);
 
-			/* trigger all delayed connects, and return the wait time till the next one to trigger */
-			timeout = trigger_lazy_connects(td, now);
+			/* trigger all delayed events, and return the wait time till the next one to trigger */
+			timeout = trigger_deferred_events(td, now);
 			if (the_timer_handler) {
 				timeout2 = the_timer_handler(now);
 			} else {
@@ -1660,8 +1520,7 @@ work(void *v)
 			nfds = tpp_em_wait(td->em_context, &events, timeout);
 			if (nfds <= 0) {
 				if (!(errno == EINTR || errno == EINPROGRESS || errno == EAGAIN || errno == 0)) {
-					snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "em_wait() error, errno=%d", errno);
-					tpp_log_func(LOG_ERR, __func__, tpp_get_logbuf());
+					tpp_log(LOG_ERR, __func__, "em_wait() error, errno=%d", errno);
 				}
 				continue;
 			} else
@@ -1711,7 +1570,6 @@ work(void *v)
 					}
 
 					if (em_ev & EM_OUT) {
-						/* set can_send_now flag on stream */
 
 						if (conn->net_state == TPP_CONN_CONNECTING) {
 							/* check to see if the connection really completed */
@@ -1719,7 +1577,7 @@ work(void *v)
 							pbs_socklen_t result_len = sizeof(result);
 
 							if (tpp_sock_getsockopt(conn->sock_fd, SOL_SOCKET, SO_ERROR, &result, &result_len) != 0) {
-								TPP_DBPRT(("phy_con %d getsockopt failed", conn->sock_fd));
+								TPP_DBPRT("phy_con %d getsockopt failed", conn->sock_fd);
 								handle_disconnect(conn);
 								continue;
 							}
@@ -1728,7 +1586,7 @@ work(void *v)
 								continue;
 							} else if (result != 0) {
 								/* non-recoverable error occurred, eg, ECONNRESET, so disconnect */
-								TPP_DBPRT(("phy_con %d disconnected", conn->sock_fd));
+								TPP_DBPRT("phy_con %d disconnected", conn->sock_fd);
 								handle_disconnect(conn);
 								continue;
 							}
@@ -1736,21 +1594,24 @@ work(void *v)
 							/* connected, finally!!! */
 							conn->net_state = TPP_CONN_CONNECTED;
 
-							if (the_post_connect_handler)
-								the_post_connect_handler(conn->sock_fd, NULL, conn->ctx);
-							TPP_DBPRT(("phy_con %d connected", conn->sock_fd));
+							if (the_post_connect_handler) {
+								if (the_post_connect_handler(conn->sock_fd, NULL, conn->ctx, conn->extra)) {
+									/* e.g.: the tpp_handle_auth_handshake could have failed */
+									TPP_DBPRT("phy_con %d disconnected", conn->sock_fd);
+									handle_disconnect(conn);
+									continue;
+								}
+							}
+							TPP_DBPRT("phy_con %d connected", conn->sock_fd);
 						}
 
-						/**
-						 * since we can write data now remove
-						 * POLLOUT from list of events, else we will
-						 * have a infinite loop from em_wait
-						 **/
-						if (tpp_em_mod_fd(conn->td->em_context, conn->sock_fd, EM_IN | EM_HUP | EM_ERR) == -1) {
-							tpp_log_func(LOG_ERR, __func__, "Multiplexing failed");
+						/* since we connected, remove EM_OUT from the list and add EM_IN */
+						conn->ev_mask = EM_IN | EM_ERR | EM_HUP;
+						TPP_DBPRT("Connected, Removed EM_OUT and added EM_IN to ev_mask, now=%x", conn->ev_mask);
+						if (tpp_em_mod_fd(conn->td->em_context, conn->sock_fd, conn->ev_mask) == -1) {
+							tpp_log(LOG_ERR, __func__, "Multiplexing failed");
 							return NULL;
 						}
-						conn->can_send = 1;
 						send_data(conn);
 					}
 				}
@@ -1760,8 +1621,7 @@ work(void *v)
 		if (new_connection == 1) {
 			pbs_socklen_t addrlen = sizeof(clientaddr);
 			if ((newfd = tpp_sock_accept(td->listen_fd, (struct sockaddr *) &clientaddr, &addrlen)) == -1) {
-				snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "tpp_sock_accept() error, errno=%d", errno);
-				tpp_log_func(LOG_ERR, NULL, tpp_get_logbuf());
+				tpp_log(LOG_ERR, NULL, "tpp_sock_accept() error, errno=%d", errno);
 				if (errno == EMFILE) {
 					/* out of files, sleep couple of seconds to avoid error coming in loop */
 					sleep(2);
@@ -1771,6 +1631,7 @@ work(void *v)
 
 			conn = alloc_conn(newfd);
 			if (!conn) {
+				tpp_log(LOG_CRIT, __func__, "Allocating socket connection failed.");
 				tpp_sock_close(newfd);
 				return NULL;
 			}
@@ -1779,12 +1640,17 @@ work(void *v)
 
 			conn->conn_params = calloc(1, sizeof(conn_param_t));
 			if (!conn->conn_params) {
-				tpp_log_func(LOG_CRIT, __func__, "Out of memory allocating connection params");
-				free(conn);
+				tpp_log(LOG_CRIT, __func__, "Out of memory allocating connection params");
+				if (tpp_write_lock(&cons_array_lock))
+					return NULL;
+				conns_array[newfd].slot_state = TPP_SLOT_FREE;
+				conns_array[newfd].conn = NULL;
+				tpp_unlock_rwlock(&cons_array_lock);
+				free_phy_conn(conn);
 				tpp_sock_close(newfd);
 				return NULL;
 			}
-			conn->conn_params->auth_type = auth_type;
+			conn->conn_params->need_resvport = strcmp(tpp_conf->auth_config->auth_method, AUTH_RESVPORT_NAME) == 0;
 			conn->conn_params->hostname = strdup(tpp_netaddr_sa(&clientaddr));
 			conn->conn_params->port = ntohs(((struct sockaddr_in *) &clientaddr)->sin_port);
 
@@ -1793,17 +1659,6 @@ work(void *v)
 			 * thread, and write to that thread control pipe
 			 **/
 			assign_to_worker(newfd, 0, NULL); /* time 0 means no delay */
-		}
-
-		/* now actually delete and close fd's that got the close
-		 * we do this at the end of the event loop so that we
-		 * do not advertently free things but a later event in the
-		 * array triggers another close, possibly closing another
-		 * fd
-		 */
-		while ((conn = tpp_deque(&td->close_conn_que))) {
-			tpp_sock_close(conn->sock_fd);
-			free_phy_conn(conn);
 		}
 	}
 	return NULL;
@@ -1854,17 +1709,18 @@ static int
 handle_disconnect(phy_conn_t *conn)
 {
 	int error;
-	int cmd;
-	void *data;
+	short cmd;
+	int tfd;
+	tpp_packet_t *pkt;
 	pbs_socklen_t len = sizeof(error);
-	tpp_que_elem_t *n;
+	tpp_que_elem_t *n = NULL;
 
 	if (conn == NULL || conn->net_state == TPP_CONN_DISCONNECTED)
 		return 1;
 
 	if (conn->net_state == TPP_CONN_CONNECTING || conn->net_state == TPP_CONN_CONNECTED) {
 		if (tpp_em_del_fd(conn->td->em_context, conn->sock_fd) == -1) {
-			tpp_log_func(LOG_ERR, __func__, "Multiplexing failed");
+			tpp_log(LOG_ERR, __func__, "Multiplexing failed");
 			return 1;
 		}
 	}
@@ -1872,57 +1728,36 @@ handle_disconnect(phy_conn_t *conn)
 
 	conn->net_state = TPP_CONN_DISCONNECTED;
 	conn->lasterr = error;
-	conn->can_send = 0;
+
+	tfd = conn->sock_fd; /* store this since close_handler could unset this */
 
 	if (the_close_handler)
-		the_close_handler(conn->sock_fd, error, conn->ctx);
+		the_close_handler(conn->sock_fd, error, conn->ctx, conn->extra);
 
-	if (tpp_lock(&cons_array_lock)) {
+	conn->extra = NULL;
+
+	if (tpp_write_lock(&cons_array_lock))
 		return 1;
-	}
 
 	/*
 	 * Since we are freeing the socket connection we must
 	 * empty any pending commands that were in this thread's
-	 * mbox (since this thread is the connection's manager.
-	 * Some of these pending commands are "send" data, and
-	 * this is the only copy we have since packet gets shelved
-	 * only in the_pkt_postsend_handler.
-	 * Simulate a successful data-send by allowing the packets to
-	 * flow through the_call back functions the_pkt_presend_handler
-	 * and the_pkt_postsend_handler. This is similar to us having
-	 * just sent out the packets but they failed in transit.
+	 * mbox (since this thread is the connection's manager
+	 *
 	 */
 	n = NULL;
-	while (tpp_mbox_clear(&conn->td->mbox, &n, conn->sock_fd, &cmd, &data) == 0) {
-		if (cmd == TPP_CMD_SEND) {
-			int freed = 0;
-			if (the_pkt_presend_handler) {
-				if (the_pkt_presend_handler(conn->sock_fd, data) == 0) {
-					if (the_pkt_postsend_handler) {
-						the_pkt_postsend_handler(conn->sock_fd, data);
-						freed = 1;
-					}
-				} else
-					freed = 1;
-			}
-			if (!freed)
-				tpp_free_pkt(data);
-		}
-	}
+	while (tpp_mbox_clear(&conn->td->mbox, &n, tfd, &cmd, (void **) &pkt) == 0)
+		tpp_free_pkt(pkt);
 
-	conns_array[conn->sock_fd].slot_state = TPP_SLOT_FREE;
-	conns_array[conn->sock_fd].conn = NULL;
+	conns_array[tfd].slot_state = TPP_SLOT_FREE;
+	conns_array[tfd].conn = NULL;
 
-	tpp_unlock(&cons_array_lock);
+	tpp_unlock_rwlock(&cons_array_lock);
 
-	/* now enque the connection structure to a queue to be
-	 * actually deleted at the end of the event loop for
-	 * this thread (fd will also be closed there)
-	 */
-	if (tpp_enque(&conn->td->close_conn_que, conn) == NULL)
-		tpp_log_func(LOG_CRIT, __func__, "Out of memory queueing close connection");
-	
+	/* free old connection */
+	free_phy_conn(conn);
+	tpp_sock_close(tfd);
+
 	return 0;
 }
 
@@ -1946,15 +1781,15 @@ handle_disconnect(phy_conn_t *conn)
 static void
 handle_incoming_data(phy_conn_t *conn)
 {
-	int rc;
 	int torecv = 0;
+	int space_left;
+	int offset;
+	int closed;
+	int pkt_len;
+	char *p;
+	ssize_t rc;
 
 	while (1) {
-		int space_left;
-		int offset;
-		int closed;
-		int amt;
-
 		offset = conn->scratch.pos - conn->scratch.data;
 		space_left = conn->scratch.len - offset; /* remaining space */
 		if (space_left == 0) {
@@ -1963,32 +1798,37 @@ handle_incoming_data(phy_conn_t *conn)
 				conn->scratch.len = TPP_SCRATCHSIZE;
 			else {
 				conn->scratch.len += TPP_SCRATCHSIZE;
-				snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ,
-						"Increased scratch size for tfd=%d to %d", conn->sock_fd, conn->scratch.len);
-				tpp_log_func(LOG_INFO, __func__, tpp_get_logbuf());
+				tpp_log(LOG_INFO, __func__, "Increased scratch size for tfd=%d to %d", conn->sock_fd, conn->scratch.len);
 			}
-			conn->scratch.data = realloc(conn->scratch.data, conn->scratch.len);
-			if (conn->scratch.data == NULL) {
-				tpp_log_func(LOG_CRIT, __func__, "Out of memory resizing scratch data");
+			p = realloc(conn->scratch.data, conn->scratch.len);
+			if (!p) {
+				tpp_log(LOG_CRIT, __func__, "Out of memory resizing scratch data");
 				return;
 			}
+			conn->scratch.data = p;
 			conn->scratch.pos = conn->scratch.data + offset;
-			torecv = conn->scratch.len - (conn->scratch.pos - conn->scratch.data);
-		} else
-			torecv = space_left;
+			space_left = conn->scratch.len - offset;
+		}
 
-		/*
-		 * do not receive any more than TPP_SCRATCHSIZE data
-		 * because that can cause add_pkts to do a lot of
-		 * memmove() unnecessarily. If there is more data
-		 * we will circle right back from epoll() anyway
-		 */
-		if (torecv > TPP_SCRATCHSIZE)
-			torecv = TPP_SCRATCHSIZE;
+		if (offset > sizeof(int)) {
+			pkt_len = ntohl(*((int *) conn->scratch.data));
+			torecv = pkt_len - offset; /* offset amount of data already received */
+			TPP_DBPRT("tfd=%d, Need to receive: pkt_len=%d, torecv=%d, space_left=%d bytes", conn->sock_fd, pkt_len, torecv, space_left);
+			if (torecv > space_left)
+				torecv = space_left;
+		} else {
+			/*
+			 * we are starting to read a new packet now
+			 * so we try to read the length part only first
+			 * so we know how much more to read this is to
+			 * avoid reading more than one packet, to eliminate memmoves
+			 */
+			torecv = sizeof(int) + sizeof(char) - offset; /* also read the type character */
+			pkt_len = 0;
+		}
 
 		/* receive as much as we can */
 		closed = 0;
-		amt = 0;
 		while (torecv > 0) {
 			rc = tpp_sock_recv(conn->sock_fd, conn->scratch.pos, torecv, 0);
 			if (rc == 0) {
@@ -2003,13 +1843,7 @@ handle_incoming_data(phy_conn_t *conn)
 				break;
 			}
 			torecv -= rc;
-			amt += rc;
 			conn->scratch.pos += rc;
-		}
-		rc = add_pkts(conn);
-		if (rc == -1) {
-			/* a disconnect had happened in the flow, quit this routine */
-			return;
 		}
 
 		if (closed == 1) {
@@ -2018,19 +1852,22 @@ handle_incoming_data(phy_conn_t *conn)
 		}
 		if (torecv > 0) /* did not receive full data, do not try any more */
 			break;
+
+		if (add_pkt(conn) != 0)
+			return;
 	}
 }
 
 /**
  * @brief
- *	Carve packets out of the data received and send any complete packet to
- *	the application by calling the upper layers "the_pkt_handler".
+ *	Add a packet to the receivers buffer or if buffer is full
+ *  add a deffered action, so that it can be checked later
  *
  * @param[in] conn - The physical connection
- *
- * @retval Error code
- * @return -1 - Error
- * @return  0 - Success
+ * 
+ * @return Error code
+ * @retval 0 - Success
+ * @retval -1 - Failure
  *
  * @par Side Effects:
  *	None
@@ -2038,61 +1875,39 @@ handle_incoming_data(phy_conn_t *conn)
  * @par MT-safe: No
  *
  */
-static int
-add_pkts(phy_conn_t *conn)
+static short
+add_pkt(phy_conn_t *conn)
 {
-	char *pkt_start;
 	int avl_len;
-	int rc = 0;
-	int tfd = conn->sock_fd;
-	int slot_state;
-	int count = 0;
+	int pkt_len;
 
-	int recv_len = conn->scratch.pos - conn->scratch.data;
-	pkt_start = conn->scratch.data;
-	avl_len = recv_len;
-
-	while (avl_len >= (sizeof(int) + sizeof(char))) {
-		int pkt_len;
-		int data_len;
-		char *data;
-
-		/*  We have enough data now to validate the header */
-		if (tpp_validate_hdr(tfd, pkt_start) != 0) {
+	avl_len = conn->scratch.pos - conn->scratch.data;
+	if (avl_len >= sizeof(int)) {
+		pkt_len = ntohl(*((int *) conn->scratch.data));
+		if (pkt_len < avl_len) {
+			/* some data corruption has happened, or sombody trying DOS */
+			tpp_log(LOG_CRIT, __func__, "tfd=%d, Critical error in protocol header, pkt_len=%d, avl_len=%d, dropping connection", conn->sock_fd, pkt_len, avl_len);
 			handle_disconnect(conn);
-			return -1;
+			return -1; /* treat as bad data rejected by upper layer */
 		}
-
-		data_len = ntohl(*((int *) pkt_start));
-		pkt_len = data_len + sizeof(int);
-		if (avl_len < pkt_len)
-			break;
-
-		data = pkt_start + sizeof(int);
-		if (the_pkt_handler) {
-			if ((rc = the_pkt_handler(conn->sock_fd, data, data_len, conn->ctx)) != 0) {
-				/* upper layer rejected data, disconnect */
-				handle_disconnect(conn);
-				return -1;
+		if (avl_len == pkt_len) {
+			/* we got a full packet */
+			if (the_pkt_handler) {
+				if (the_pkt_handler(conn->sock_fd, conn->scratch.data, pkt_len, conn->ctx, conn->extra) != 0) {
+					/* upper layer rejected data, disconnect */
+					handle_disconnect(conn);
+					return -1;
+				}
 			}
 
-			conn = get_transport_atomic(tfd, &slot_state);
-			if (slot_state != TPP_SLOT_BUSY)
-				return -1;
+			/*
+			* no need to memmove or coalesce the data, since we would have read
+			* just enough for a packet, so, just reset pointers
+			*/
+			conn->scratch.pos = conn->scratch.data;
 		}
-
-		count++;
-		/* coalesce before next packet to maintain alignment */
-		avl_len = avl_len - pkt_len;
-		memmove(conn->scratch.data, conn->scratch.data + pkt_len, (size_t)avl_len); /* area OVERLAP - use memmove */
-		conn->scratch.pos = conn->scratch.data + avl_len;
 	}
-
-	if (count > 50) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "Received many small packets(%d)", count);
-		tpp_log_func(LOG_INFO, __func__, tpp_get_logbuf());
-	}
-	return rc;
+	return 0;
 }
 
 /**
@@ -2111,236 +1926,83 @@ add_pkts(phy_conn_t *conn)
 static void
 send_data(phy_conn_t *conn)
 {
-	tpp_packet_t *p = NULL;
-	int rc;
-	int can_send_more;
-	tpp_que_elem_t *n;
-#ifdef NAS /* localmod 149 */
-	time_t curr;
-	int rc_iflag;
-#endif /* localmod 149 */
-
+	tpp_chunk_t *p = NULL;
+	tpp_packet_t *pkt = NULL;
+	ssize_t rc;
+	int curr_pkt_done = 0;
+	size_t tosend;
 
 	/*
 	 * if a socket is still connecting, we will wait to send out data,
 	 * even if app called close - so check this first
 	 */
-	if (conn->net_state == TPP_CONN_CONNECTING || conn->net_state == TPP_CONN_INITIATING)
+	if ((conn->net_state == TPP_CONN_CONNECTING) || (conn->net_state == TPP_CONN_INITIATING))
 		return;
 
-	n = TPP_QUE_HEAD(&conn->send_queue);
-	p = TPP_QUE_DATA(n);
+	while ((conn->ev_mask & EM_OUT) == 0) {
+		rc = 0;
+		curr_pkt_done = 0;
 
-	if (conn->can_send == 0)
-		return;
+		pkt = conn->curr_send_pkt;
+		if (!pkt) {
+			/* get the next packet from send_mbox */
+			if (tpp_mbox_read(&conn->send_mbox, NULL, NULL, (void **) &conn->curr_send_pkt) != 0) {
+				if (!(errno == EAGAIN || errno == EWOULDBLOCK))
+					tpp_log(LOG_ERR, __func__, "tpp_mbox_read failed");
+				return;
+			}
+			pkt = conn->curr_send_pkt;
+		}
+		p = pkt->curr_chunk;
 
-	can_send_more = 1;
-
-	while (p && can_send_more) {
-		int tosend;
-
-		tosend = p->len - (p->pos - p->data);
-		if (p->pos == p->data) {
-			if (the_pkt_presend_handler) {
-				if (the_pkt_presend_handler(conn->sock_fd, p) != 0) {
-					/* handler asked not to send data, skip packet */
-					conn->send_queue_size -= tosend;
-					n = tpp_que_del_elem(&conn->send_queue, n);
-					n = TPP_QUE_HEAD(&conn->send_queue);
-					p = TPP_QUE_DATA(n);
-					continue;
-				}
+		/* data available, first byte, presend handler present, call handler */
+		if ((p == GET_NEXT(pkt->chunks)) && (p->pos == p->data) && the_pkt_presend_handler) {
+			if ((rc = the_pkt_presend_handler(conn->sock_fd, pkt, conn->ctx, conn->extra)) == 0) {
+				p = pkt->curr_chunk; /* presend handler could change pkt contents */
 			}
 		}
 
-		while (tosend > 0) {
-			rc = tpp_sock_send(conn->sock_fd, p->pos, tosend, 0);
-#ifdef NAS /* localmod 149 */
-			if (rc > 0) {
-				curr = time(0);
-
-				conn->td->nas_kb_sent_A += ((double) rc) / 1024.0;
-				conn->td->nas_kb_sent_B += ((double) rc) / 1024.0;
-				conn->td->nas_kb_sent_C += ((double) rc) / 1024.0;
-
-				if (tosend > TPP_SCRATCHSIZE) {
-					conn->td->nas_num_lrg_sends_A++;
-					conn->td->nas_lrg_send_sum_kb_A += ((double) tosend) / 1024.0;
-
-					if (rc != tosend) {
-						conn->td->nas_num_qual_lrg_sends_A++;
-					}
-
-					if (tosend > conn->td->nas_max_bytes_lrg_send_A) {
-						conn->td->nas_max_bytes_lrg_send_A = tosend;
-					}
-
-					if (tosend < conn->td->nas_min_bytes_lrg_send_A) {
-						conn->td->nas_min_bytes_lrg_send_A = tosend;
-					}
-
-
-
-					conn->td->nas_num_lrg_sends_B++;
-					conn->td->nas_lrg_send_sum_kb_B += ((double) tosend) / 1024.0;
-
-					if (rc != tosend) {
-						conn->td->nas_num_qual_lrg_sends_B++;
-					}
-
-					if (tosend > conn->td->nas_max_bytes_lrg_send_B) {
-						conn->td->nas_max_bytes_lrg_send_B = tosend;
-					}
-
-					if (tosend < conn->td->nas_min_bytes_lrg_send_B) {
-						conn->td->nas_min_bytes_lrg_send_B = tosend;
-					}
-
-
-
-					conn->td->nas_num_lrg_sends_C++;
-					conn->td->nas_lrg_send_sum_kb_C += ((double) tosend) / 1024.0;
-
-					if (rc != tosend) {
-						conn->td->nas_num_qual_lrg_sends_C++;
-					}
-
-					if (tosend > conn->td->nas_max_bytes_lrg_send_C) {
-						conn->td->nas_max_bytes_lrg_send_C = tosend;
-					}
-
-					if (tosend < conn->td->nas_min_bytes_lrg_send_C) {
-						conn->td->nas_min_bytes_lrg_send_C = tosend;
-					}
-				}
-
-				if (curr > (conn->td->nas_last_time_A + conn->td->NAS_TPP_LOG_PERIOD_A)) {
-					rc_iflag = access(tpp_instr_flag_file, F_OK);
-					if (rc_iflag != 0) {
-						conn->td->nas_tpp_log_enabled = 0;
+		if (p && (rc == 0)) {
+			tosend = p->len - (p->pos - p->data);
+			while (tosend > 0) {
+				rc = tpp_sock_send(conn->sock_fd, p->pos, tosend, 0);
+				if (rc < 0) {
+					if (errno == EWOULDBLOCK || errno == EAGAIN) {
+						/* set this socket in POLLOUT */
+						conn->ev_mask |= EM_OUT;
+						TPP_DBPRT("EWOULDBLOCK, added EM_OUT to ev_mask, now=%x", conn->ev_mask);
+						if (tpp_em_mod_fd(conn->td->em_context, conn->sock_fd, conn->ev_mask) == -1) {
+							tpp_log(LOG_ERR, __func__, "Multiplexing failed");
+							return;
+						}
 					} else {
-						conn->td->nas_tpp_log_enabled = 1;
-					}
-
-					if (conn->td->nas_tpp_log_enabled) {
-						snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ,
-							 "tpp_instr period_A %d last %d secs (mb=%.3f, mb/min=%.3f) lrg send over %d (sends=%d, qualified=%d, minbytes=%d, maxbytes=%d, avgkb=%.1f)",
-							 conn->td->NAS_TPP_LOG_PERIOD_A,
-							 (int) (curr - conn->td->nas_last_time_A),
-							 conn->td->nas_kb_sent_A / 1024.0,
-							 (conn->td->nas_kb_sent_A / 1024.0) / (((double) (curr - conn->td->nas_last_time_A)) / 60.0),
-							 TPP_SCRATCHSIZE,
-							 conn->td->nas_num_lrg_sends_A,
-							 conn->td->nas_num_qual_lrg_sends_A,
-							 conn->td->nas_num_lrg_sends_A > 0 ? conn->td->nas_min_bytes_lrg_send_A : 0,
-							 conn->td->nas_max_bytes_lrg_send_A,
-							 conn->td->nas_num_lrg_sends_A > 0 ? conn->td->nas_lrg_send_sum_kb_A / ((double) conn->td->nas_num_lrg_sends_A) : 0.0);
-						tpp_log_func(LOG_ERR, __func__, tpp_get_logbuf());
-					}
-
-					conn->td->nas_last_time_A = curr;
-					conn->td->nas_kb_sent_A = 0.0;
-					conn->td->nas_num_lrg_sends_A = 0;
-					conn->td->nas_num_qual_lrg_sends_A = 0;
-					conn->td->nas_max_bytes_lrg_send_A = 0;
-					conn->td->nas_min_bytes_lrg_send_A = INT_MAX - 1;
-					conn->td->nas_lrg_send_sum_kb_A = 0.0;
-				}
-
-				if (curr > (conn->td->nas_last_time_B + conn->td->NAS_TPP_LOG_PERIOD_B)) {
-					if (conn->td->nas_tpp_log_enabled) {
-						snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ,
-							 "tpp_instr period_B %d last %d secs (mb=%.3f, mb/min=%.3f) lrg send over %d (sends=%d, qualified=%d, minbytes=%d, maxbytes=%d, avgkb=%.1f)",
-							 conn->td->NAS_TPP_LOG_PERIOD_B,
-							 (int) (curr - conn->td->nas_last_time_B),
-							 conn->td->nas_kb_sent_B / 1024.0,
-							 (conn->td->nas_kb_sent_B / 1024.0) / (((double) (curr - conn->td->nas_last_time_B)) / 60.0),
-							 TPP_SCRATCHSIZE,
-							 conn->td->nas_num_lrg_sends_B,
-							 conn->td->nas_num_qual_lrg_sends_B,
-							 conn->td->nas_num_lrg_sends_B > 0 ? conn->td->nas_min_bytes_lrg_send_B : 0,
-							 conn->td->nas_max_bytes_lrg_send_B,
-							 conn->td->nas_num_lrg_sends_B > 0 ? conn->td->nas_lrg_send_sum_kb_B / ((double) conn->td->nas_num_lrg_sends_B) : 0.0);
-						tpp_log_func(LOG_ERR, __func__, tpp_get_logbuf());
-					}
-
-					conn->td->nas_last_time_B = curr;
-					conn->td->nas_kb_sent_B = 0.0;
-					conn->td->nas_num_lrg_sends_B = 0;
-					conn->td->nas_num_qual_lrg_sends_B = 0;
-					conn->td->nas_max_bytes_lrg_send_B = 0;
-					conn->td->nas_min_bytes_lrg_send_B = INT_MAX - 1;
-					conn->td->nas_lrg_send_sum_kb_B = 0.0;
-				}
-
-				if (curr > (conn->td->nas_last_time_C + conn->td->NAS_TPP_LOG_PERIOD_C)) {
-					if (conn->td->nas_tpp_log_enabled) {
-						snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ,
-							 "tpp_instr period_C %d last %d secs (mb=%.3f, mb/min=%.3f) lrg send over %d (sends=%d, qualified=%d, minbytes=%d, maxbytes=%d, avgkb=%.1f)",
-							conn->td->NAS_TPP_LOG_PERIOD_C,
-							(int) (curr - conn->td->nas_last_time_C),
-							conn->td->nas_kb_sent_C / 1024.0,
-							(conn->td->nas_kb_sent_C / 1024.0) / (((double) (
-							curr - conn->td->nas_last_time_C)) / 60.0),
-							TPP_SCRATCHSIZE,
-							conn->td->nas_num_lrg_sends_C,
-							conn->td->nas_num_qual_lrg_sends_C,
-							conn->td->nas_num_lrg_sends_C > 0 ? conn->td->nas_min_bytes_lrg_send_C : 0,
-							conn->td->nas_max_bytes_lrg_send_C,
-							conn->td->nas_num_lrg_sends_C > 0 ? conn->td->nas_lrg_send_sum_kb_C / ((double) conn->td->nas_num_lrg_sends_C) : 0.0);
-						tpp_log_func(LOG_ERR, __func__, tpp_get_logbuf());
-					}
-
-					conn->td->nas_last_time_C = curr;
-					conn->td->nas_kb_sent_C = 0.0;
-					conn->td->nas_num_lrg_sends_C = 0;
-					conn->td->nas_num_qual_lrg_sends_C = 0;
-					conn->td->nas_max_bytes_lrg_send_C = 0;
-					conn->td->nas_min_bytes_lrg_send_C = INT_MAX - 1;
-					conn->td->nas_lrg_send_sum_kb_C = 0.0;
-				}
-			}
-#endif /* localmod 149 */
-
-			if (rc < 0) {
-				if (errno == EWOULDBLOCK || errno == EAGAIN) {
-					/* set this socket in POLLOUT */
-					if (tpp_em_mod_fd(conn->td->em_context, conn->sock_fd,
-						EM_IN | EM_OUT | EM_HUP | EM_ERR)	== -1) {
-						tpp_log_func(LOG_ERR, __func__, "Multiplexing failed");
+						handle_disconnect(conn);
 						return;
 					}
-
-					/* set to cannot send data any more */
-					conn->can_send = 0;
-				} else {
-					handle_disconnect(conn);
-					return;
+					break;
 				}
-				can_send_more = 0;
-				break;
-			}
-			TPP_DBPRT(("tfd=%d, sending out %d bytes", conn->sock_fd, rc));
-			p->pos += rc;
-			tosend -= rc;
-		}
-
-		if (tosend == 0) {
-			conn->send_queue_size -= p->len;
-
-			if (the_pkt_postsend_handler)
-				the_pkt_postsend_handler(conn->sock_fd, p);
-			else {
-				tpp_free_pkt(p);
+				TPP_DBPRT("tfd=%d, tosend=%d, sent=%d bytes", conn->sock_fd, tosend, rc);
+				p->pos += rc;
+				tosend -= rc;
 			}
 
+			if (tosend == 0) {
+				p = GET_NEXT(p->chunk_link);
+				if (p)
+					pkt->curr_chunk = p;
+				else
+					curr_pkt_done = 1;
+			}
+		} else
+			curr_pkt_done = 1;
+
+		if (pkt && curr_pkt_done) {
 			/*
-			 * all data in this packet has been sent or done with.
-			 * delete this node and get next node in queue
-			 */
-			n = tpp_que_del_elem(&conn->send_queue, n);
-			n = TPP_QUE_HEAD(&conn->send_queue);
-			p = TPP_QUE_DATA(n);
+			* all data in this packet has been sent or done with.
+			* delete this node and get next node in queue
+			*/
+			tpp_free_pkt(pkt);
+			conn->curr_send_pkt = NULL;
 		}
 	}
 }
@@ -2360,7 +2022,9 @@ send_data(phy_conn_t *conn)
 static void
 free_phy_conn(phy_conn_t *conn)
 {
-	tpp_packet_t *p = NULL;
+	tpp_que_elem_t *n = NULL;
+	tpp_packet_t *pkt;
+	short cmd;
 
 	if (!conn)
 		return;
@@ -2371,25 +2035,16 @@ free_phy_conn(phy_conn_t *conn)
 		free(conn->conn_params);
 	}
 
-	while ((p = tpp_deque(&conn->send_queue))) {
-		tpp_free_pkt(p);
+	while (tpp_mbox_clear(&conn->send_mbox, &n, conn->sock_fd, &cmd, (void **) &pkt) == 0) {
+		if (cmd == TPP_CMD_SEND)
+			tpp_free_pkt(pkt);
 	}
+
+	tpp_mbox_destroy(&conn->send_mbox);
 
 	free(conn->ctx);
 	free(conn->scratch.data);
-	free(conn->scratch.extra_data);
 	free(conn);
-}
-
-/*
- * Dummy log function used when terminate is called
- * We cannot log anything after fork even if tpp_dummy_logfunc
- * is called accidentally, so set tpp_log_func to this
- * dummy function
- */
-void
-tpp_dummy_logfunc(int level, const char *id, char *mess)
-{
 }
 
 /**
@@ -2412,15 +2067,18 @@ tpp_transport_shutdown()
 	int i;
 	void *ret;
 
-	tpp_log_func(LOG_INFO, NULL, "Shutting down TPP transport Layer");
+	tpp_log(LOG_INFO, NULL, "Shutting down TPP transport Layer");
 
 	for (i = 0; i < num_threads; i++) {
-		tpp_mbox_post(&thrd_pool[i]->mbox, 0, TPP_CMD_EXIT, NULL);
+		tpp_mbox_post(&thrd_pool[i]->mbox, 0, TPP_CMD_EXIT, NULL, 0);
 	}
 
 	for (i = 0; i < num_threads; i++) {
 		if (tpp_is_valid_thrd(thrd_pool[i]->worker_thrd_id))
 			pthread_join(thrd_pool[i]->worker_thrd_id, &ret);
+
+		tpp_em_destroy(thrd_pool[i]->em_context);
+		free(thrd_pool[i]->tpp_tls);
 		free(thrd_pool[i]);
 	}
 	free(thrd_pool);
@@ -2434,9 +2092,9 @@ tpp_transport_shutdown()
 
 	/* free the array */
 	free(conns_array);
-	if (tpp_destroy_lock(&cons_array_lock)) {
+	if (tpp_destroy_rwlock(&cons_array_lock))
 		return 1;
-	}
+
 	return 0;
 }
 
@@ -2457,23 +2115,20 @@ tpp_transport_terminate()
 
 	/* Warning: Do not attempt to destroy any lock
 	 * This is not required since our library is effectively
-	 * not used after a fork. The function tpp_mbox_destroy
-	 * calls pthread_mutex_destroy, so don't call them.
-	 * Also never log anything from a terminate handler
+	 * not used after a fork.
 	 *
-	 * Don't bother to free any TPP data as well, as the forked 
+	 * Don't bother to free any TPP data as well, as the forked
 	 * process is usually short lived and no point spending time
-	 * freeing space on a short lived forked process. Besides, 
-	 * the TPP thread which is lost after fork might have been in 
+	 * freeing space on a short lived forked process. Besides,
+	 * the TPP thread which is lost after fork might have been in
 	 * between using these data when the fork happened, so freeing
 	 * some structures might be dangerous.
 	 *
-	 * Thus the only thing we do here is to close file/sockets 
+	 * Thus the only thing we do here is to close file/sockets
 	 * so that the kernel can recognize when a close happens from the
 	 * main process.
-	 * 
+	 *
 	 */
-	tpp_log_func = tpp_dummy_logfunc;
 
 	for (i = 0; i < num_threads; i++) {
 		if (thrd_pool[i]->listen_fd > -1)
@@ -2489,4 +2144,42 @@ tpp_transport_terminate()
 	}
 
 	return 0;
+}
+
+/**
+ * @brief
+ *	Retrive hostname associated with given file descriptor of physical connection
+ *
+ * @param[in] tfd - Descriptor to the physical connection
+ *
+ */
+const char *
+tpp_transport_get_conn_hostname(int tfd)
+{
+	int slot_state;
+	phy_conn_t *conn;
+	conn = get_transport_atomic(tfd, &slot_state);
+	if (conn) {
+		return ((const char *) (conn->conn_params->hostname));
+	}
+	return NULL;
+}
+
+/**
+ * @brief
+ *	Function associates some extra structure with physical connection
+ *
+ * @param[in] tfd - Descriptor to the physical connection
+ * @param[in] extra - Pointer to extra structure
+ *
+ */
+void
+tpp_transport_set_conn_extra(int tfd, void *extra)
+{
+	int slot_state;
+	phy_conn_t *conn;
+	conn = get_transport_atomic(tfd, &slot_state);
+	if (conn) {
+		conn->extra = extra;
+	}
 }

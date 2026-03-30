@@ -1,44 +1,49 @@
 
 #
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 #
 
 lib_LIBRARIES = libattr.a
 
-libattr_a_CPPFLAGS = -I$(top_srcdir)/src/include
+libattr_a_CPPFLAGS = \
+	-I$(top_srcdir)/src/include \
+	@KRB5_CFLAGS@
 
 libattr_a_SOURCES = \
 	attr_atomic.c \
@@ -62,7 +67,6 @@ libattr_a_SOURCES = \
 	attr_resc_func.c \
 	job_attr_def.c \
 	Long_.c \
-	LTostr.c \
 	node_attr_def.c \
 	queue_attr_def.c \
 	resc_def_all.c \
@@ -92,45 +96,30 @@ CLEANFILES = \
 	sched_attr_def.c \
 	svr_attr_def.c
 
-job_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_job_attr_def.xml
+job_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_job_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_job_attr_def.xml \
-		-e /dev/null -s $@ -a job
+	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_job_attr_def.xml -s $@
 
-svr_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_svr_attr_def.xml
+svr_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_svr_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_svr_attr_def.xml \
-		-e /dev/null -s $@ -a server
+	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_svr_attr_def.xml -s $@
 
-queue_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_queue_attr_def.xml
+queue_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_queue_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_queue_attr_def.xml \
-		-e /dev/null -s $@ -a queue
+	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_queue_attr_def.xml -s $@
 
-node_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_node_attr_def.xml
+node_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_node_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_node_attr_def.xml \
-		-e /dev/null -s $@ -a node
+	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_node_attr_def.xml -s $@
 
-sched_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_sched_attr_def.xml
+sched_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_sched_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_sched_attr_def.xml \
-		-e /dev/null -s $@ -a sched
+	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_sched_attr_def.xml -s $@
 
-resv_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_resv_attr_def.xml
+resv_attr_def.c: $(top_srcdir)/src/lib/Libattr/master_resv_attr_def.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_resv_attr_def.xml \
-		-e /dev/null -s $@ -a resv
+	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_resv_attr_def.xml -s $@
 
-resc_def_all.c: $(top_srcdir)/src/lib/Libattr/master_resc_def_all.xml
+resc_def_all.c: $(top_srcdir)/src/lib/Libattr/master_resc_def_all.xml $(top_srcdir)/buildutils/attr_parser.py
 	@echo Generating $@ from $< ; \
-	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py \
-		-m $(top_srcdir)/src/lib/Libattr/master_resc_def_all.xml \
-		-e /dev/null -s $@ -a resc
-
+	@PYTHON@ $(top_srcdir)/buildutils/attr_parser.py -m $(top_srcdir)/src/lib/Libattr/master_resc_def_all.xml -s $@

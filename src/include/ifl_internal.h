@@ -1,131 +1,151 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
 
 #ifndef _IFL_INTERNAL_H
-#define	_IFL_INTERNAL_H
+#define _IFL_INTERNAL_H
 
-#ifdef	__cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "pbs_ifl.h"
+#include "pbs_internal.h"
 
-extern int __pbs_asyrunjob(int, char *, char *, char *);
+/* Used for non blocking connect */
+#define NOBLK_FLAG "NOBLK"
+#define NOBLK_TOUT 2
 
-extern int __pbs_alterjob(int, char *, struct attrl *, char *);
+/* IFL functions */
+int __pbs_asyrunjob(int, const char *, const char *, const char *);
 
-extern int __pbs_confirmresv(int, char *, char *, unsigned long, char *);
+int __pbs_asyrunjob_ack(int c, const char *jobid, const char *location, const char *extend);
 
-extern int __pbs_connect(char *);
+int __pbs_alterjob(int, const char *, struct attrl *, const char *);
 
-extern int __pbs_connect_extend(char *, char *);
+int __pbs_asyalterjob(int, const char *, struct attrl *, const char *);
 
-extern char *__pbs_default(void);
+int __pbs_confirmresv(int, const char *, const char *, unsigned long, const char *);
 
-extern int __pbs_deljob(int, char *, char *);
+int __pbs_connect(const char *);
 
-extern int __pbs_disconnect(int);
+int __pbs_connect_extend(const char *, const char *);
 
-extern char *__pbs_geterrmsg(int);
+char *__pbs_default(void);
 
-extern int __pbs_holdjob(int, char *, char *, char *);
+int __pbs_deljob(int, const char *, const char *);
 
-extern int __pbs_loadconf(int);
+struct batch_deljob_status *__pbs_deljoblist(int, char **, int, const char *);
 
-extern char *__pbs_locjob(int, char *, char *);
+int __pbs_disconnect(int);
 
-extern int __pbs_manager(int, int, int, char *, struct attropl *, char *);
+char *__pbs_geterrmsg(int);
 
-extern int __pbs_movejob(int, char *, char *, char *);
+int __pbs_holdjob(int, const char *, const char *, const char *);
 
-extern int __pbs_msgjob(int, char *, int, char *, char *);
+int __pbs_loadconf(int);
 
-extern int __pbs_orderjob(int, char *, char *, char *);
+char *__pbs_locjob(int, const char *, const char *);
 
-extern int __pbs_rerunjob(int, char *, char *);
+int __pbs_manager(int, int, int, const char *, struct attropl *, const char *);
 
-extern int __pbs_rlsjob(int, char *, char *, char *);
+int __pbs_movejob(int, const char *, const char *, const char *);
 
-extern int __pbs_runjob(int, char *, char *, char *);
+int __pbs_msgjob(int, const char *, int, const char *, const char *);
 
-extern char **__pbs_selectjob(int, struct attropl *, char *);
+int __pbs_orderjob(int, const char *, const char *, const char *);
 
-extern int __pbs_sigjob(int, char *, char *, char *);
+int __pbs_rerunjob(int, const char *, const char *);
 
-extern void __pbs_statfree(struct batch_status *);
+int __pbs_rlsjob(int, const char *, const char *, const char *);
 
-extern struct batch_status *__pbs_statrsc(int, char *, struct attrl *, char *);
+int __pbs_runjob(int, const char *, const char *, const char *);
 
-extern struct batch_status *__pbs_statjob(int, char *, struct attrl *, char *);
+char **__pbs_selectjob(int, struct attropl *, const char *);
 
-extern struct batch_status *__pbs_selstat(int, struct attropl *, struct attrl *, char *);
+int __pbs_sigjob(int, const char *, const char *, const char *);
 
-extern struct batch_status *__pbs_statque(int, char *, struct attrl *, char *);
+void __pbs_statfree(struct batch_status *);
 
-extern struct batch_status *__pbs_statserver(int, struct attrl *, char *);
+void __pbs_delstatfree(struct batch_deljob_status *);
 
-extern struct batch_status *__pbs_statsched(int, struct attrl *, char *);
+struct batch_status *__pbs_statrsc(int, const char *, struct attrl *, const char *);
 
-extern struct batch_status *__pbs_stathost(int, char *, struct attrl *, char *);
+struct batch_status *__pbs_statjob(int, const char *, struct attrl *, const char *);
 
-extern struct batch_status *__pbs_statnode(int, char *, struct attrl *, char *);
+struct batch_status *__pbs_selstat(int, struct attropl *, struct attrl *, const char *);
 
-extern struct batch_status *__pbs_statvnode(int, char *, struct attrl *, char *);
+struct batch_status *__pbs_statque(int, const char *, struct attrl *, const char *);
 
-extern struct batch_status *__pbs_statresv(int, char *, struct attrl *, char *);
+struct batch_status *__pbs_statserver(int, struct attrl *, const char *);
 
-extern struct batch_status *__pbs_stathook(int, char *, struct attrl *, char *);
+struct batch_status *__pbs_statsched(int, struct attrl *, const char *);
 
-extern struct ecl_attribute_errors * __pbs_get_attributes_in_error(int);
+struct batch_status *__pbs_stathost(int, const char *, struct attrl *, const char *);
 
-extern char *__pbs_submit(int, struct attropl *, char *, char *, char *);
+struct batch_status *__pbs_statnode(int, const char *, struct attrl *, const char *);
 
-extern char *__pbs_submit_resv(int, struct attropl *, char *);
+struct batch_status *__pbs_statvnode(int, const char *, struct attrl *, const char *);
 
-extern int __pbs_delresv(int, char *, char *);
+struct batch_status *__pbs_statresv(int, const char *, struct attrl *, const char *);
 
-extern int __pbs_terminate(int, int, char *);
+struct batch_status *__pbs_stathook(int, const char *, struct attrl *, const char *);
 
-extern preempt_job_info *__pbs_preempt_jobs(int, char **);
+struct ecl_attribute_errors *__pbs_get_attributes_in_error(int);
 
-#ifdef	__cplusplus
+char *__pbs_submit(int, struct attropl *, const char *, const char *, const char *);
+
+char *__pbs_submit_resv(int, struct attropl *, const char *);
+
+char *__pbs_modify_resv(int c, const char *resv_id, struct attropl *attrib, const char *extend);
+
+int __pbs_delresv(int, const char *, const char *);
+
+int __pbs_relnodesjob(int c, const char *jobid, const char *node_list, const char *extend);
+
+int __pbs_terminate(int, int, const char *);
+
+preempt_job_info *__pbs_preempt_jobs(int, char **);
+
+int __pbs_register_sched(const char *sched_id, int primary_conn_id, int secondary_conn_id);
+
+#ifdef __cplusplus
 }
 #endif
 
-#endif	/* _IFL_INTERNAL_H */
-
+#endif /* _IFL_INTERNAL_H */

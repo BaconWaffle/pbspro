@@ -1,40 +1,42 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
  * @file
  *		pbs_probe.c
@@ -76,16 +78,19 @@
  * 	fix_perm_owner()
  *
  */
+#include <pbs_config.h>
 
+#include <pbs_python_private.h>
+#include <Python.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <fcntl.h>
 #include <pwd.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <limits.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -95,8 +100,9 @@
 #include "cmds.h"
 #include "pbs_version.h"
 #include "pbs_ifl.h"
+#include "glob.h"
 
-
+// clang-format off
 
 #ifndef	S_ISLNK
 #define	S_ISLNK(m)	(((m) & S_IFMT) == S_IFLNK)
@@ -270,22 +276,25 @@ static char mhp[][20] = {
 
 /* ---- default values for uid/gid, user names, group names ----*/
 
-static	int	pbsdata[] = {-1, -1};		  /* PBS datastore */
-static	int	pbsu[] = {0, -1};		  /* PBS UID, default */
-static	int	du[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1}; /* non-PBS UIDs, default */
+static int pbsdata[] = {-1, -1};		  /* PBS datastore */
+static int pbsservice[] = {0, -1}; /* PBS daemon service user */
+static int pbsu[] = {0, -1};		  /* PBS UID, default */
+static int du[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1}; /* non-PBS UIDs, default */
 
-static	char	*pbs_dataname[] =  {"pbsdata", NULL}; /* PBS data name, default */
-static	char	*pbs_unames[] =  {"root", NULL}; /* PBS user name, default */
-static	char	*pbs_gnames[] =  {NULL}; /* PBS group name, default*/
+static char *pbs_dataname[] = {"pbsdata", NULL}; /* PBS data name, default */
+static char *pbs_servicename[] = {"root", NULL}; /* PBS daemon service name, default */
+static char *pbs_unames[] = {"root", NULL}; /* PBS user name, default */
+static char *pbs_gnames[] = {NULL}; /* PBS group name, default*/
 
 static	int	dg[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1}; /* non-PBS GIDs, default */
 
 
 /* ---------- default VLD_UG structures, PBS and non-PBS -----------*/
 
-static	VLD_UG	dflt_pbs_data = { pbsdata, dg, &pbs_dataname[0], &pbs_gnames[0] };
-static	VLD_UG	dflt_pbs_ug = { pbsu, dg, &pbs_unames[0], &pbs_gnames[0] };
-static	VLD_UG	dflt_ext_ug = { du, dg, &pbs_unames[0], &pbs_gnames[0] };
+static VLD_UG dflt_pbs_data = { pbsdata, dg, &pbs_dataname[0], &pbs_gnames[0] };
+static VLD_UG dflt_pbs_service = { pbsservice, dg, &pbs_servicename[0], &pbs_gnames[0] };
+static VLD_UG dflt_pbs_ug = { pbsu, dg, &pbs_unames[0], &pbs_gnames[0] };
+static VLD_UG dflt_ext_ug = { du, dg, &pbs_unames[0], &pbs_gnames[0] };
 
 /* ============  PBS path names ============ */
 
@@ -357,54 +366,50 @@ static char exec[][80] = {
 /* ------------ PBS EXEC: relative paths ----------*/
 
 static char exbin[][80] = {
-	/* 00 */ "bin/nqs2pbs",
-	/* 01 */ "bin/pbs_topologyinfo",
-	/* 02 */ "bin/pbs_hostn",
-	/* 03 */ "bin/pbs_rdel",
-	/* 04 */ "bin/pbs_rstat",
-	/* 05 */ "bin/pbs_rsub",
-	/* 06 */ "bin/pbs_tclsh",
-	/* 07 */ "bin/pbs_wish",
-	/* 08 */ "bin/pbsdsh",
-	/* 09 */ "bin/pbsnodes",
-	/* 10 */ "bin/printjob",
-	/* 11 */ "bin/qalter",
-	/* 12 */ "bin/qdel",
-	/* 13 */ "bin/qdisable",
-	/* 14 */ "bin/qenable",
-	/* 15 */ "bin/qhold",
-	/* 16 */ "bin/qmgr",
-	/* 17 */ "bin/qmove",
-	/* 18 */ "bin/qmsg",
-	/* 19 */ "bin/qorder",
-	/* 20 */ "bin/qrerun",
-	/* 21 */ "bin/qrls",
-	/* 22 */ "bin/qrun",
-	/* 23 */ "bin/qselect",
-	/* 24 */ "bin/qsig",
-	/* 25 */ "bin/qstart",
-	/* 26 */ "bin/qstat",
-	/* 27 */ "bin/qstop",
-	/* 28 */ "bin/qsub",
-	/* 29 */ "bin/qterm",
-	/* 30 */ "bin/tracejob",
-	/* 31 */ "bin/pbs_password",
-	/* 32 */ "bin/pbs_migrate_users",
-	/* 33 */ "XXX",				/* slot available for use */
-	/* 34 */ "bin/pbs_lamboot",
-	/* 35 */ "bin/pbs_mpilam",
-	/* 36 */ "bin/pbs_mpirun",
-	/* 37 */ "bin/pbs_mpihp",
-	/* 38 */ "bin/pbs_attach",
-	/* 39 */ "bin/pbs_remsh",
-	/* 40 */ "bin/pbs_tmrsh",
-	/* 41 */ "bin/mpiexec",
-	/* 42 */ "bin/pbsrun",
-	/* 43 */ "bin/pbsrun_wrap",
-	/* 44 */ "bin/pbsrun_unwrap",
-	/* 45 */ "bin/pbs_python",
-	/* 46 */ "bin/pbs_ds_password",
-	/* 47 */ "bin/pbs_dataservice"
+	/* 00 */ "bin/pbs_topologyinfo",
+	/* 01 */ "bin/pbs_hostn",
+	/* 02 */ "bin/pbs_rdel",
+	/* 03 */ "bin/pbs_rstat",
+	/* 04 */ "bin/pbs_rsub",
+	/* 05 */ "bin/pbs_tclsh",
+	/* 06 */ "bin/pbs_wish",
+	/* 07 */ "bin/pbsdsh",
+	/* 08 */ "bin/pbsnodes",
+	/* 09 */ "bin/printjob",
+	/* 10 */ "bin/qalter",
+	/* 11 */ "bin/qdel",
+	/* 12 */ "bin/qdisable",
+	/* 13 */ "bin/qenable",
+	/* 14 */ "bin/qhold",
+	/* 15 */ "bin/qmgr",
+	/* 16 */ "bin/qmove",
+	/* 17 */ "bin/qmsg",
+	/* 18 */ "bin/qorder",
+	/* 19 */ "bin/qrerun",
+	/* 20 */ "bin/qrls",
+	/* 21 */ "bin/qrun",
+	/* 22 */ "bin/qselect",
+	/* 23 */ "bin/qsig",
+	/* 24 */ "bin/qstart",
+	/* 25 */ "bin/qstat",
+	/* 26 */ "bin/qstop",
+	/* 27 */ "bin/qsub",
+	/* 28 */ "bin/qterm",
+	/* 29 */ "bin/tracejob",
+	/* 30 */ "bin/pbs_lamboot",
+	/* 31 */ "bin/pbs_mpilam",
+	/* 32 */ "bin/pbs_mpirun",
+	/* 33 */ "bin/pbs_mpihp",
+	/* 34 */ "bin/pbs_attach",
+	/* 35 */ "bin/pbs_remsh",
+	/* 36 */ "bin/pbs_tmrsh",
+	/* 37 */ "bin/mpiexec",
+	/* 38 */ "bin/pbsrun",
+	/* 39 */ "bin/pbsrun_wrap",
+	/* 40 */ "bin/pbsrun_unwrap",
+	/* 41 */ "bin/pbs_python",
+	/* 42 */ "bin/pbs_ds_password",
+	/* 43 */ "bin/pbs_dataservice"
 };
 
 static char exsbin[][80] = {
@@ -413,8 +418,8 @@ static char exsbin[][80] = {
 	/* 02 */ "sbin/pbs_idled",
 	/* 03 */ "sbin/pbs_iff",
 	/* 04 */ "sbin/pbs_mom",
-	/* 05 */ "sbin/pbs_mom.cpuset",
-	/* 06 */ "sbin/pbs_mom.standard",
+	/* 05 */ "XXX",				/* slot available for use */
+	/* 06 */ "XXX",				/* slot available for use */
 	/* 07 */ "sbin/pbs_rcp",
 	/* 08 */ "sbin/pbs_sched",
 	/* 09 */ "sbin/pbs_server",
@@ -432,9 +437,8 @@ static char exetc[][80] = {
 	/* 05 */ "etc/pbs_postinstall",
 	/* 06 */ "etc/pbs_resource_group",
 	/* 07 */ "etc/pbs_sched_config",
-	/* 08 */ "etc/install_db",
-	/* 09 */ "etc/pbs_db_schema.sql",
-	/* 10 */ "etc/pbs_topologyinfo"
+	/* 08 */ "etc/pbs_db_utility",
+	/* 09 */ "etc/pbs_topologyinfo"
 };
 
 static char exinc[][80] = {
@@ -447,7 +451,7 @@ static char exinc[][80] = {
 
 static char exlib[][80] = {
 	/* 00 */ "lib/libattr.a",
-	/* 01 */ "lib/libcmds.a",	/* this library no longer exists */
+	/* 01 */ "SLOT_AVAILABLE",
 	/* 02 */ "lib/liblog.a",
 	/* 03 */ "lib/libnet.a",
 	/* 04 */ "lib/libpbs.a",
@@ -463,32 +467,27 @@ static char exlib[][80] = {
 	/* 14 */ "lib/MPI/pbsrun.mx_mpd.init.in",
 	/* 15 */ "lib/MPI/pbsrun.mpich2.init.in",
 	/* 16 */ "lib/MPI/pbsrun.intelmpi.init.in",
-	/* 17 */ "lib/MPI/pbsrun.bgl.init.in",
+	/* 17 */ "SLOT_AVAILABLE",
 	/* 18 */ "lib/python",
 	/* 19 */ "lib/python/altair",
 	/* 20 */ "lib/python/altair/pbs",
-	/* 21 */ "lib/python/altair/pbs/__init__.pyc",
-	/* 22 */ "lib/python/altair/pbs/__init__.py",
-	/* 23 */ "lib/python/altair/pbs/v1",
-	/* 24 */ "lib/python/altair/pbs/v1/__init__.pyc",
-	/* 25 */ "lib/python/altair/pbs/v1/__init__.py",
-	/* 26 */ "lib/python/altair/pbs/v1/_export_types.py",
-	/* 27 */ "lib/python/altair/pbs/v1/__init__.pyo",
-	/* 28 */ "lib/python/altair/pbs/v1/_attr_types.py",
-	/* 29 */ "lib/python/altair/pbs/v1/_attr_types.pyc",
-	/* 30 */ "lib/python/altair/pbs/v1/_attr_types.pyo",
+	/* 21 */ "lib/python/altair/pbs/__pycache__",
+	/* 22 */ "lib/python/altair/pbs/__pycache__/__init__.cpython-3?.pyc",
+	/* 23 */ "lib/python/altair/pbs/__init__.py",
+	/* 24 */ "lib/python/altair/pbs/v1",
+	/* 25 */ "lib/python/altair/pbs/v1/__pycache__",
+	/* 26 */ "lib/python/altair/pbs/v1/__pycache__/__init__.cpython-3?.pyc",
+	/* 27 */ "lib/python/altair/pbs/v1/__init__.py",
+	/* 28 */ "lib/python/altair/pbs/v1/_export_types.py",
+	/* 29 */ "lib/python/altair/pbs/v1/_attr_types.py",
+	/* 30 */ "lib/python/altair/pbs/v1/__pycache__/_attr_types.cpython-3?.pyc",
 	/* 31 */ "lib/python/altair/pbs/v1/_base_types.py",
-	/* 32 */ "lib/python/altair/pbs/v1/_base_types.pyc",
-	/* 33 */ "lib/python/altair/pbs/v1/_base_types.pyo",
-	/* 34 */ "lib/python/altair/pbs/v1/_exc_types.py",
-	/* 35 */ "lib/python/altair/pbs/v1/_exc_types.pyc",
-	/* 36 */ "lib/python/altair/pbs/v1/_exc_types.pyo",
-	/* 37 */ "lib/python/altair/pbs/v1/_export_types.pyo",
-	/* 38 */ "lib/python/altair/pbs/v1/_export_types.pyc",
-	/* 39 */ "lib/python/altair/pbs/v1/_svr_types.pyo",
-	/* 40 */ "lib/python/altair/pbs/v1/_svr_types.py",
-	/* 41 */ "lib/python/altair/pbs/v1/_svr_types.pyc",
-	/* 42 */ "lib/python/altair/pbs/__init__.pyo"
+	/* 32 */ "lib/python/altair/pbs/v1/__pycache__/_base_types.cpython-3?.pyc",
+	/* 33 */ "lib/python/altair/pbs/v1/_exc_types.py",
+	/* 34 */ "lib/python/altair/pbs/v1/__pycache__/_exc_types.cpython-3?.pyc",
+	/* 35 */ "lib/python/altair/pbs/v1/__pycache__/_export_types.cpython-3?.pyc",
+	/* 36 */ "lib/python/altair/pbs/v1/_svr_types.py",
+	/* 37 */ "lib/python/altair/pbs/v1/__pycache__/_svr_types.cpython-3?.pyc",
 };
 
 #if 0
@@ -500,24 +499,23 @@ static char exec_man8[] = "man/man8";
 
 static char exman1[][80] = {
 	/* 00 */ "man/man1",
-	/* 01 */ "man/man1/nqs2pbs.1B",
-	/* 02 */ "man/man1/pbs_python.1B",
-	/* 03 */ "man/man1/pbs_rdel.1B",
-	/* 04 */ "man/man1/pbs_rstat.1B",
-	/* 05 */ "man/man1/pbs_rsub.1B",
-	/* 06 */ "man/man1/pbsdsh.1B",
-	/* 07 */ "man/man1/qalter.1B",
-	/* 08 */ "man/man1/qdel.1B",
-	/* 09 */ "man/man1/qhold.1B",
-	/* 10 */ "man/man1/qmove.1B",
-	/* 11 */ "man/man1/qmsg.1B",
-	/* 12 */ "man/man1/qorder.1B",
-	/* 13 */ "man/man1/qrerun.1B",
-	/* 14 */ "man/man1/qrls.1B",
-	/* 15 */ "man/man1/qselect.1B",
-	/* 16 */ "man/man1/qsig.1B",
-	/* 17 */ "man/man1/qstat.1B",
-	/* 18 */ "man/man1/qsub.1B"
+	/* 01 */ "man/man1/pbs_python.1B",
+	/* 02 */ "man/man1/pbs_rdel.1B",
+	/* 03 */ "man/man1/pbs_rstat.1B",
+	/* 04 */ "man/man1/pbs_rsub.1B",
+	/* 05 */ "man/man1/pbsdsh.1B",
+	/* 06 */ "man/man1/qalter.1B",
+	/* 07 */ "man/man1/qdel.1B",
+	/* 08 */ "man/man1/qhold.1B",
+	/* 09 */ "man/man1/qmove.1B",
+	/* 10 */ "man/man1/qmsg.1B",
+	/* 11 */ "man/man1/qorder.1B",
+	/* 12 */ "man/man1/qrerun.1B",
+	/* 13 */ "man/man1/qrls.1B",
+	/* 14 */ "man/man1/qselect.1B",
+	/* 15 */ "man/man1/qsig.1B",
+	/* 16 */ "man/man1/qstat.1B",
+	/* 17 */ "man/man1/qsub.1B"
 };
 
 static char exman3[][80] = {
@@ -547,14 +545,13 @@ static char exman3[][80] = {
 	/* 23 */ "man/man3/pbs_statserver.3B",
 	/* 24 */ "man/man3/pbs_submit.3B",
 	/* 25 */ "man/man3/pbs_terminate.3B",
-	/* 26 */ "man/man3/rpp.3",
-	/* 27 */ "man/man3/tm.3",
-	/* 28 */ "man/man3/pbs_tclapi.3B",
-	/* 29 */ "man/man3/pbs_delresv.3B",
-	/* 30 */ "man/man3/pbs_locjob.3B",
-	/* 31 */ "man/man3/pbs_selstat.3B",
-	/* 32 */ "man/man3/pbs_statresv.3B",
-	/* 33 */ "man/man3/pbs_statfree.3B"
+	/* 26 */ "man/man3/tm.3",
+	/* 27 */ "man/man3/pbs_tclapi.3B",
+	/* 28 */ "man/man3/pbs_delresv.3B",
+	/* 29 */ "man/man3/pbs_locjob.3B",
+	/* 30 */ "man/man3/pbs_selstat.3B",
+	/* 31 */ "man/man3/pbs_statresv.3B",
+	/* 32 */ "man/man3/pbs_statfree.3B"
 };
 
 static char exman7[][80] = {
@@ -586,21 +583,18 @@ static char exman8[][80] = {
 	/* 13 */ "man/man8/qterm.8B",
 	/* 14 */ "man/man8/pbs_lamboot.8B",
 	/* 15 */ "man/man8/pbs_mpilam.8B",
-	/* 16 */ "man/man8/pbs_password.8B",
-	/* 17 */ "man/man8/pbs_migrate_users.8B",
-	/* 18 */ "man/man8/pbs_mpirun.8B",
-	/* 19 */ "man/man8/XXX",		/* slot available for use */
-	/* 20 */ "man/man8/pbs_attach.8B",
-	/* 21 */ "man/man8/pbs_mkdirs.8B",
-	/* 22 */ "man/man8/pbs_hostn.8B",
-	/* 23 */ "man/man8/pbs_probe.8B",
-	/* 24 */ "man/man8/pbs-report.8B",
-	/* 25 */ "man/man8/pbs_tclsh.8B",
-	/* 26 */ "man/man8/pbs_tmrsh.8B",
-	/* 27 */ "man/man8/pbs_wish.8B",
-	/* 28 */ "man/man8/printjob.8B",
-	/* 29 */ "man/man8/pbs.8B",
-	/* 30 */ "man/man8/pbs_interactive.8B"
+	/* 16 */ "man/man8/pbs_mpirun.8B",
+	/* 17 */ "man/man8/pbs_attach.8B",
+	/* 18 */ "man/man8/pbs_mkdirs.8B",
+	/* 19 */ "man/man8/pbs_hostn.8B",
+	/* 20 */ "man/man8/pbs_probe.8B",
+	/* 21 */ "man/man8/pbs-report.8B",
+	/* 22 */ "man/man8/pbs_tclsh.8B",
+	/* 23 */ "man/man8/pbs_tmrsh.8B",
+	/* 24 */ "man/man8/pbs_wish.8B",
+	/* 25 */ "man/man8/printjob.8B",
+	/* 26 */ "man/man8/pbs.8B",
+	/* 27 */ "man/man8/pbs_interactive.8B"
 };
 
 static char extcltk[][80] = {
@@ -625,40 +619,6 @@ static char expgsql[][80] = {
 	/* 2 */ "pgsql/lib",
 	/* 3 */ "pgsql/share"
 };
-
-
-/* ----------- messages for stdout ------------- */
-
-#if 0
-static	char err_report_all[] = "pbsprobe found the following errors in the PBS infrastructure:";
-static	char err_report_one[] = "pbsprobe found the following errors in the PBS infrastructure on ";
-static	char err_report_noerr_all[] = "no errors were detected in the PBS infrastructure:";
-static	char err_report_noerr_one[] = "no errors were detected in the PBS infrastructure on ";
-static	char report_describe_all[] = "pbsprobe checked the following PBS infrastructure:";
-static	char report_describe_one[] = "pbsprobe checked the following PBS infrastructure on ";
-
-/* Header and print control strings for Primary Infrastructure Information */
-
-static	char report_hdr_pri_info[] = "Derivation of Primary Infrastructure Information:";
-static  char report_pri_conf[] = "PBS's config file path - used %s.";
-static  char report_pri_home[] = "PBS's home path - used %s.";
-static  char report_pri_exec[] = "PBS's exec path - used %s.";
-static  char report_pri_svr_star[] = "Value of PBS_SERVER_STARTED - used %s.";
-static  char report_pri_mom_star[] = "Value of PBS_MOM_STARTED - used %s.";
-static  char report_pri_sched_star[] = "Value of PBS_SCHED_STARTED - used %s.";
-
-/* Headers and print control strings for categories of problems found */
-
-static  char report_hdr_missing[] = "Missing Files and Directories:";
-static  char report_hdr_bad_om[] = "Files or Directories with Incorrect Ownership or Modes:";
-static  char report_hdr_unkwn[] = "Unknown Files Detected in PBS Directories:";
-static  char report_owner_modes[] = "%s %s has (uid, gid, modes)=(%s, %s, %s); needs to be (%s, %s, %s).";
-static  char report_missing[] = "%s %s is missing.";
-static  char report_unknwn[] = "%s has %s files with no, or an unrecognized, suffix.";
-#endif
-
-
-/* ----------- messages for stderr ------------- */
 
 /* -------- global static PBS variables -------- */
 
@@ -751,54 +711,50 @@ static MPUG	bin_mpugs[] = {
 	 * infrastructure data associated with PBS_EXEC/bin
 	 */
 	{1, 0, 0, drwxrxrx,    tgwow, &dflt_pbs_ug, exec[0],    NULL},
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 0], NULL }, /* nqs2pbs */
-	{1, 6, 0,   frwxgo,   sgsrwxorwx, &dflt_pbs_ug, exbin[ 1], NULL }, /* pbs_topologyinfo */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 2], NULL }, /* pbs_hostn */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 3], NULL }, /* pbs_rdel */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 4], NULL }, /* pbs_rstat */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 5], NULL }, /* pbs_rsub */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 6], NULL }, /* pbs_tclsh */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 7], NULL }, /* pbs_wish */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 8], NULL }, /* pbsdsh */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 9], NULL }, /* pbsnodes */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[10], NULL }, /* printjob */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[11], NULL }, /* qalter */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[12], NULL }, /* qdel */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[13], NULL }, /* qdisable */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[14], NULL }, /* qenable */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[15], NULL }, /* qhold */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[16], NULL }, /* qmgr */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[17], NULL }, /* qmove */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[18], NULL }, /* qmsg */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[19], NULL }, /* qorder */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[20], NULL }, /* qrerun */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[21], NULL }, /* qrls */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[22], NULL }, /* qrun */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[23], NULL }, /* qselect */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[24], NULL }, /* qsig */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[25], NULL }, /* qstart */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[26], NULL }, /* qstat */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[27], NULL }, /* qstop */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[28], NULL }, /* qsub */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[29], NULL }, /* qterm */
-	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[30], NULL }, /* tracejob */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[31], NULL }, /* pbs_password */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[32], NULL }, /* pbs_migrate_users */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[33], NULL }, /* slot available for use */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[34], NULL }, /* pbs_lamboot */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[35], NULL }, /* pbs_mpilam */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[36], NULL }, /* pbs_mpirun */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[37], NULL }, /* pbs_mpihp */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[38], NULL }, /* pbs_attach */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[39], NULL }, /* pbs_remsh */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[40], NULL }, /* pbs_tmrsh */
-	{1, 2, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[41], NULL }, /* mpiexec */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[42], NULL }, /* pbsrun */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[43], NULL }, /* pbsrun_wrap */
-	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[44], NULL }, /* pbsrun_unwrap */
-	{1, 2, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[45], NULL },  /* pbs_python */
-	{1, 6, 0,   frwxgo,     tgrwxorwx, &dflt_pbs_ug, exbin[46], NULL },  /* pbs_ds_password */
-	{1, 6, 0,   frwxgo,     tgrwxorwx, &dflt_pbs_ug, exbin[47], NULL }  /* pbs_dataservice */
+	{1, 6, 0,   frwxgo,   sgsrwxorwx, &dflt_pbs_ug, exbin[ 0], NULL }, /* pbs_topologyinfo */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 1], NULL }, /* pbs_hostn */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 2], NULL }, /* pbs_rdel */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 3], NULL }, /* pbs_rstat */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 4], NULL }, /* pbs_rsub */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 5], NULL }, /* pbs_tclsh */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 6], NULL }, /* pbs_wish */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 7], NULL }, /* pbsdsh */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 8], NULL }, /* pbsnodes */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[ 9], NULL }, /* printjob */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[10], NULL }, /* qalter */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[11], NULL }, /* qdel */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[12], NULL }, /* qdisable */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[13], NULL }, /* qenable */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[14], NULL }, /* qhold */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[15], NULL }, /* qmgr */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[16], NULL }, /* qmove */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[17], NULL }, /* qmsg */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[18], NULL }, /* qorder */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[19], NULL }, /* qrerun */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[20], NULL }, /* qrls */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[21], NULL }, /* qrun */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[22], NULL }, /* qselect */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[23], NULL }, /* qsig */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[24], NULL }, /* qstart */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[25], NULL }, /* qstat */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[26], NULL }, /* qstop */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[27], NULL }, /* qsub */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[28], NULL }, /* qterm */
+	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[29], NULL }, /* tracejob */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[30], NULL }, /* pbs_lamboot */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[31], NULL }, /* pbs_mpilam */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[32], NULL }, /* pbs_mpirun */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[33], NULL }, /* pbs_mpihp */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[34], NULL }, /* pbs_attach */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[35], NULL }, /* pbs_remsh */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[36], NULL }, /* pbs_tmrsh */
+	{1, 2, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[37], NULL }, /* mpiexec */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[38], NULL }, /* pbsrun */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[39], NULL }, /* pbsrun_wrap */
+	{1, 1, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[40], NULL }, /* pbsrun_unwrap */
+	{1, 2, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exbin[41], NULL },  /* pbs_python */
+	{1, 6, 0,   frwxgo,     tgrwxorwx, &dflt_pbs_ug, exbin[42], NULL },  /* pbs_ds_password */
+	{1, 6, 0,   frwxgo,     tgrwxorwx, &dflt_pbs_ug, exbin[43], NULL }  /* pbs_dataservice */
 };
 
 static MPUG	sbin_mpugs[] = {
@@ -811,10 +767,10 @@ static MPUG	sbin_mpugs[] = {
 	{1, 2, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exsbin[ 2], NULL }, /* pbs_idled */
 	{1, 0, 0,  fsrwxrxrx,      gswow, &dflt_pbs_ug, exsbin[ 3], NULL }, /* pbs_iff */
 	{1, 2, 0,     frwxgo, sgsrwxorwx, &dflt_pbs_ug, exsbin[ 4], NULL }, /* pbs_mom */
-	{1, 1, 0,     frwxgo, sgsrwxorwx, &dflt_pbs_ug, exsbin[ 5], NULL }, /* pbs_mom.cpuset, notReq reset to 2 if SGI Linux */
-	{1, 1, 0,     frwxgo, sgsrwxorwx, &dflt_pbs_ug, exsbin[ 6], NULL }, /* pbs_mom.standard, notReq reset to 2 if SGI Linux */
+	{1, 1, 0,     frwxgo, sgsrwxorwx, &dflt_pbs_ug, exsbin[ 5], NULL }, /* slot available for use */
+	{1, 1, 0,     frwxgo, sgsrwxorwx, &dflt_pbs_ug, exsbin[ 6], NULL }, /* slot available for use */
 	{1, 2, 0,  fsrwxrxrx,      gswow, &dflt_pbs_ug, exsbin[ 7], NULL }, /* pbs_rcp */
-	{1, 6, 0,     frwxgo, sgsrwxorwx, &dflt_pbs_ug, exsbin[ 8], NULL }, /* pbs_sched */
+	{1, 6, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exsbin[ 8], NULL }, /* pbs_sched */
 	{1, 6, 0,     frwxgo, sgsrwxorwx, &dflt_pbs_ug, exsbin[ 9], NULL }, /* pbs_server */
 	{1, 6, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exsbin[10], NULL }, /* pbsfs */
 	{1, 0, 0,   frwxrxrx,     sgswow, &dflt_pbs_ug, exsbin[11], NULL }, /* pbs_probe */
@@ -835,9 +791,8 @@ static MPUG	etc_mpugs[] = {
 	{1, 0, 0,   frwxgo, sgsrwxorwx, &dflt_pbs_ug, exetc[ 5], NULL }, /* pbs_postinstall */
 	{1, 6, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exetc[ 6], NULL }, /* pbs_resource_group */
 	{1, 6, 0,   frgror,   sgswxowx, &dflt_pbs_ug, exetc[ 7], NULL }, /* pbs_sched_config */
-	{1, 6, 0,   frwxgo,  tgrwxorwx, &dflt_pbs_ug, exetc[ 8], NULL }, /* install_db */
-	{1, 6, 0,    frwrr,   sgswxowx, &dflt_pbs_ug, exetc[ 9], NULL }, /* pbs_db_schema.sql */
-	{1, 6, 0,   frwxgo, sgsrwxorwx, &dflt_pbs_ug, exetc[10], NULL }  /* pbs_topologyinfo */
+	{1, 6, 0,   frwxgo,  tgrwxorwx, &dflt_pbs_ug, exetc[ 8], NULL }, /* pbs_db_utility */
+	{1, 6, 0,   frwxgo, sgsrwxorwx, &dflt_pbs_ug, exetc[ 9], NULL }  /* pbs_topologyinfo */
 };
 
 
@@ -859,9 +814,8 @@ static MPUG	lib_mpugs[] = {
 	 */
 	{1, 0, 0, drwxrxrx,    tgwow, &dflt_pbs_ug, exec[3],    NULL},
 	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[ 0], NULL }, /* libattr.a */
-	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[ 1], NULL }, /* libcmds.a */
+	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[ 1], NULL }, /* SLOT_AVAILABLE */
 	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[ 2], NULL }, /* liblog.a */
-
 	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[ 3], NULL }, /* libnet.a */
 	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[ 4], NULL }, /* libpbs.a */
 	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[ 5], NULL }, /* libsite.a */
@@ -876,32 +830,34 @@ static MPUG	lib_mpugs[] = {
 	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[14], NULL}, /* pbsrun.mx_mpd.init.in */
 	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[15], NULL}, /* pbsrun.mpich2.init.in */
 	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[16], NULL},  /* pbsrun.intelmpi.init.in */
-	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[17], NULL},  /* pbsrun.bgl.init.in */
+	{1, 1, 0,    frwrr,  xsgswxowx, &dflt_pbs_ug, exlib[17], NULL},  /* SLOT_AVAILABLE */
 	{1, 6, 0,    drwxrxrx,   tgwow, &dflt_pbs_ug, exlib[18], NULL},  /* lib/python */
 	{1, 2, 0,    drwxrxrx,   tgwow, &dflt_pbs_ug, exlib[19], NULL},  /* lib/python/altair */
 	{1, 2, 0,    drwxrxrx,   tgwow, &dflt_pbs_ug, exlib[20], NULL},  /* lib/python/altair/pbs */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[21], NULL},  /* lib/python/altair/pbs/__init__.pyc */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[22], NULL},  /* lib/python/altair/pbs/__init__.py */
-	{1, 2, 0,    drwxrxrx,   tgwow, &dflt_pbs_ug, exlib[23], NULL},  /* lib/python/altair/pbs/v1 */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[24], NULL},  /* lib/python/altair/pbs/v1/__init__.pyc */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[25], NULL},  /* lib/python/altair/pbs/v1/__init__.py */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[26], NULL},  /* lib/python/altair/pbs/v1/_export_types.py */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[27], NULL},  /* lib/python/altair/pbs/v1/__init__.pyo */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[28], NULL},  /* lib/python/altair/pbs/v1/_attr_types.py */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[29], NULL},  /* lib/python/altair/pbs/v1/_attr_types.pyc */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[30], NULL},  /* lib/python/altair/pbs/v1/_attr_types.pyo */
+	{1, 2, 0,    drwxrxrx,   tgwow, &dflt_pbs_ug, exlib[21], NULL},  /* lib/python/altair/pbs/__pycache__ */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[22], NULL},  /* lib/python/altair/pbs/__pycache__
+	/__init__.cpython-3?.pyc */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[23], NULL},  /* lib/python/altair/pbs/__init__.py */
+	{1, 2, 0,    drwxrxrx,   tgwow, &dflt_pbs_ug, exlib[24], NULL},  /* lib/python/altair/pbs/v1 */
+	{1, 2, 0,    drwxrxrx,   tgwow, &dflt_pbs_ug, exlib[25], NULL},  /* lib/python/altair/pbs/v1/__pycache__ */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[26], NULL},  /* lib/python/altair/pbs/v1/__pycache__
+	/__init__.cpython-3?.pyc */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[27], NULL},  /* lib/python/altair/pbs/v1/__init__.py */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[28], NULL},  /* lib/python/altair/pbs/v1/_export_types.py */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[29], NULL},  /* lib/python/altair/pbs/v1/_attr_types.py */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[30], NULL},  /* lib/python/altair/pbs/v1/__pycache__
+	/_attr_types.cpython-3?.pyc */
 	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[31], NULL},  /* lib/python/altair/pbs/v1/_base_types.py */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[32], NULL},  /* lib/python/altair/pbs/v1/_base_types.pyc */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[33], NULL},  /* lib/python/altair/pbs/v1/_base_types.pyo */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[34], NULL},  /* lib/python/altair/pbs/v1/_exc_types.py */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[35], NULL},  /* lib/python/altair/pbs/v1/_exc_types.pyc */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[36], NULL},  /* lib/python/altair/pbs/v1/_exc_types.pyo */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[37], NULL},  /* lib/python/altair/pbs/v1/_export_types.pyo */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[38], NULL},  /* lib/python/altair/pbs/v1/_export_types.pyc */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[39], NULL},  /* lib/python/altair/pbs/v1/_svr_types.pyo */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[40], NULL},  /* lib/python/altair/pbs/v1/_svr_types.py */
-	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[41], NULL},  /* lib/python/altair/pbs/v1/_svr_types.pyc */
-	{1, 0, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[42], NULL},  /* lib/python/altair/pbs/__init__.pyo */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[32], NULL},  /* lib/python/altair/pbs/v1/__pycache__
+	/_base_types.cpython-3?.pyc */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[33], NULL},  /* lib/python/altair/pbs/v1/_exc_types.py */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[34], NULL},  /* lib/python/altair/pbs/v1/__pycache__
+	/_exc_types.cpython-3?.pyc */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[35], NULL},  /* lib/python/altair/pbs/v1/__pycache__
+	/_export_types.cpython-3?pyc */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[36], NULL},  /* lib/python/altair/pbs/v1/_svr_types.py */
+	{1, 2, 0,    frgror,  sgswxowx, &dflt_pbs_ug, exlib[37], NULL},  /* lib/python/altair/pbs/v1/__pycache__
+	/_svr_types.cpython-3?.pyc */
 };
 
 static MPUG	man_mpugs[] = {
@@ -914,24 +870,23 @@ static MPUG	man_mpugs[] = {
 	 * infrastructure data associated with PBS_EXEC/man/man1
 	 */
 	{1, 0, 0,   drwxrxrx,      tgwow, &dflt_pbs_ug, exman1[ 0], NULL }, /* man1 */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 1], NULL }, /* nqs2pbs.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 2], NULL }, /* pbs_python.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 3], NULL }, /* pbs_rdel.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 4], NULL }, /* pbs_rstat.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 5], NULL }, /* pbs_rsub.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 6], NULL }, /* pbsdsh.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 7], NULL }, /* qalter.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 8], NULL }, /* qdel.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 9], NULL }, /* qhold.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[10], NULL }, /* qmove.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[11], NULL }, /* qmsg.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[12], NULL }, /* qorder.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[13], NULL }, /* qrerun.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[14], NULL }, /* qrls.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[15], NULL }, /* qselect.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[16], NULL }, /* qsig.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[17], NULL }, /* qstat.1B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[18], NULL }, /* qsub.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 1], NULL }, /* pbs_python.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 2], NULL }, /* pbs_rdel.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 3], NULL }, /* pbs_rstat.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 4], NULL }, /* pbs_rsub.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 5], NULL }, /* pbsdsh.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 6], NULL }, /* qalter.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 7], NULL }, /* qdel.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 8], NULL }, /* qhold.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[ 9], NULL }, /* qmove.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[10], NULL }, /* qmsg.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[11], NULL }, /* qorder.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[12], NULL }, /* qrerun.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[13], NULL }, /* qrls.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[14], NULL }, /* qselect.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[15], NULL }, /* qsig.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[16], NULL }, /* qstat.1B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman1[17], NULL }, /* qsub.1B */
 
 	/*
 	 * infrastructure data associated with PBS_EXEC/man/man3
@@ -962,14 +917,13 @@ static MPUG	man_mpugs[] = {
 	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[23], NULL }, /* pbs_statserver.3B */
 	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[24], NULL }, /* pbs_submit.3B */
 	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[25], NULL }, /* pbs_terminate.3B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[26], NULL }, /* rpp.3 */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[27], NULL }, /* tm.3 */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[28], NULL }, /* pbs_tclapi.3B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[29], NULL }, /* pbs_delresv.3B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[30], NULL }, /* pbs_locjob.3B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[31], NULL }, /* pbs_selstat.3B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[32], NULL }, /* pbs_statresv.3B */
-	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[33], NULL }, /* pbs_statfree.3B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[26], NULL }, /* tm.3 */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[27], NULL }, /* pbs_tclapi.3B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[28], NULL }, /* pbs_delresv.3B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[20], NULL }, /* pbs_locjob.3B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[30], NULL }, /* pbs_selstat.3B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[31], NULL }, /* pbs_statresv.3B */
+	{1, 0, 0,      frwrr,  xsgswxowx, &dflt_pbs_ug, exman3[32], NULL }, /* pbs_statfree.3B */
 
 	/*
 	 * infrastructure data associated with PBS_EXEC/man/man7
@@ -1003,21 +957,18 @@ static MPUG	man_mpugs[] = {
 	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[13], NULL }, /* qterm.8B */
 	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[14], NULL }, /* pbs_lamboot.8B */
 	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[15], NULL }, /* pbs_mpilam.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[16], NULL }, /* pbs_password.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[17], NULL }, /* pbs_migrate_users.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[18], NULL }, /* pbs_mpirun.8B */
-	{1, 1, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[19], NULL }, /* slot available for use */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[20], NULL }, /* pbs_attach.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[21], NULL }, /* pbs_mkdirs.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[22], NULL }, /* pbs_hostn.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[23], NULL }, /* pbs_probe.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[24], NULL }, /* pbs-report.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[25], NULL }, /* pbs_tclsh.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[26], NULL }, /* pbs_tmrsh.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[27], NULL }, /* pbs_wish.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[28], NULL }, /* printjob.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[29], NULL }, /* pbs.8B */
-	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[30], NULL } }; /* pbs_interactive.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[16], NULL }, /* pbs_mpirun.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[17], NULL }, /* pbs_attach.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[18], NULL }, /* pbs_mkdirs.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[19], NULL }, /* pbs_hostn.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[20], NULL }, /* pbs_probe.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[21], NULL }, /* pbs-report.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[22], NULL }, /* pbs_tclsh.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[23], NULL }, /* pbs_tmrsh.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[24], NULL }, /* pbs_wish.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[25], NULL }, /* printjob.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[26], NULL }, /* pbs.8B */
+	{1, 0, 0,     frwrr,  xsgswxowx, &dflt_pbs_ug, exman8[27], NULL } }; /* pbs_interactive.8B */
 
 static MPUG	tcltk_mpugs[] = {
 	/*
@@ -1119,14 +1070,14 @@ static MPUG	sched_mpugs[] = {
 	 * dir, chkfull, required and disallowed modes, pointer
 	 * to "valid users, valid groups", path, realpath
 	 */
-	{2, 0, 0, drwxrxrx,    tgwow, &dflt_pbs_ug, schedhome[0], NULL}, /* sched_logs */
-	{2, 0, 0, drwxrxo,   tgworwx, &dflt_pbs_ug, schedhome[1], NULL}, /* sched_priv */
-	{2, 0, 0, frwrr,   xsgswxowx, &dflt_pbs_ug, schedhome[2], NULL}, /* dedicated_time */
-	{2, 0, 0, frwrr,   xsgswxowx, &dflt_pbs_ug, schedhome[3], NULL}, /* holidays */
-	{2, 0, 0, frwrr,   xsgswxowx, &dflt_pbs_ug, schedhome[4], NULL}, /* sched_config */
-	{2, 0, 0, frwrr,   xsgswxowx, &dflt_pbs_ug, schedhome[5], NULL}, /* resource_group */
-	{0, 1, 0, frwrr,   xsgswxowx, &dflt_pbs_ug, schedhome[6], NULL}, /* sched.lock */
-	{2, 1, 0, frwrr,   xsgswxowx, &dflt_pbs_ug, schedhome[7], NULL} }; /* sched_out */
+	{2, 0, 0, drwxrxrx,    tgwow, &dflt_pbs_service, schedhome[0], NULL}, /* sched_logs */
+	{2, 0, 0, drwxrxo,   tgworwx, &dflt_pbs_service, schedhome[1], NULL}, /* sched_priv */
+	{2, 0, 0, frwrr,   xsgswxowx, &dflt_pbs_service, schedhome[2], NULL}, /* dedicated_time */
+	{2, 0, 0, frwrr,   xsgswxowx, &dflt_pbs_service, schedhome[3], NULL}, /* holidays */
+	{2, 0, 0, frwrr,   xsgswxowx, &dflt_pbs_service, schedhome[4], NULL}, /* sched_config */
+	{2, 0, 0, frwrr,   xsgswxowx, &dflt_pbs_service, schedhome[5], NULL}, /* resource_group */
+	{0, 1, 0, frwrr,   xsgswxowx, &dflt_pbs_service, schedhome[6], NULL}, /* sched.lock */
+	{2, 1, 0, frwrr,   xsgswxowx, &dflt_pbs_service, schedhome[7], NULL} }; /* sched_out */
 
 
 
@@ -1161,7 +1112,7 @@ typedef struct	probemsgs {
 	/*
 	 * each pointer in mtbls will point to an array of
 	 * pointers to messages.  The message pointers in each
-	 * array are pointing to output messages from pbsprobe that
+	 * array are pointing to output messages from pbs_probe that
 	 * belong to the same "category" of message - e.g. messages
 	 * about a file being "missing". (see enum msg_categories)
 	 *
@@ -1176,8 +1127,8 @@ typedef struct	probemsgs {
 
 typedef struct	infrastruct {
 
-	int	mode;		/* pbsprobe "mode" */
-	char*	phost;		/* host running pbsprobe */
+	int	mode;		/* pbs_probe "mode" */
+	char*	phost;		/* host running pbs_probe */
 
 	/* PRIMARY related MPUGS and their sources */
 
@@ -1265,7 +1216,7 @@ main(int argc, char *argv[])
 	am_i_authorized();
 
 	/*
-	 * Check that this invocation of pbsprobe is properly formed
+	 * Check that this invocation of pbs_probe is properly formed
 	 * compute the "run mode"
 	 */
 
@@ -1359,7 +1310,7 @@ main(int argc, char *argv[])
 }
 /**
  * @brief
- * 		Check whether user is authorized to use pbsprobe.
+ * 		Check whether user is authorized to use pbs_probe.
  *
  * @par MT-safe:	No
  */
@@ -1376,7 +1327,7 @@ am_i_authorized(void)
 	/*problem encountered*/
 
 	if (ppwd)
-		fprintf(stderr, "User %s not authorized to use pbsprobe\n", ppwd->pw_name);
+		fprintf(stderr, "User %s not authorized to use pbs_probe\n", ppwd->pw_name);
 	else
 		fprintf(stderr, "Problem checking user authorization for utility\n");
 	exit(1);
@@ -1386,7 +1337,7 @@ am_i_authorized(void)
  * 		configure values for various infrastructure parameters.
  *
  * @param[out]	pinf	-	 structpointer to infrastruct
- * @param[out]	mode	-	 pbsprobe "mode"
+ * @param[out]	mode	-	 pbs_probe "mode"
  */
 static void
 infrastruct_params(struct infrastruct *pinf, int mode)
@@ -1526,27 +1477,22 @@ adjust_for_os(struct infrastruct *pinf)
 
 	int	ofs_bin = 1;  /* use with bin_mpugs[] */
 	int	ofs_lib = 1;  /* use with lib_mpugs[] */
-	int	ofs_sbin = 1; /* use with sbin_mpugs[] */
 
 	if (strstr(pinf->utsd.ub.sysname, "Linux") != NULL) {
 
 		/* Linux: pbs_lamboot, pbs_mpilam, pbs_mpirun, mpiexec, pbsrun, pbsrun_wrap, pbsrun_unwrap  */
 
-		bin_mpugs[ofs_bin + 36].notReq &= ~(0x1);
-		bin_mpugs[ofs_bin + 37].notReq &= ~(0x1);
+		bin_mpugs[ofs_bin + 31].notReq &= ~(0x1);
+		bin_mpugs[ofs_bin + 32].notReq &= ~(0x1);
+		bin_mpugs[ofs_bin + 33].notReq &= ~(0x1);
 		bin_mpugs[ofs_bin + 38].notReq &= ~(0x1);
-		bin_mpugs[ofs_bin + 43].notReq &= ~(0x1);
-		bin_mpugs[ofs_bin + 44].notReq &= ~(0x1);
-		bin_mpugs[ofs_bin + 45].notReq &= ~(0x1);
-		bin_mpugs[ofs_bin + 46].notReq &= ~(0x1);
+		bin_mpugs[ofs_bin + 39].notReq &= ~(0x1);
+		bin_mpugs[ofs_bin + 40].notReq &= ~(0x1);
+		bin_mpugs[ofs_bin + 41].notReq &= ~(0x1);
 
-		/* Linux + /etc/sgi-release => SGI Altix		*/
 		/* Linux + /etc/sgi-compute-node_release => SGI ICE	*/
-		if ((access("/etc/sgi-release", R_OK) == 0) ||
-			(access("/etc/sgi-compute-node-release", R_OK) == 0)) {
+		if (access("/etc/sgi-compute-node-release", R_OK) == 0) {
 			lib_mpugs[ofs_lib + 23].notReq = 0;    /* sgiMPI.awk       */
-			sbin_mpugs[ofs_sbin + 5].notReq = 0x2; /* pbs_mom.cpuset   */
-			sbin_mpugs[ofs_sbin + 6].notReq = 0x2; /* pbs_mom.standard */
 		}
 
 		/* Linux: pbsrun.<keyword>.init.in files must exist */
@@ -1608,18 +1554,15 @@ print_infrastruct(struct infrastruct *pinf)
 		fprintf(stdout, "\nHierarchy %s:\n", home_mpug_set[i]);
 
 		for (j=0; j<home_sizes[i]; ++j, ++pmpug) {
-
 			if (pmpug->path == NULL || (pmpug->notReq & notbits))
 				continue;
-
-			fprintf(stdout, "%-40s(%s, %s)\n", pmpug->path, perm_string((mode_t)pmpug->req_modes), owner_string(NULL, pmpug, 0));
+                        fprintf(stdout, "%-70s(%s, %s)\n", pmpug->path, perm_string((mode_t)pmpug->req_modes), owner_string(NULL, pmpug, 0));
 		}
 	}
 
 	tflag = 0;
 	for (i=0; i<EXEC_last; ++i) {
-
-		if ((pmpug = pinf->exec[i]) == NULL || (pmpug->notReq & notbits))
+                if ((pmpug = pinf->exec[i]) == NULL || (pmpug->notReq & notbits))
 			continue;
 
 		if (!tflag++)
@@ -1631,8 +1574,7 @@ print_infrastruct(struct infrastruct *pinf)
 
 			if (pmpug->path == NULL || (pmpug->notReq & notbits))
 				continue;
-
-			fprintf(stdout, "%-40s(%s, %s)\n", pmpug->path, perm_string((mode_t)pmpug->req_modes), owner_string(NULL, pmpug, 0));
+			fprintf(stdout, "%-70s(%s, %s)\n", pmpug->path, perm_string((mode_t)pmpug->req_modes), owner_string(NULL, pmpug, 0));
 		}
 	}
 }
@@ -1719,7 +1661,7 @@ title_string(enum code_title tc, int mode, INFRA *pinf)
 			fprintf(stderr,
 				"\t-v        - show hierarchy examined\n");
 			fprintf(stderr,
-				"\t--version - show PBS Pro version and exit\n");
+				"\t--version - show version and exit\n");
 			break;
 	}
 }
@@ -2081,8 +2023,8 @@ get_realpath_values(struct infrastruct *pinf)
 	MPUG *pmpug;
 	int  good_prime[PBS_last];
 	char *msgbuf;
-
-	/*
+	const char *pycptr;
+        /*
 	 * First try and resolve to a real path the MPUG path
 	 * data belonging to *pinf's "pri" member
 	 */
@@ -2111,7 +2053,7 @@ get_realpath_values(struct infrastruct *pinf)
 			}
 		} else {
 			if (pinf->pri.pbs_mpug[i].notReq == 0) {
-				pbs_asprintf(&msgbuf, "Missing primary path %s", 
+				pbs_asprintf(&msgbuf, "Missing primary path %s",
 					origin_names[i]);
 				put_msg_in_table(pinf, SRC_pri, MSG_pri, msgbuf);
 				free(msgbuf);
@@ -2255,13 +2197,19 @@ get_realpath_values(struct infrastruct *pinf)
 						continue;
 
 					strcpy(endhead, pmpug[j].path);
-
 					if ((real = realpath(path, NULL)) != NULL) {
 						pmpug[j].realpath = strdup(real);
 						free(real);
+					} else if ((pycptr = strstr(path, ".pyc")) != NULL){
+						glob_t pycbuf;
+						glob(path, 0, NULL, &pycbuf);
+						if (pycbuf.gl_pathc == 1){
+							pmpug[j].realpath = strdup(pycbuf.gl_pathv[0]);
+							pmpug[j].path = strdup((pycbuf.gl_pathv[0] + strlen(pinf->pri.pbs_mpug[PBS_exec].path) + strlen(demarc)));
+						}
+						globfree(&pycbuf);
 					} else if ((pmpug[j].notReq & notbits) == 0) {
-
-						if (errno == ENOENT)
+                        			if (errno == ENOENT)
 							pbs_asprintf(&msgbuf, "%s, %s\n",
 								path, strerror(errno));
 						else
@@ -2275,7 +2223,6 @@ get_realpath_values(struct infrastruct *pinf)
 			}
 		}
 	}
-
 	return (0);
 }
 
@@ -2373,7 +2320,7 @@ inspect_dir_entries(struct infrastruct *pinf)
 				 * MPUG's for entries that belong to that directory.
 				 *
 				 * A pointer to an array of MPUG pointers is returned.
-				 * These are MPUGS gleened from pbsprobe's database and
+				 * These are MPUGS gleened from pbs_probe's database and
 				 * is thought of as the, "known set of MPUGS".
 				 */
 
@@ -2394,14 +2341,13 @@ inspect_dir_entries(struct infrastruct *pinf)
 
 	for (i=0; i<EXEC_last; ++i) {
 
-		if ((pmpug = pinf->exec[i]) == NULL)
+                if ((pmpug = pinf->exec[i]) == NULL)
 			continue;
 		tsz = exec_sizes[i];
 
 		for (j=0; j<exec_sizes[i]; ++j) {
 
 			if ((pmpug[j].path)) {
-
 				/*
 				 * Refer to block comments in previous code block
 				 * for explanation of what this code block does
@@ -2436,55 +2382,66 @@ which_suffixset(MPUG *pmpug)
 	static char vld_hooks[] = ".HK,.PY";
 	static char vld_resv[] = ".RB,.RBD";
 	static char vld_tcltk[] = ".h,8.3,8.3.a,.sh";
-	static char vld_python[] = ".py,.pyc,.pyo,.so";
-
+	static char vld_python[] = ".py,.pyc,.so";
+	char buf[MAXPATHLEN];
+	char py_version[4];
+	/* Get version of the Python interpreter */
+	strncpy(py_version, Py_GetVersion(), 3);
+	py_version[4] = '\0';
 
 	if (pmpug->path == NULL)
 		return NULL;
-	else if (strcmp("server_priv/jobs", pmpug->path) == 0)
+	if (strcmp("server_priv/jobs", pmpug->path) == 0)
 		return (vld_job);
-	else if (strcmp("server_priv/users", pmpug->path) == 0)
+	if (strcmp("server_priv/users", pmpug->path) == 0)
 		return (vld_job);
-	else if (strcmp("server_priv/hooks", pmpug->path) == 0)
+	if (strcmp("server_priv/hooks", pmpug->path) == 0)
 		return (vld_hooks);
-	else if (strcmp("mom_priv/jobs", pmpug->path) == 0)
+	if (strcmp("mom_priv/jobs", pmpug->path) == 0)
 		return (vld_job);
-	else if (strcmp("undelivered", pmpug->path) == 0)
+	if (strcmp("undelivered", pmpug->path) == 0)
 		return (vld_job);
-	else if (strcmp("spool", pmpug->path) == 0)
+	if (strcmp("spool", pmpug->path) == 0)
 		return (vld_job);
-	else if (strcmp("tcltk/bin", pmpug->path) == 0)
+	if (strcmp("tcltk/bin", pmpug->path) == 0)
 		return (vld_tcltk);
-	else if (strcmp("tcltk/include", pmpug->path) == 0)
+	if (strcmp("tcltk/include", pmpug->path) == 0)
 		return (vld_tcltk);
-	else if (strcmp("tcltk/lib", pmpug->path) == 0)
+	if (strcmp("tcltk/lib", pmpug->path) == 0)
 		return (vld_tcltk);
-	else if (strcmp("lib/python", pmpug->path) == 0)
+	if (strcmp("lib/python", pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/altair", pmpug->path) == 0)
+	if (strcmp("lib/python/altair", pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/altair/pbs", pmpug->path) == 0)
+	if (strcmp("lib/python/altair/pbs", pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/altair/pbs/v1", pmpug->path) == 0)
+	if (strcmp("lib/python/altair/pbs/v1", pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/python2.5", pmpug->path) == 0)
+	snprintf(buf, sizeof(buf), "lib/python/python%s", py_version);
+	if (strcmp(buf, pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/python2.5/logging", pmpug->path) == 0)
+	snprintf(buf, sizeof(buf), "lib/python/python%s/logging", py_version);
+	if (strcmp(buf, pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/python2.5/shared", pmpug->path) == 0)
+	snprintf(buf, sizeof(buf), "lib/python/python%s/shared", py_version);
+	if (strcmp(buf, pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/python2.5/xml", pmpug->path) == 0)
+	snprintf(buf, sizeof(buf), "lib/python/python%s/xml", py_version);
+	if (strcmp(buf, pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/python2.5/xml/dom", pmpug->path) == 0)
+	snprintf(buf, sizeof(buf), "lib/python/python%s/xml/dom", py_version);
+	if (strcmp(buf, pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/python2.5/xml/etree", pmpug->path) == 0)
+	snprintf(buf, sizeof(buf), "lib/python/python%s/xml/etree", py_version);
+	if (strcmp(buf, pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/python2.5/xml/parsers", pmpug->path) == 0)
+	snprintf(buf, sizeof(buf), "lib/python/python%s/xml/parsers", py_version);
+	if (strcmp(buf, pmpug->path) == 0)
 		return (vld_python);
-	else if (strcmp("lib/python/python2.5/xml/sax", pmpug->path) == 0)
+	snprintf(buf, sizeof(buf), "lib/python/python%s/xml/sax", py_version);
+	if (strcmp(buf, pmpug->path) == 0)
 		return (vld_python);
-	else
-		return NULL;
+	return NULL;
 }
 #endif /* 0 */
 
@@ -2697,7 +2654,7 @@ chk_entries(MPUG *pmpug, MPUG **knwn_set)
 			continue;
 
 		/*
-		 * entry is not a known name in pbsprobe's database and none
+		 * entry is not a known name in pbs_probe's database and none
 		 * of the other mechanisms for evaluating, in so way, the
 		 * fitness of this entry were found to apply.
 		 */
@@ -2795,18 +2752,14 @@ check_paths(struct infrastruct *pinf)
 	MPUG	*pmpug;
 	char	*realpath;
 
-#ifndef	_SX
+
 	for (i=0; i<PBS_last; ++i) {
-
 		msg_table_set_defaults(pinf, SRC_pri, MSG_po);
-
 		if ((realpath = pinf->pri.pbs_mpug[i].realpath))
 			check_owner_modes(realpath, &pinf->pri.pbs_mpug[i], 0);
 	}
-#endif
 
 	for (i=0; i<PH_last; ++i) {
-
 		msg_table_set_defaults(pinf, SRC_home, MSG_po);
 
 		if ((pmpug = pinf->home[i]) == NULL)
@@ -2828,12 +2781,10 @@ check_paths(struct infrastruct *pinf)
 		for (j=0; j<exec_sizes[i]; ++j) {
 			if ((realpath = pmpug[j].realpath) &&
 				!(pmpug[j].notReq & notbits)) {
-
-				check_owner_modes(realpath, pmpug + j, 0);
+                                check_owner_modes(realpath, pmpug + j, 0);
 			}
 		}
 	}
-
 	return 0;
 }
 /**
@@ -2866,7 +2817,6 @@ check_owner_modes(char *path, MPUG *p_mpug, int sys)
 	struct stat sbuf;
 	static int  cnt_recursive = 0;
 
-
 	/*
 	 * if full path check is required, see if the path contains
 	 * a sub-path and if it does, call check_owner_modes on that
@@ -2875,7 +2825,6 @@ check_owner_modes(char *path, MPUG *p_mpug, int sys)
 
 	if (p_mpug->chkfull &&
 		(dp = strrchr(path, DEMARC)) && (dp != path)) {
-
 		/* temporarily overwrite demarc */
 
 		*dp = '\0';
@@ -2886,6 +2835,7 @@ check_owner_modes(char *path, MPUG *p_mpug, int sys)
 		/* replace demarc value and stat this component of real path */
 
 		*dp = DEMARC;
+
 	}
 
 	/*
@@ -2912,7 +2862,6 @@ check_owner_modes(char *path, MPUG *p_mpug, int sys)
 	if (! lstat(path, &sbuf)) {
 
 		/* successful on the lstat */
-
 		rc = mbits_and_owner(&sbuf, p_mpug, sys);
 		if (rc) {
 			snprintf(msg, sizeof(msg), "\n%s", path);
@@ -2942,7 +2891,6 @@ check_owner_modes(char *path, MPUG *p_mpug, int sys)
 
 	if (cnt_recursive > 0)
 		--cnt_recursive;
-
 	return (rc);
 }
 
@@ -3270,6 +3218,20 @@ conf4primary(FILE *fp, struct infrastruct *pinf)
 				pinf->pri.pbs_mpug[PBS_exec].path = strdup(conf_value);
 				pinf->pri.src_path.exec = SRC_CONF;
 			}
+			else if (!strcmp(conf_name, "PBS_DAEMON_SERVICE_USER")) {
+				struct passwd *pw;
+				pw = getpwnam(conf_value);
+				if (pw != NULL) {
+					pbs_servicename[0] = strdup(conf_value);
+					pbsservice[0] = pw->pw_uid;
+				}
+				else {
+					char *msgbuf;
+					pbs_asprintf(&msgbuf, "Service user %s does not exist\n", conf_value);
+					put_msg_in_table(NULL, SRC_CONF, MSG_real, msgbuf);
+					free(msgbuf);
+				}
+			}
 
 		} else {
 			/* ignore comment lines (# in column 1) */
@@ -3330,6 +3292,22 @@ env4primary(struct infrastruct *pinf)
 	if ((gvalue = getenv("PBS_CONF_DATA_SERVICE_HOST")) != NULL) {
 		nonlocaldata = 1;
 	}
+	if ((gvalue = getenv("PBS_DAEMON_SERVICE_USER")) != NULL) {
+		struct passwd *pw;
+		pw = getpwnam(gvalue);
+		if (pw != NULL) {
+			pbs_servicename[0] = strdup(gvalue);
+			pbsservice[0] = pw->pw_uid;
+		}
+		else {
+			char *msgbuf;
+			pbs_asprintf(&msgbuf, "Service user %s does not exist\n", gvalue);
+			put_msg_in_table(NULL, SRC_CONF, MSG_real, msgbuf);
+			free(msgbuf);
+		}
+	}
+
+
 	return (0);
 }
 
@@ -3464,7 +3442,7 @@ fix_perm_owner(MPUG *p_mpug, struct stat *ps, ADJ *p_adj)
 		case 2:
 		case 4:
 		case 6:
-			snprintf(msg, sizeof(msg), "%s: corrected ownership(s)", p_mpug->path);
+		  	snprintf(msg, sizeof(msg), "%s: corrected ownership(s)", p_mpug->path);
 			put_msg_in_table(NULL, SRC_none, MSG_po, msg);
 			break;
 
@@ -3476,4 +3454,4 @@ fix_perm_owner(MPUG *p_mpug, struct stat *ps, ADJ *p_adj)
 			break;
 	}
 }
-
+// clang-format on

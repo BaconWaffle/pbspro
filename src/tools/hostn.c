@@ -1,39 +1,40 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
 
 /**
@@ -97,23 +98,21 @@ main(int argc, char *argv[], char *env[])
 	struct hostent *host;
 	struct hostent *hosta;
 	struct in_addr *ina;
-	int		naddr;
-	int		vflag = 0;
+	int naddr;
+	int vflag = 0;
 	void prt_herrno();
 	extern int optind;
 
 	/*the real deal or output pbs_version and exit?*/
 	PRINT_VERSION_AND_EXIT(argc, argv);
 
-#ifdef WIN32
-	if (winsock_init()) {
+	if (initsocketlib())
 		return 1;
-	}
-#endif
 
 	while ((i = getopt(argc, argv, "v-:")) != EOF) {
 		switch (i) {
-			case 'v':	vflag = 1;
+			case 'v':
+				vflag = 1;
 				break;
 			default:
 				usage(argv[0]);
@@ -121,7 +120,7 @@ main(int argc, char *argv[], char *env[])
 		}
 	}
 
-	if (optind != argc-1) {
+	if (optind != argc - 1) {
 		usage(argv[0]);
 		return 1;
 	}
@@ -150,9 +149,9 @@ main(int argc, char *argv[], char *env[])
 		printf("\n");
 		if (vflag) {
 			if (host->h_aliases && *host->h_aliases) {
-				for (i=0; host->h_aliases[i]; ++i)
+				for (i = 0; host->h_aliases[i]; ++i)
 					printf("aliases:           %s\n",
-						host->h_aliases[i]);
+					       host->h_aliases[i]);
 			} else {
 				printf("aliases:            -none-\n");
 			}
@@ -164,30 +163,29 @@ main(int argc, char *argv[], char *env[])
 		/* next call to gethostby*()				    */
 
 		naddr = 0;
-		for (i=0; host->h_addr_list[i]; ++i) {
+		for (i = 0; host->h_addr_list[i]; ++i) {
 			++naddr;
 		}
-		ina = (struct in_addr *)malloc(sizeof(struct in_addr) * naddr);
+		ina = (struct in_addr *) malloc(sizeof(struct in_addr) * naddr);
 		if (ina == NULL) {
 			fprintf(stderr, "%s: out of memory\n", argv[0]);
 			return 1;
 		}
 
-		for (i=0; i<naddr; ++i) {
-			(void)memcpy((char *)(ina+i), host->h_addr_list[i],
-				host->h_length);
+		for (i = 0; i < naddr; ++i) {
+			(void) memcpy((char *) (ina + i), host->h_addr_list[i],
+				      host->h_length);
 		}
 		if (vflag) {
-			for (i=0; i<naddr; ++i) {
-				printf("     address:      %15.15s  ", inet_ntoa(*(ina+i)));
-				printf(" (%u dec)  ", (int)(ina+i)->s_addr);
-
+			for (i = 0; i < naddr; ++i) {
+				printf("     address:      %15.15s  ", inet_ntoa(*(ina + i)));
+				printf(" (%u dec)  ", (int) (ina + i)->s_addr);
 
 #ifndef WIN32
 				h_errno = 0;
 #endif
-				hosta = gethostbyaddr((char *)(ina+i), host->h_length,
-					host->h_addrtype);
+				hosta = gethostbyaddr((char *) (ina + i), host->h_length,
+						      host->h_addrtype);
 				if (hosta) {
 					printf("name:  %s", host->h_name);
 				} else {

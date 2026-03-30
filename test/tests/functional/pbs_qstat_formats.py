@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 import json
@@ -119,11 +122,11 @@ class TestQstatFormats(TestFunctional):
         attrs = self.server.status(obj_type)
         qstat_attrs = []
 
-        for key, val in attrs[0].iteritems():
+        for key, val in attrs[0].items():
             # qstat -F json output does not
             # print the 'id' attribute. Its value
             # is printed instead.
-            if key is 'id':
+            if key == 'id':
                 qstat_attrs.append(str(val))
             else:
                 # Extract keys coming after '.' in 'qstat -f' output so they
@@ -187,7 +190,6 @@ class TestQstatFormats(TestFunctional):
         test qstat outputs job info in dsv format with default delimiter pipe
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': "R"}, id=jid)
         self.parse_dsv(jid, "job")
@@ -210,7 +212,6 @@ class TestQstatFormats(TestFunctional):
         test qstat outputs job info in dsv format with semicolon as delimiter
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': "R"}, id=jid)
         self.parse_dsv(jid, "job", ";")
@@ -233,7 +234,6 @@ class TestQstatFormats(TestFunctional):
         test qstat outputs job array info in dsv format with comma as delimiter
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         j.set_attributes({ATTR_J: '1-3'})
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': "B"}, id=jid)
@@ -256,7 +256,6 @@ class TestQstatFormats(TestFunctional):
         test qstat outputs job info in dsv format with string as delimiter
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': "R"}, id=jid)
         self.parse_dsv(jid, "job", "QWERTY")
@@ -279,7 +278,6 @@ class TestQstatFormats(TestFunctional):
         is equal to the one parsed from one line output.
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         time.sleep(1)
         qstat_cmd = os.path.join(
@@ -296,7 +294,7 @@ class TestQstatFormats(TestFunctional):
         f = open(qstat_dsv_out, 'r')
         dsv_out = f.read()
         f.close()
-        dsv_attr_count = len(dsv_out.replace("\|", "").split("|"))
+        dsv_attr_count = len(dsv_out.replace(r"\|", "").split("|"))
         f = open(qstat_oneline_script, 'w')
         f.write(qstat_cmd + ' -f -w ' + str(jid) + ' > ' + qstat_oneline_out)
         f.close()
@@ -315,7 +313,6 @@ class TestQstatFormats(TestFunctional):
         python json module
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         [qstat_json_script, qstat_json_out] = [DshUtils().create_temp_file()
                                                for _ in range(2)]
@@ -332,7 +329,7 @@ class TestQstatFormats(TestFunctional):
         map(os.remove, [qstat_json_script, qstat_json_out])
         try:
             json_data = json.loads(data)
-        except:
+        except BaseException:
             self.assertTrue(False)
 
     def test_qstat_tag(self):
@@ -342,7 +339,6 @@ class TestQstatFormats(TestFunctional):
         """
         ret = True
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         qstat_cmd = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin',
                                  'qstat') + ' -f ' + str(jid)
@@ -359,7 +355,6 @@ class TestQstatFormats(TestFunctional):
         super user and all attributes displayed in qstat are present in output
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(40)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': "R"}, id=jid)
 
@@ -369,14 +364,14 @@ class TestQstatFormats(TestFunctional):
         qstat_out = "\n".join(ret['out'])
         try:
             json_object = json.loads(qstat_out)
-        except ValueError, e:
+        except ValueError as e:
             self.assertTrue(False)
 
         json_only_attrs = ['Jobs', 'timestamp', 'pbs_version', 'pbs_server']
         attrs_qstatf = self.get_qstat_attribs(JOB)
         qstat_json_attr = []
 
-        for key, val in json_object.iteritems():
+        for key, val in json_object.items():
             qstat_json_attr.append(str(key))
             if isinstance(val, dict):
                 self.parse_json(val, qstat_json_attr)
@@ -396,7 +391,6 @@ class TestQstatFormats(TestFunctional):
         present in the output
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         jid1 = self.server.submit(j)
         jid2 = self.server.submit(j)
         qstat_cmd_json = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin',
@@ -420,13 +414,12 @@ class TestQstatFormats(TestFunctional):
         a = {'resources_available.ncpus': 4}
         self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
         j = Job(TEST_USER)
-        j.set_sleep_time(100)
         jid = self.server.submit(j)
         jid2 = self.server.submit(j)
         jid3 = self.server.submit(j)
-        self.server.expect(JOB, {'job_state': 'R'}, id=jid)
-        self.server.expect(JOB, {'job_state': 'R'}, id=jid2)
-        self.server.expect(JOB, {'job_state': 'R'}, id=jid3)
+        self.server.expect(JOB, {'job_state': "R"}, id=jid)
+        self.server.expect(JOB, {'job_state': "R"}, id=jid2)
+        self.server.expect(JOB, {'job_state': "R"}, id=jid3)
         qstat_cmd_json = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin',
                                       'qstat') + ' -fp -F json '
         ret = self.du.run_cmd(self.server.hostname, cmd=qstat_cmd_json)
@@ -450,7 +443,6 @@ class TestQstatFormats(TestFunctional):
         normal user
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': "R"}, id=jid)
         qstat_cmd_json = os.path.join(self.server.pbs_conf[
@@ -460,7 +452,7 @@ class TestQstatFormats(TestFunctional):
         qstat_out = "\n".join(ret['out'])
         try:
             json_object = json.loads(qstat_out)
-        except ValueError, e:
+        except ValueError as e:
             self.assertTrue(False)
 
     def test_qstat_json_valid_ja(self):
@@ -468,7 +460,6 @@ class TestQstatFormats(TestFunctional):
         Test json output of qstat -f of Job arrays is in valid format
         """
         j = Job(TEST_USER)
-        j.set_sleep_time(10)
         j.set_attributes({ATTR_J: '1-3'})
         jid = self.server.submit(j)
         self.server.expect(JOB, {'job_state': "B"}, id=jid)
@@ -478,7 +469,7 @@ class TestQstatFormats(TestFunctional):
         qstat_out = "\n".join(ret['out'])
         try:
             json_object = json.loads(qstat_out)
-        except ValueError, e:
+        except ValueError as e:
             self.assertTrue(False)
 
     @tags('smoke')
@@ -493,14 +484,14 @@ class TestQstatFormats(TestFunctional):
         qstat_out = "\n".join(ret['out'])
         try:
             json_object = json.loads(qstat_out)
-        except ValueError, e:
+        except ValueError as e:
             self.assertTrue(False)
 
         json_only_attrs = ['Server', 'timestamp', 'pbs_version', 'pbs_server']
         attrs_qstatbf = self.get_qstat_attribs(SERVER)
 
         qstat_json_attr = []
-        for key, val in json_object.iteritems():
+        for key, val in json_object.items():
             qstat_json_attr.append(str(key))
             if isinstance(val, dict):
                 self.parse_json(val, qstat_json_attr)
@@ -525,14 +516,14 @@ class TestQstatFormats(TestFunctional):
         qstat_out = "\n".join(ret['out'])
         try:
             json_object = json.loads(qstat_out)
-        except ValueError, e:
+        except ValueError as e:
             self.assertTrue(False)
 
         json_only_attrs = ['Queue', 'timestamp', 'pbs_version', 'pbs_server']
         attrs_qstatqf = self.get_qstat_attribs(QUEUE)
 
         qstat_json_attr = []
-        for key, val in json_object.iteritems():
+        for key, val in json_object.items():
             qstat_json_attr.append(str(key))
             if isinstance(val, dict):
                 self.parse_json(val, qstat_json_attr)
@@ -575,14 +566,35 @@ class TestQstatFormats(TestFunctional):
         with special chars in env
         """
         os.environ["DOUBLEQUOTES"] = 'hi"ha'
-        os.environ["REVERSESOLIDUS"] = 'hi\ha'
+        os.environ["REVERSESOLIDUS"] = r'hi\ha'
+        os.environ["MYVAR"] = """\'\"asads\"\'"""
+        os.environ["MYHOME"] = """/home/pbstest01/Mo\\'"""
+        os.environ["FOO0"] = """00123"""
+        os.environ["FOO1"] = """.123"""
+        os.environ["FOO2"] = """123."""
+        os.environ["FOO3"] = """00"""
+        os.environ["FOO4"] = """-00"""
+        os.environ["FOO5"] = """00.123"""
+        os.environ["FOO6"] = """-00.123"""
+        os.environ["MYVAR0"] = """\'"""
+        os.environ["MYVAR1"] = """\\'"""
+        os.environ["MYVAR2"] = """\\\'"""
+        os.environ["MYVAR3"] = """\\\\'"""
+        os.environ["MYVAR4"] = """\\\\\\'"""
+        os.environ["MYVAR5"] = """\\\\\\\\\\'"""
+        os.environ["MYVAR6"] = r"""\,"""
+        os.environ["MYVAR7"] = """\\,"""
+        os.environ["MYVAR8"] = r"""\\\,"""
+        os.environ["MYVAR9"] = """\\\\,"""
+        os.environ["MYVAR10"] = """\\\\\\,"""
+        os.environ["MYVAR11"] = """\\\\\\\\\\,"""
+        os.environ["MYVAR12"] = r"""apple\,delight"""
 
         self.server.manager(MGR_CMD_SET, SERVER,
                             {'default_qsub_arguments': '-V'})
 
         j = Job(self.du.get_current_user())
         j.preserve_env = True
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         qstat_cmd_json = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin',
                                       'qstat') + \
@@ -592,6 +604,7 @@ class TestQstatFormats(TestFunctional):
         try:
             json.loads(qstat_out)
         except ValueError:
+            self.logger.info(qstat_out)
             self.assertTrue(False)
 
     def test_qstat_json_valid_job_longint_env(self):
@@ -610,7 +623,6 @@ class TestQstatFormats(TestFunctional):
 
         j = Job(self.du.get_current_user())
         j.preserve_env = True
-        j.set_sleep_time(10)
         jid = self.server.submit(j)
         qstat_cmd_json = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin',
                                       'qstat') + \
@@ -715,3 +727,155 @@ class TestQstatFormats(TestFunctional):
         self.assertNotIn(jid, qstat_out)
         self.assertNotIn(jname, qstat_out)
         self.assertNotIn(qname, qstat_out)
+
+    def test_qstat_json_empty_job_pset(self):
+        """
+        Test an empty pset resource value under json.
+        """
+        # create a custom resource
+        self.server.manager(MGR_CMD_CREATE, RSC,
+                            {'type': 'string', 'flag': 'h'}, id='iru')
+        attr = {'node_group_enable': 'True', 'node_group_key': 'iru'}
+        self.server.manager(MGR_CMD_SET, SERVER, attr)
+
+        j = Job(TEST_USER)
+        jid = self.server.submit(j)
+        time.sleep(6)
+        # when job runs, pset will be set to iru="""
+        qstat_cmd_json = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin',
+                                      'qstat') + ' -f -F json ' + str(jid)
+        ret = self.du.run_cmd(self.server.hostname, cmd=qstat_cmd_json)
+        qstat_out = "\n".join(ret['out'])
+        try:
+            json.loads(qstat_out)
+        except ValueError:
+            self.logger.info(qstat_out)
+            self.assertFalse(True, "Json failed to load")
+
+    def test_qstat_format_conflicts(self):
+        """
+        Test conflicting combinations of alt_opt flags with -F
+        """
+        binpath = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin', 'qstat')
+        conflicting_opts = [
+            '-a -F JSON',
+            '-i -F JSON',
+            '-r -F JSON',
+            '-n -F JSON',
+            '-s -F JSON',
+            '-H -F JSON',
+            '-T -F JSON',
+            '-G -F JSON',
+            '-M -F JSON',
+            '-1 -F JSON',
+            '-w -F JSON',
+        ]
+
+        for flags in conflicting_opts:
+            qstat_cmd = binpath + ' ' + flags
+            ret = self.du.run_cmd(self.server.hostname, cmd=qstat_cmd)
+
+            self.assertNotEqual(ret['rc'], 0, f"Expected failure for: {flags}")
+            self.assertIn("conflicting options", ''.join(ret['err']).lower(),
+                          f"Missing conflict error for: {flags}")
+            self.assertEqual(len(ret['out']), 0, f"Unexpected stdout for: {flags}")
+
+
+    def test_qstat_format_valid_combos(self):
+        """
+        Test valid combinations of alt_opt flags with - JSON
+        i.e. should not throw errors
+        """
+        binpath = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin', 'qstat')
+
+        j = Job(TEST_USER)
+        jid = self.server.submit(j)
+        ret = self.du.run_cmd(self.server.hostname, cmd="qstat -f " + jid)
+        self.assertIn("job_state", ''.join(ret['out']))
+
+        valid_opts = [
+            '-f -F JSON',
+            f'-f -F JSON {jid}',
+            '-Bf -F JSON',
+            '-Qf -F JSON'
+        ]
+
+        for flags in valid_opts:
+            qstat_cmd = binpath + ' ' + flags
+            ret = self.du.run_cmd(self.server.hostname, cmd=qstat_cmd)
+
+            self.assertEqual(ret['rc'], 0, f"Expected success for: {flags}")
+            self.assertEqual(len(ret['err']), 0, f"Unexpected stderr for: {flags}")
+    
+
+    def test_qstat_Qf_json_new_type_queue_format(self):
+        """
+        Test if qstat -Qf -F JSON returns multiple new-type queue restrictions
+        as a single comma separated string, rather than having duplicate keys
+        """
+
+        qname = 'newtypeq'
+        a = {'queue_type': 'Execution', 'enabled': 'True',
+             'started': 'True'}
+        
+        self.server.manager(MGR_CMD_CREATE, QUEUE, a, id=qname)
+
+        # set multiple new-type restrictions:
+        restriction_settings = [
+            ('max_queued ', '[u:foo=3]'),
+            ('max_queued +', '[g:bar=2]'),
+            ('max_run ', '[u:foo=4]'),
+            ('max_run +', '[p:projectX=10]'),
+            ('max_run_soft ', '[g:devs=6]'),
+            ('queued_jobs_threshold ', '[u:baz=15]'),
+            ('max_queued_res.mem ', '[u:foo=100mb]'),
+            ('max_queued_res.mem +', '[g:bar=200mb]'),
+            ('max_queued_res.ncpus ', '[u:foo=3]'),
+        ]
+
+        for attr, val in restriction_settings:
+            self.server.manager(MGR_CMD_SET, QUEUE, {attr: val}, id=qname)
+
+        qstat_cmd_json = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin',
+                                      'qstat') + f' -Qf -F JSON {qname}'
+        ret = self.du.run_cmd(self.server.hostname, cmd=qstat_cmd_json)
+        qstat_out = "\n".join(ret['out'])
+        try:
+            j = json.loads(qstat_out)
+        except ValueError:
+            self.logger.info(qstat_out)
+            self.assertFalse(True, "Json failed to load")
+
+        self.assertIn("Queue", j)
+        self.assertIn(qname, j["Queue"])
+        qdata = j["Queue"][qname]
+        
+        expected = { #regular new type restrictions
+            "max_queued": "[u:foo=3],[g:bar=2]",
+            "max_run": "[u:foo=4],[p:projectX=10]",
+            "max_run_soft": "[g:devs=6]",
+            "queued_jobs_threshold": "[u:baz=15]",
+        }
+
+        for key, val in expected.items():
+            self.assertIn(key, qdata)
+            self.assertIsInstance(qdata[key], str, f"{key} should be a comma-separated string")
+            self.assertCountEqual(qdata[key], val)
+
+        res_expected = { #resource based new type restrictions
+            "max_queued_res": {
+                "mem": "[u:foo=100mb],[g:bar=200mb]",
+                "ncpus": "[u:foo=3]"
+            }
+        }
+
+        for attr_key, attr_val in res_expected.items():
+            self.assertIn(attr_key, qdata)
+            self.assertIsInstance(qdata[attr_key], dict)
+            for res_key, res_val in attr_val.items():
+                self.assertIn(res_key, qdata[attr_key])
+                self.assertCountEqual(qdata[attr_key][res_key], res_val)
+
+
+        self.server.manager(MGR_CMD_DELETE, QUEUE, id=qname)
+

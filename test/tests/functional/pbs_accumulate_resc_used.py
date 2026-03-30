@@ -1,42 +1,47 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 from tests.functional import *
+import ast
 
 
+@requirements(num_moms=3)
 class TestPbsAccumulateRescUsed(TestFunctional):
 
     """
@@ -133,12 +138,9 @@ e.vnode_list[localnode].resources_available['foo_str'] = "seventyseven"
         self.assertEqual(rc, 0)
 
         # Ensure the new resource is seen by all moms.
-        self.momA.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
-        self.momB.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
-        self.momC.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
+        momlist = [self.momA, self.momB, self.momC]
+        for m in momlist:
+            m.log_match("resourcedef;copy hook-related file")
 
         attr['type'] = 'string'
         attr['flag'] = 'h'
@@ -148,9 +150,8 @@ e.vnode_list[localnode].resources_available['foo_str'] = "seventyseven"
         self.assertEqual(rc, 0)
 
         # Ensure the new resource is seen by all moms.
-        self.momA.log_match("resourcedef;copy hook-related file")
-        self.momB.log_match("resourcedef;copy hook-related file")
-        self.momC.log_match("resourcedef;copy hook-related file")
+        for m in momlist:
+            m.log_match("resourcedef;copy hook-related file")
 
         attr['type'] = 'string'
         attr['flag'] = 'h'
@@ -160,9 +161,8 @@ e.vnode_list[localnode].resources_available['foo_str'] = "seventyseven"
         self.assertEqual(rc, 0)
 
         # Ensure the new resource is seen by all moms.
-        self.momA.log_match("resourcedef;copy hook-related file")
-        self.momB.log_match("resourcedef;copy hook-related file")
-        self.momC.log_match("resourcedef;copy hook-related file")
+        for m in momlist:
+            m.log_match("resourcedef;copy hook-related file")
 
         attr['type'] = 'string_array'
         attr['flag'] = 'h'
@@ -173,9 +173,8 @@ e.vnode_list[localnode].resources_available['foo_str'] = "seventyseven"
 
         # Give the moms a chance to receive the updated resource.
         # Ensure the new resource is seen by all moms.
-        self.momA.log_match("resourcedef;copy hook-related file")
-        self.momB.log_match("resourcedef;copy hook-related file")
-        self.momC.log_match("resourcedef;copy hook-related file")
+        for m in momlist:
+            m.log_match("resourcedef;copy hook-related file")
 
     def test_epilogue(self):
         """
@@ -210,7 +209,7 @@ else:
 """
 
         hook_name = "epi"
-        a = {'event': "execjob_epilogue", 'enabled': 'True'}
+        a = {'event': "execjob_epilogue", 'enabled': 'True', 'order': 999}
         rv = self.server.create_import_hook(
             hook_name,
             a,
@@ -318,7 +317,7 @@ else:
         self.server.accounting_match("E;%s;.*%s.*" % (jid, acctlog_match),
                                      regexp=True, n=100, existence=False)
 
-        acctlog_match = 'resources_used.stra=\"glad\,elated\"\,\"happy\"'
+        acctlog_match = r'resources_used.stra=\"glad\,elated\"\,\"happy\"'
         self.server.accounting_match(
             "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
 
@@ -326,7 +325,15 @@ else:
         """
         Test accumulatinon of resources of a multinode job from an
         exechost_prologue hook.
+        On cpuset systems don't check for cput because the pbs_cgroups hook
+        will be enabled and will overwrite the cput value set in the prologue
+        hook
         """
+        has_cpuset = False
+        for mom in self.moms.values():
+            if mom.is_cpuset_mom():
+                has_cpuset = True
+
         self.logger.info("test_prologue")
         hook_body = """
 import pbs
@@ -392,16 +399,20 @@ else:
         #
         # For string_array type  resource 'stra', it is not accumulated but
         # will be set to last seen value from a mom prologue hook.
-        self.server.expect(JOB, {
+        a = {
             'job_state': 'F',
             'resources_used.foo_f': '0.35',
             'resources_used.foo_i': '35',
             'resources_used.foo_str4': "eight",
             'resources_used.stra': "\"glad,elated\",\"happy\"",
             'resources_used.vmem': '35gb',
-            'resources_used.cput': '00:00:35',
-            'resources_used.ncpus': '3'},
-            extend='x', offset=10, attrop=PTL_AND, id=jid)
+            'resources_used.ncpus': '3'}
+
+        if not has_cpuset:
+            a['resources_used.cput'] = '00:00:35'
+
+        self.server.expect(JOB, a, extend='x', offset=10,
+                           attrop=PTL_AND, id=jid)
 
         foo_str_dict_in = {"eight": 8, "seven": 7, "nine": 9}
         qstat = self.server.status(
@@ -454,9 +465,10 @@ else:
         self.server.accounting_match(
             "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
 
-        acctlog_match = 'resources_used.cput=00:00:35'
-        self.server.accounting_match(
-            "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
+        if not has_cpuset:
+            acctlog_match = 'resources_used.cput=00:00:35'
+            self.server.accounting_match(
+                "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
 
         # resources_used.foo_str2 should not be reported in accounting_logs.
         acctlog_match = 'resources_used.foo_str2='
@@ -476,7 +488,7 @@ else:
         self.server.accounting_match(
             "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
 
-        acctlog_match = 'resources_used.stra=\"glad\,elated\"\,\"happy\"'
+        acctlog_match = r'resources_used.stra=\"glad\,elated\"\,\"happy\"'
         self.server.accounting_match(
             "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
 
@@ -632,11 +644,11 @@ for jk in e.job_list.keys():
                 "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
 
             acctlog_match = "resources_used.foo_str3='%s'" % (
-                foo_str3_dict_out_str.replace('.', '\.').
-                replace("#$%^&*@", "\#\$\%\^\&\*\@"))
+                foo_str3_dict_out_str.replace('.', r'\.').
+                replace("#$%^&*@", r"\#\$\%\^\&\*\@"))
             self.server.accounting_match(
                 "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
-            acctlog_match = 'resources_used.stra=\"glad\,elated\"\,\"happy\"'
+            acctlog_match = r'resources_used.stra=\"glad\,elated\"\,\"happy\"'
             self.server.accounting_match(
                 "E;%s;.*%s.*" % (jid, acctlog_match), regexp=True, n=100)
 
@@ -735,11 +747,14 @@ else:
             JOB, 'resources_used.foo_str', id=jid, extend='x')
         foo_str_dict_out_str = eval(qstat[0]['resources_used.foo_str'])
         foo_str_dict_out = eval(foo_str_dict_out_str)
-        self.assertEquals(foo_str_dict_in, foo_str_dict_out)
+        self.assertEqual(foo_str_dict_in, foo_str_dict_out)
 
     def test_reservation(self):
         """
         Test that job inside reservations works same
+        NOTE: Due to the reservation duration and the job duration
+        both being equal, this test found 2 race conditions.
+        KEEP the durations equal to each other.
         """
         # Create non-host level resources from qmgr
         attr = {}
@@ -747,34 +762,23 @@ else:
         self.server.manager(
             MGR_CMD_CREATE, RSC, attr, id='foo_i2', runas=ROOT_USER)
         # Ensure the new resource is seen by all moms.
-        self.momA.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
-        self.momB.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
-        self.momC.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
+        momlist = [self.momA, self.momB, self.momC]
+        for m in momlist:
+            m.log_match("resourcedef;copy hook-related file")
 
         attr['type'] = 'float'
         self.server.manager(
             MGR_CMD_CREATE, RSC, attr, id='foo_f2', runas=ROOT_USER)
         # Ensure the new resource is seen by all moms.
-        self.momA.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
-        self.momB.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
-        self.momC.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
+        for m in momlist:
+            m.log_match("resourcedef;copy hook-related file")
 
         attr['type'] = 'string_array'
         self.server.manager(
             MGR_CMD_CREATE, RSC, attr, id='stra2', runas=ROOT_USER)
         # Ensure the new resource is seen by all moms.
-        self.momA.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
-        self.momB.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
-        self.momC.log_match(
-            "resourcedef;copy hook-related file", max_attempts=3)
+        for m in momlist:
+            m.log_match("resourcedef;copy hook-related file")
 
         # Create an epilogue hook
         hook_body = """
@@ -823,20 +827,30 @@ j.resources_used["stra2"] = '"glad"'
              'resources_used.stra2': "\"glad\"",
              'job_state': 'F'}
         self.server.expect(JOB, a, extend='x', attrop=PTL_AND,
-                           offset=30, interval=1,
-                           max_attempts=20, id=jid)
+                           offset=30, interval=1, id=jid)
+
+        # Below is commented out due to a problem with history jobs
+        # disapearing after a server restart when the reservation is
+        # in state BD during restart.
+        # Once that bug is fixed, this test code should be uncommented
+        # and run.
 
         # Restart server and verifies that the values are still the same
-        self.server.restart()
-
-        # Below is commented due to a known PBS issue
+        # self.server.restart()
         # self.server.expect(JOB, a, extend='x', id=jid)
 
     def test_server_restart(self):
         """
         Test that resource accumulation will not get
         impacted if server is restarted during job execution
+        On cpuset systems don't check for cput because the pbs_cgroups hook
+        will be enabled and will overwrite the cput value set in the prologue
+        hook
         """
+        has_cpuset = False
+        for mom in self.moms.values():
+            if mom.is_cpuset_mom():
+                has_cpuset = True
 
         # Create a prologue hook
         hook_body = """
@@ -893,10 +907,11 @@ else:
         a = {'resources_used.foo_i': '35',
              'resources_used.foo_f': '0.35',
              'resources_used.vmem': '35gb',
-             'resources_used.cput': '00:00:35',
              'resources_used.stra': "\"glad,elated\",\"happy\"",
              'resources_used.foo_str4': "eight",
              'job_state': 'F'}
+        if not has_cpuset:
+            a['resources_used.cput'] = '00:00:35'
         self.server.expect(JOB, a, extend='x',
                            offset=5, id=jid, interval=1, attrop=PTL_AND)
 
@@ -905,7 +920,7 @@ else:
             JOB, 'resources_used.foo_str', id=jid, extend='x')
         foo_str_dict_out_str = eval(qstat[0]['resources_used.foo_str'])
         foo_str_dict_out = eval(foo_str_dict_out_str)
-        self.assertEquals(foo_str_dict_in, foo_str_dict_out)
+        self.assertEqual(foo_str_dict_in, foo_str_dict_out)
 
     def test_mom_down(self):
         """
@@ -936,6 +951,7 @@ for jj in e.job_list.keys():
             overwrite=True)
 
         a = {'Resource_List.select': '3:ncpus=1',
+             'Resource_List.walltime': 300,
              'Resource_List.place': 'scatter'}
         j = Job(TEST_USER)
         j.set_attributes(a)
@@ -945,6 +961,7 @@ for jj in e.job_list.keys():
         a = {'Resource_List.select': '5:ncpus=1',
              'Resource_List.place': 'scatter'}
         j.set_attributes(a)
+        j.set_sleep_time("300")
         jid2 = self.server.submit(j)
 
         # Wait for 10s approx for hook to get executed
@@ -1078,7 +1095,7 @@ else:
 
         # Verify that once subjobs are over values are
         # set for each subjob in the accounting logs
-        subjob1 = string.replace(jid, '[]', '[1]')
+        subjob1 = str.replace(jid, '[]', '[1]')
 
         acctlog_match = 'resources_used.foo_f=0.29'
         # Below code is commented due to a PTL issue
@@ -1107,7 +1124,7 @@ else:
         #    "E;%s;.*%s.*" % (subjob1, acctlog_match), regexp=True, n=100)
         # self.assertTrue(s)
 
-        acctlog_match = 'resources_used.stra=\"glad\,elated\"\,\"happy\"'
+        acctlog_match = r'resources_used.stra=\"glad\,elated\"\,\"happy\"'
         # s = self.server.accounting_match(
         #    "E;%s;.*%s.*" % (subjob1, acctlog_match), regexp=True, n=100)
         # self.assertTrue(s)
@@ -1117,7 +1134,14 @@ else:
         Test that epilogue and prologue changing same
         and different resources. Values of same resource
         would get overwriteen by the last hook.
+        On cpuset systems don't check for cput because the pbs_cgroups hook
+        will be enabled and will overwrite the cput value set in the prologue
+        hook
         """
+        has_cpuset = False
+        for mom in self.moms.values():
+            if mom.is_cpuset_mom():
+                has_cpuset = True
 
         hook_body = """
 import pbs
@@ -1134,12 +1158,9 @@ e.job.resources_used["foo_f"] = 0.10
 
         # Verify the copy message in the logs to avoid
         # race conditions
-        self.momA.log_match(
-            "pro.PY;copy hook-related file", max_attempts=10)
-        self.momB.log_match(
-            "pro.PY;copy hook-related file", max_attempts=10)
-        self.momC.log_match(
-            "pro.PY;copy hook-related file", max_attempts=10)
+        momlist = [self.momA, self.momB, self.momC]
+        for m in momlist:
+            m.log_match("pro.PY;copy hook-related file")
 
         hook_body = """
 import pbs
@@ -1156,12 +1177,8 @@ e.job.resources_used["cput"] = 10
 
         # Verify the copy message in the logs to avoid
         # race conditions
-        self.momA.log_match(
-            "epi.PY;copy hook-related file", max_attempts=10)
-        self.momB.log_match(
-            "epi.PY;copy hook-related file", max_attempts=10)
-        self.momC.log_match(
-            "epi.PY;copy hook-related file", max_attempts=10)
+        for m in momlist:
+            m.log_match("epi.PY;copy hook-related file")
 
         a = {'Resource_List.select': '3:ncpus=1',
              'Resource_List.place': 'scatter'}
@@ -1174,13 +1191,14 @@ e.job.resources_used["cput"] = 10
         jid = self.server.submit(j)
 
         # Verify the resources_used once the job is over
-        self.server.expect(JOB, {
+        b = {
             'resources_used.foo_i': '30',
             'resources_used.foo_f': '0.6',
-            'resources_used.cput': '30',
-            'job_state': 'F'}, attrop=PTL_AND,
-            extend='x', id=jid, offset=5,
-            max_attempts=60, interval=1)
+            'job_state': 'F'}
+
+        if not has_cpuset:
+            b['resources_used.cput'] = '30'
+        self.server.expect(JOB, b, extend='x', id=jid, offset=5, interval=1)
 
         # Submit another job
         j1 = Job(TEST_USER)
@@ -1196,7 +1214,7 @@ e.job.resources_used["cput"] = 10
             'job_state': 'R',
             'resources_used.foo_i': '30',
             'resources_used.foo_f': '0.3'}, attrop=PTL_AND,
-            id=jid1, max_attempts=30, interval=2)
+            id=jid1, interval=2)
 
         # Force delete the job
         self.server.deljob(id=jid1, wait=True, attr_W="force")
@@ -1243,7 +1261,8 @@ time.sleep(15)
         # Submit a job
         a = {'Resource_List.select': '3:ncpus=1',
              'Resource_List.walltime': 10,
-             'Resource_List.place': "scatter"}
+             'Resource_List.place': "scatter",
+             'Keep_Files': 'oe'}
         j = Job(TEST_USER)
         j.set_attributes(a)
         j.set_sleep_time("5")
@@ -1251,11 +1270,16 @@ time.sleep(15)
 
         # Verify the resource values
         a = {'resources_used.foo_i': 29,
-             'resources_used.foo_f': 0.29,
-             'resources_used.foo_str':
-             "\'{\"eight\": 8, \"seven\": 7, \"nine\": 9}\'"}
+             'resources_used.foo_f': 0.29}
+        a_dict = {'eight': 8, 'seven': 7, 'nine': 9}
+
         self.server.expect(JOB, a, extend='x', attrop=PTL_AND,
                            offset=5, id=jid, interval=1)
+        # check for dictionary resource
+        job_status = self.server.status(JOB, id=jid, extend='x')
+        job_str_resource = dict(job_status[0])['resources_used.foo_str']
+        job_str_resource = ast.literal_eval(ast.literal_eval(job_str_resource))
+        self.assertEqual(job_str_resource, a_dict)
 
         # Restart server while hook is still executing
         self.server.restart()
@@ -1263,6 +1287,11 @@ time.sleep(15)
         # Verify that values again
         self.server.expect(JOB, a, extend='x', attrop=PTL_AND,
                            id=jid)
+        # check for dictionary resource
+        job_status = self.server.status(JOB, id=jid, extend='x')
+        job_str_resource = dict(job_status[0])['resources_used.foo_str']
+        job_str_resource = ast.literal_eval(ast.literal_eval(job_str_resource))
+        self.assertEqual(job_str_resource, a_dict)
 
     def test_mom_down2(self):
         """
@@ -1298,11 +1327,10 @@ else:
 
         # Submit a job
         a = {'Resource_List.select': '3:ncpus=1',
-             'Resource_List.walltime': 10,
+             'Resource_List.walltime': 40,
              'Resource_List.place': "scatter"}
         j = Job(TEST_USER)
         j.set_attributes(a)
-        j.set_sleep_time("10")
         jid = self.server.submit(j)
 
         # Verify job is running
@@ -1318,11 +1346,58 @@ else:
         self.server.expect(JOB,
                            {'job_state': 'F',
                             'resources_used.foo_i': '19',
-                            'resources_used.foo_f': '0.19',
-                            'resources_used.foo_str':
-                            '\'{\"eight\": 8, \"seven\": 7, \"nine\": 9}\''},
+                            'resources_used.foo_f': '0.19'},
                            offset=10, id=jid, interval=1, extend='x',
                            attrop=PTL_AND)
+        a_dict = {'eight': 8, 'nine': 9, 'seven': 7}
+
+        # check for dictionary resource
+        job_status = self.server.status(JOB, id=jid, extend='x')
+        job_str_resource = dict(job_status[0])['resources_used.foo_str']
+        job_str_resource = ast.literal_eval(ast.literal_eval(job_str_resource))
+        self.assertEqual(job_str_resource, a_dict)
 
         # Bring the mom back up
         self.momB.start()
+
+    def test_finished_walltime(self):
+        """
+        If used resources are modified from hook, this test makes sure
+        that mem used resources are merged and once the job ends,
+        the walltime is not zero.
+        """
+        hook_body = """
+import pbs
+e = pbs.event()
+if e.type == pbs.EXECHOST_PERIODIC:
+    for jobid in e.job_list:
+        e.job_list[jobid].resources_used["mem"] = pbs.size('1024kb')
+else:
+    e.job.resources_used["mem"] = pbs.size('1024kb')
+"""
+        hook_name = "multinode_used"
+        attr = {'event': 'exechost_periodic,execjob_epilogue,execjob_end',
+                'freq': '3',
+                'enabled': 'True'}
+        rv = self.server.create_import_hook(hook_name, attr, hook_body)
+        self.assertTrue(rv)
+
+        sleeptime = 30
+        a = {'Resource_List.select': '3:ncpus=1',
+             'Resource_List.walltime': sleeptime,
+             'Resource_List.place': "scatter"}
+        j = Job(TEST_USER)
+        j.set_attributes(a)
+        j.set_sleep_time(f"{sleeptime}")
+        jid = self.server.submit(j)
+
+        self.server.expect(JOB, {
+            'job_state': 'R',
+            'resources_used.mem': '3072kb'},
+            attrop=PTL_AND, offset=sleeptime/2, id=jid)
+
+        self.server.expect(JOB, {
+            'job_state': 'F',
+            'resources_used.mem': '3072kb',
+            'resources_used.walltime': sleeptime}, op=GE,
+            extend='x', offset=sleeptime/2, attrop=PTL_AND, id=jid)

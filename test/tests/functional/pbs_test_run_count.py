@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 
@@ -48,7 +51,7 @@ class Test_run_count(TestFunctional):
                  "e.reject()\n")
 
     def create_reject_begin_hook(self):
-        start_time = int(time.time())
+        start_time = time.time()
         attr = {'event': 'execjob_begin'}
         self.server.create_import_hook(self.hook_name, attr, self.hook_body)
 
@@ -57,7 +60,7 @@ class Test_run_count(TestFunctional):
                            existence=True, starttime=start_time)
 
     def disable_reject_begin_hook(self):
-        start_time = int(time.time())
+        start_time = time.time()
         attr = {'enabled': 'false'}
         self.server.manager(MGR_CMD_SET, HOOK, attr, self.hook_name)
 
@@ -116,14 +119,16 @@ class Test_run_count(TestFunctional):
         self.server.expect(JOB, {ATTR_state: "H", ATTR_runcount: maxruncount},
                            attrop=PTL_AND, id=sjid)
         ja_comment = "Job Array Held, too many failed attempts to run subjob"
-        self.server.expect(JOB, {ATTR_state: "H", ATTR_comment: (MATCH_RE,
-                           ja_comment)}, attrop=PTL_AND, id=jid)
+        self.server.expect(JOB, {ATTR_state: "H",
+                                 ATTR_comment: (MATCH_RE, ja_comment)},
+                           attrop=PTL_AND, id=jid)
         self.disable_reject_begin_hook()
         self.server.rlsjob(jid, 's')
         self.server.expect(JOB, {ATTR_state: "R"}, id=sjid)
         ja_comment = "Job Array Began at"
-        self.server.expect(JOB, {ATTR_state: "B", ATTR_comment: (MATCH_RE,
-                           ja_comment)}, attrop=PTL_AND, id=jid)
+        self.server.expect(JOB, {ATTR_state: "B",
+                                 ATTR_comment: (MATCH_RE, ja_comment)},
+                           attrop=PTL_AND, id=jid)
 
     def test_run_count_subjob(self):
         """
@@ -149,16 +154,16 @@ class Test_run_count(TestFunctional):
 
         a = {ATTR_J: '1-6'}
         j = Job(TEST_USER, a)
-        j.set_sleep_time(10)
+        j.set_sleep_time(20)
         jid = self.server.submit(j)
-        time.sleep(9)
+        self.logger.info("Waiting for second subjob to go in R state")
         self.server.expect(JOB, {ATTR_state: "R"},
-                           id=j.create_subjob_id(jid, 2))
+                           id=j.create_subjob_id(jid, 2), offset=15)
         # Create an execjob_begin hook that rejects the job
         self.create_reject_begin_hook()
-        time.sleep(8)
+        self.logger.info("Waiting for subjob to finish")
         self.server.expect(JOB, {ATTR_state: "X"},
-                           id=j.create_subjob_id(jid, 2))
+                           id=j.create_subjob_id(jid, 2), offset=15)
 
         self.subjob_check(jid=jid, sjid=j.create_subjob_id(jid, 3))
 
@@ -191,12 +196,12 @@ class Test_run_count(TestFunctional):
         j = Job(TEST_USER, a)
         j.set_sleep_time(10)
         jid = self.server.submit(j)
-        time.sleep(9)
         self.server.expect(JOB, {ATTR_state: "R"},
                            id=j.create_subjob_id(jid, 2))
+        self.server.manager(MGR_CMD_SET, SCHED, {"scheduling": "false"})
         # Create an execjob_begin hook that rejects the job
         self.create_reject_begin_hook()
-        time.sleep(8)
+        self.server.manager(MGR_CMD_SET, SCHED, {"scheduling": "true"})
         self.server.expect(JOB, {ATTR_state: "X"},
                            id=j.create_subjob_id(jid, 2))
 

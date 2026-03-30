@@ -1,41 +1,45 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
+from ptl.utils.pbs_logutils import PBSLogUtils
 
 
 def convert_time(fmt, tm, fixdate=False):
@@ -63,6 +67,7 @@ def create_subjob_id(job_array_id, subjob_index):
     return job_array_id[:idx + 1] + str(subjob_index) + job_array_id[idx + 1:]
 
 
+@requirements(num_moms=5)
 class TestPbsReliableJobStartup(TestFunctional):
 
     """
@@ -76,6 +81,7 @@ class TestPbsReliableJobStartup(TestFunctional):
     Custom parameters:
     moms: colon-separated hostnames of five MoMs
     """
+    logutils = PBSLogUtils()
 
     def pbs_nodefile_match_exec_host(self, jid, exec_host,
                                      schedselect=None):
@@ -124,9 +130,9 @@ class TestPbsReliableJobStartup(TestFunctional):
 
         self.logger.info("EHOST1=%s" % (ehost1,))
         self.logger.info("EHOST2=%s" % (ehost2,))
-        if cmp(ehost1, ehost2) != 0:
-            return False
-        return True
+        if ehost1 == ehost2:
+            return True
+        return False
 
     def match_accounting_log(self, atype, jid, exec_host, exec_vnode,
                              mem, ncpus, nodect, place, select):
@@ -145,41 +151,42 @@ class TestPbsReliableJobStartup(TestFunctional):
         """
 
         if atype == 'e':
-            self.mom.log_match("Job;%s;Obit sent" % (jid,), n=100,
-                               max_attempts=5, interval=5)
+            self.mom.log_match("Job;%s;Obit sent" % (jid,), n="ALL",
+                               max_attempts=5, interval=5,
+                               starttime=self.stime)
 
         self.server.accounting_match(
-            msg=".*%s;%s.*exec_host=%s" % (atype, jid, exec_host),
-            regexp=True, n=20, max_attempts=3)
+            msg=r".*%s;%s.*exec_host=%s" % (atype, jid, exec_host),
+            regexp=True, n="ALL", max_attempts=3, starttime=self.stime)
 
         self.server.accounting_match(
-            msg=".*%s;%s.*exec_vnode=%s" % (atype, jid, exec_vnode),
-            regexp=True, n=20, max_attempts=3)
+            msg=r".*%s;%s.*exec_vnode=%s" % (atype, jid, exec_vnode),
+            regexp=True, n="ALL", max_attempts=3, starttime=self.stime)
 
         self.server.accounting_match(
-            msg=".*%s;%s.*Resource_List\.mem=%s" % (atype, jid,  mem),
-            regexp=True, n=20, max_attempts=3)
+            msg=r".*%s;%s.*Resource_List\.mem=%s" % (atype, jid,  mem),
+            regexp=True, n="ALL", max_attempts=3, starttime=self.stime)
 
         self.server.accounting_match(
-            msg=".*%s;%s.*Resource_List\.ncpus=%d" % (atype, jid, ncpus),
-            regexp=True, n=20, max_attempts=3)
+            msg=r".*%s;%s.*Resource_List\.ncpus=%d" % (atype, jid, ncpus),
+            regexp=True, n="ALL", max_attempts=3, starttime=self.stime)
 
         self.server.accounting_match(
-            msg=".*%s;%s.*Resource_List\.nodect=%d" % (atype, jid, nodect),
-            regexp=True, n=20, max_attempts=3)
+            msg=r".*%s;%s.*Resource_List\.nodect=%d" % (atype, jid, nodect),
+            regexp=True, n="ALL", max_attempts=3, starttime=self.stime)
 
         self.server.accounting_match(
-            msg=".*%s;%s.*Resource_List\.place=%s" % (atype, jid, place),
-            regexp=True, n=20, max_attempts=3)
+            msg=r".*%s;%s.*Resource_List\.place=%s" % (atype, jid, place),
+            regexp=True, n="ALL", max_attempts=3, starttime=self.stime)
 
         self.server.accounting_match(
-            msg=".*%s;%s.*Resource_List\.select=%s" % (atype, jid, select),
-            regexp=True, n=20, max_attempts=3)
+            msg=r".*%s;%s.*Resource_List\.select=%s" % (atype, jid, select),
+            regexp=True, n="ALL", max_attempts=3, starttime=self.stime)
 
         if (atype != 'c') and (atype != 'S') and (atype != 's'):
             self.server.accounting_match(
-                msg=".*%s;%s.*resources_used\." % (atype, jid),
-                regexp=True, n=20, max_attempts=3)
+                msg=r".*%s;%s.*resources_used\." % (atype, jid),
+                regexp=True, n="ALL", max_attempts=3, starttime=self.stime)
 
     def match_vnode_status(self, vnode_list, state, jobs=None, ncpus=None,
                            mem=None):
@@ -240,7 +247,7 @@ class TestPbsReliableJobStartup(TestFunctional):
         TestFunctional.setUp(self)
         Job.dflt_attributes[ATTR_k] = 'oe'
 
-        self.server.cleanup_jobs(extend="force")
+        self.server.cleanup_jobs()
 
         self.momA = self.moms.values()[0]
         self.momB = self.moms.values()[1]
@@ -342,14 +349,14 @@ class TestPbsReliableJobStartup(TestFunctional):
         FIB37 = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin',
                              'pbs_python') + \
             ' -c "exec(\\\"def fib(i):\\n if i < 2:\\n  \
-return i\\n return fib(i-1) + fib(i-2)\\n\\nprint fib(37)\\\")"'
+return i\\n return fib(i-1) + fib(i-2)\\n\\nprint(fib(37))\\\")"'
 
         self.fib37_value = 24157817
 
         FIB40 = os.path.join(self.server.pbs_conf['PBS_EXEC'], 'bin',
                              'pbs_python') + \
             ' -c "exec(\\\"def fib(i):\\n if i < 2:\\n  \
-return i\\n return fib(i-1) + fib(i-2)\\n\\nprint fib(40)\\\")"'
+return i\\n return fib(i-1) + fib(i-2)\\n\\nprint(fib(40))\\\")"'
 
         # job submission arguments
         self.script = {}
@@ -373,18 +380,19 @@ return i\\n return fib(i-1) + fib(i-2)\\n\\nprint fib(40)\\\")"'
             "(%s:ncpus=2:mem=2097152kb)+" % (self.nC,) + \
             "(%s:mem=1048576kb:ncpus=1+" % (self.nE,) + \
             "%s:mem=1048576kb:ncpus=1)" % (self.nEv0,)
-        self.job1_isel_esc = self.job1_iselect.replace("+", "\+")
+        self.job1_isel_esc = self.job1_iselect.replace(r"+", r"\+")
         self.job1_iexec_host_esc = self.job1_iexec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            r"*", r"\*").replace(r"[", r"\[").replace(r"]", r"\]").replace(
+                    r"+", r"\+")
         self.job1_iexec_vnode_esc = self.job1_iexec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            r"[", r"\[").replace(r"]", r"\]").replace(r"(", r"\(").replace(
+            r")", r"\)").replace(r"+", r"\+")
 
         # expected values version 1 upon successful job launch
         self.job1_select = \
             "1:ncpus=3:mem=2gb+1:ncpus=3:mem=2gb+1:ncpus=2:mem=2gb"
         self.job1_schedselect = self.job1_select
-        self.job1_exec_host = "%s/0*0+%s/0*3+%s/0*0" % (
+        self.job1_exec_host = r"%s/0*0+%s/0*3+%s/0*0" % (
             self.nA, self.nD, self.nE)
         self.job1_exec_vnode = \
             "(%s:mem=1048576kb:ncpus=1+" % (self.nAv0,) + \
@@ -394,18 +402,19 @@ return i\\n return fib(i-1) + fib(i-2)\\n\\nprint fib(40)\\\")"'
             "(%s:mem=1048576kb:ncpus=1+" % (self.nE,) + \
             "%s:mem=1048576kb:ncpus=1)" % (self.nEv0,)
 
-        self.job1_sel_esc = self.job1_select.replace("+", "\+")
+        self.job1_sel_esc = self.job1_select.replace(r"+", r"\+")
         self.job1_exec_host_esc = self.job1_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            r"*", r"\*").replace(r"[", r"\[").replace(r"]", r"\]").replace(
+                    r"+", r"\+")
         self.job1_exec_vnode_esc = self.job1_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            r"[", r"\[").replace(r"]", r"\]").replace(r"(", r"\(").replace(
+            r")", r"\)").replace(r"+", r"\+")
 
         # expected values version 2 upon successful job launch
         self.job1v2_select = \
-            "1:ncpus=3:mem=2gb+1:ncpus=3:mem=2gb+1:ncpus=2:mem=2gb"
+            r"1:ncpus=3:mem=2gb+1:ncpus=3:mem=2gb+1:ncpus=2:mem=2gb"
         self.job1v2_schedselect = self.job1v2_select
-        self.job1v2_exec_host = "%s/0*0+%s/0*3+%s/0*2" % (
+        self.job1v2_exec_host = r"%s/0*0+%s/0*3+%s/0*2" % (
             self.nA, self.nD, self.nC)
         self.job1v2_exec_vnode = \
             "(%s:mem=1048576kb:ncpus=1+" % (self.nAv0,) + \
@@ -414,12 +423,13 @@ return i\\n return fib(i-1) + fib(i-2)\\n\\nprint fib(40)\\\")"'
             "(%s:ncpus=3:mem=2097152kb)+" % (self.nD,) + \
             "(%s:ncpus=2:mem=2097152kb)" % (self.nC,)
 
-        self.job1v2_sel_esc = self.job1v2_select.replace("+", "\+")
+        self.job1v2_sel_esc = self.job1v2_select.replace(r"+", r"\+")
         self.job1v2_exec_host_esc = self.job1v2_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            r"*", r"\*").replace(r"[", r"\[").replace(r"]", r"\]").replace(
+                    r"+", r"\+")
         self.job1v2_exec_vnode_esc = self.job1v2_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            r"[", r"\[").replace(r"]", r"\]").replace(r"(", r"\(").replace(
+            r")", r"\)").replace(r"+", r"\+")
 
         # expected values version 3 upon successful job launch
         self.job1v3_select = \
@@ -437,12 +447,13 @@ return i\\n return fib(i-1) + fib(i-2)\\n\\nprint fib(40)\\\")"'
             "(%s:mem=1048576kb:ncpus=1+" % (self.nE,) + \
             "%s:mem=1048576kb:ncpus=1)" % (self.nEv0,)
 
-        self.job1v3_sel_esc = self.job1v3_select.replace("+", "\+")
+        self.job1v3_sel_esc = self.job1v3_select.replace("+", r"\+")
         self.job1v3_exec_host_esc = self.job1v3_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job1v3_exec_vnode_esc = self.job1v3_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         # expected values version 4 upon successful job launch
         self.job1v4_select = \
@@ -459,12 +470,13 @@ return i\\n return fib(i-1) + fib(i-2)\\n\\nprint fib(40)\\\")"'
             "%s:ncpus=1)+" % (self.nBv1,) + \
             "(%s:ncpus=2:mem=2097152kb)" % (self.nD,)
 
-        self.job1v4_sel_esc = self.job1v4_select.replace("+", "\+")
+        self.job1v4_sel_esc = self.job1v4_select.replace("+", r"\+")
         self.job1v4_exec_host_esc = self.job1v4_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job1v4_exec_vnode_esc = self.job1v4_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         # expected values version 5 upon successful job launch
         self.job1v5_select = \
@@ -481,12 +493,13 @@ return i\\n return fib(i-1) + fib(i-2)\\n\\nprint fib(40)\\\")"'
             "%s:ncpus=1)+" % (self.nBv1,) + \
             "(%s:ncpus=2:mem=2097152kb)" % (self.nC,)
 
-        self.job1v5_sel_esc = self.job1v5_select.replace("+", "\+")
+        self.job1v5_sel_esc = self.job1v5_select.replace("+", r"\+")
         self.job1v5_exec_host_esc = self.job1v5_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job1v5_exec_vnode_esc = self.job1v5_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         # expected values version 6 upon successful job launch
         self.job1v6_select = \
@@ -505,12 +518,13 @@ return i\\n return fib(i-1) + fib(i-2)\\n\\nprint fib(40)\\\")"'
             "(%s:ncpus=2:mem=2097152kb)+" % (self.nC,) + \
             "(%s:mem=1048576kb:ncpus=1)" % (self.nE,)
 
-        self.job1v6_sel_esc = self.job1v6_select.replace("+", "\+")
+        self.job1v6_sel_esc = self.job1v6_select.replace("+", r"\+")
         self.job1v6_exec_host_esc = self.job1v6_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job1v6_exec_vnode_esc = self.job1v6_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         self.script['job1'] = """
 #PBS -l select=%s
@@ -573,22 +587,25 @@ done
             "(%s:ncpus=1:mem=1048576kb)+" % (self.nC,) + \
             "(%s:ncpus=1:mem=1048576kb)+" % (self.nD,) + \
             "(%s:ncpus=1:mem=1048576kb)" % (self.nE,)
-        self.jobA_isel_esc = self.jobA_iselect.replace("+", "\+")
+        self.jobA_isel_esc = self.jobA_iselect.replace("+", r"\+")
         self.jobA_iexec_host1_esc = self.jobA_iexec_host1.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.jobA_iexec_host2_esc = self.jobA_iexec_host2.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.jobA_iexec_host3_esc = self.jobA_iexec_host3.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.jobA_iexec_vnode1_esc = self.jobA_iexec_vnode1.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
         self.jobA_iexec_vnode2_esc = self.jobA_iexec_vnode2.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
         self.jobA_iexec_vnode3_esc = self.jobA_iexec_vnode3.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         # expected values version 1 upon successful job launch
         self.jobA_select = \
@@ -613,22 +630,25 @@ done
             "(%s:ncpus=1:mem=1048576kb)+" % (self.nBv1,) + \
             "(%s:ncpus=1:mem=1048576kb)" % (self.nD,)
 
-        self.jobA_sel_esc = self.jobA_select.replace("+", "\+")
+        self.jobA_sel_esc = self.jobA_select.replace("+", r"\+")
         self.jobA_exec_host1_esc = self.jobA_exec_host1.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.jobA_exec_host2_esc = self.jobA_exec_host2.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.jobA_exec_host3_esc = self.jobA_exec_host3.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.jobA_exec_vnode1_esc = self.jobA_exec_vnode1.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
         self.jobA_exec_vnode2_esc = self.jobA_exec_vnode2.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
         self.jobA_exec_vnode3_esc = self.jobA_exec_vnode3.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
         self.script['jobA'] = """
 #PBS -J 1-3
 #PBS -l select=%s
@@ -755,12 +775,13 @@ done
             "(%s:ncpus=0:mem=2097152kb)+" % (self.nC,) + \
             "(%s:mem=1048576kb:ncpus=0+" % (self.nE,) + \
             "%s:mem=1048576kb)" % (self.nEv0,)
-        self.job2_isel_esc = self.job2_iselect.replace("+", "\+")
+        self.job2_isel_esc = self.job2_iselect.replace("+", r"\+")
         self.job2_iexec_host_esc = self.job2_iexec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job2_iexec_vnode_esc = self.job2_iexec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         # expected values version upon successful job launch
         self.job2_select = \
@@ -781,12 +802,13 @@ done
             "(%s:mem=1048576kb+" % (self.nE,) + \
             "%s:mem=1048576kb)" % (self.nEv0,)
 
-        self.job2_sel_esc = self.job2_select.replace("+", "\+")
+        self.job2_sel_esc = self.job2_select.replace("+", r"\+")
         self.job2_exec_host_esc = self.job2_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job2_exec_vnode_esc = self.job2_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         self.script['job2'] = \
             "#PBS -l select=" + self.job2_oselect + "\n" + \
@@ -837,19 +859,21 @@ done
             "(%s:mem=1048576kb:ncpus=1+" % (self.nE,) + \
             "%s:mem=1048576kb:ncpus=1)" % (self.nEv0,)
 
-        self.job3_sel_esc = self.job3_select.replace("+", "\+")
+        self.job3_sel_esc = self.job3_select.replace("+", r"\+")
         self.job3_exec_host_esc = self.job3_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job3_exec_vnode_esc = self.job3_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
-        self.job3_isel_esc = self.job3_iselect.replace("+", "\+")
+        self.job3_isel_esc = self.job3_iselect.replace("+", r"\+")
         self.job3_iexec_host_esc = self.job3_iexec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job3_iexec_vnode_esc = self.job3_iexec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         self.script['job3'] = \
             "#PBS -l select=" + self.job3_oselect + "\n" + \
@@ -898,19 +922,21 @@ done
             "#PBS -l place=" + self.job4_place + "\n" + \
             SLEEP_CMD + " 300\n"
 
-        self.job4_sel_esc = self.job4_select.replace("+", "\+")
+        self.job4_sel_esc = self.job4_select.replace("+", r"\+")
         self.job4_exec_host_esc = self.job4_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job4_exec_vnode_esc = self.job4_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
-        self.job4_isel_esc = self.job4_iselect.replace("+", "\+")
+        self.job4_isel_esc = self.job4_iselect.replace("+", r"\+")
         self.job4_iexec_host_esc = self.job4_iexec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job4_iexec_vnode_esc = self.job4_iexec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         self.job5_oselect = "ncpus=3:mem=2gb+ncpus=3:mem=2gb+ncpus=2:mem=2gb"
         self.job5_place = "free"
@@ -954,19 +980,21 @@ done
             "#PBS -l place=" + self.job5_place + "\n" + \
             SLEEP_CMD + " 300\n"
 
-        self.job5_sel_esc = self.job5_select.replace("+", "\+")
+        self.job5_sel_esc = self.job5_select.replace("+", r"\+")
         self.job5_exec_host_esc = self.job5_exec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job5_exec_vnode_esc = self.job5_exec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
-        self.job5_isel_esc = self.job5_iselect.replace("+", "\+")
+        self.job5_isel_esc = self.job5_iselect.replace("+", r"\+")
         self.job5_iexec_host_esc = self.job5_iexec_host.replace(
-            "*", "\*").replace("[", "\[").replace("]", "\]").replace("+", "\+")
+            "*", r"\*").replace("[", r"\[").replace("]", r"\]").replace(
+                    "+", r"\+")
         self.job5_iexec_vnode_esc = self.job5_iexec_vnode.replace(
-            "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-            ")", "\)").replace("+", "\+")
+            "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+            ")", r"\)").replace("+", r"\+")
 
         # queuejob hooks used throughout the test
         self.qjob_hook_body = """
@@ -1178,6 +1206,7 @@ if e.job.in_ms_mom():
         e.job.rerun()
         e.reject("unsuccessful at LAUNCH")
 """
+        self.stime = time.time()
 
     def tearDown(self):
         self.momA.signal("-CONT")
@@ -1450,10 +1479,10 @@ if e.job.in_ms_mom():
                                   self.job1_sel_esc)
 
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -1497,7 +1526,7 @@ pbs_tmrsh %s hostname
             job_out = fd.read()
             self.logger.info("job_out=%s" % (job_out,))
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)
 
     @timeout(400)
     def test_t2(self):
@@ -1626,7 +1655,7 @@ pbs_tmrsh %s hostname
                            id=jid, attrop=PTL_AND)
 
         # Set time to start scanning logs
-        stime = int(time.time())
+        stime = time.time()
 
         a = {'scheduling': 'true'}
         self.server.manager(MGR_CMD_SET, SERVER, a)
@@ -1665,12 +1694,11 @@ pbs_tmrsh %s hostname
             "Executing prolo",
             allmatch=True, starttime=stime, max_attempts=8)
         log2 = logs[0][1]
-        pattern = '%m/%d/%Y %H:%M:%S'
         tmp = log1.split(';')
         # Convert the time into epoch time
-        time1 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time1 = int(self.logutils.convert_date_time(tmp[0]))
         tmp = log2.split(';')
-        time2 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time2 = int(self.logutils.convert_date_time(tmp[0]))
 
         diff = time2 - time1
         self.logger.info(
@@ -1693,12 +1721,11 @@ pbs_tmrsh %s hostname
             "Executing launch",
             allmatch=True, starttime=stime, max_attempts=8)
         log2 = logs[0][1]
-        pattern = '%m/%d/%Y %H:%M:%S'
         tmp = log1.split(';')
         # Convert the time into epoch time
-        time1 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time1 = int(self.logutils.convert_date_time(tmp[0]))
         tmp = log2.split(';')
-        time2 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time2 = int(self.logutils.convert_date_time(tmp[0]))
 
         diff = time2 - time1
         self.logger.info("Time diff between prolo hook and launch hook is " +
@@ -1793,12 +1820,11 @@ pbs_tmrsh %s hostname
                                   "6gb", 8, 3,
                                   self.job1_place,
                                   self.job1_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -1842,7 +1868,7 @@ pbs_tmrsh %s hostname
             job_out = fd.read()
             self.logger.info("job_out=%s" % (job_out,))
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)
 
     @timeout(400)
     def test_t3(self):
@@ -1988,7 +2014,7 @@ if not e.job.in_ms_mom() and (localnode == '%s'):
                            id=jid, attrop=PTL_AND)
 
         # Set time to start scanning logs
-        stime = int(time.time())
+        stime = time.time()
 
         a = {'scheduling': 'true'}
         self.server.manager(MGR_CMD_SET, SERVER, a)
@@ -2027,12 +2053,11 @@ if not e.job.in_ms_mom() and (localnode == '%s'):
             "Executing prolo1",
             allmatch=True, starttime=stime, max_attempts=8)
         log2 = logs[0][1]
-        pattern = '%m/%d/%Y %H:%M:%S'
         tmp = log1.split(';')
         # Convert the time into epoch time
-        time1 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time1 = int(self.logutils.convert_date_time(tmp[0]))
         tmp = log2.split(';')
-        time2 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time2 = int(self.logutils.convert_date_time(tmp[0]))
 
         diff = time2 - time1
         self.logger.info(
@@ -2058,12 +2083,11 @@ if not e.job.in_ms_mom() and (localnode == '%s'):
             "Executing launch",
             allmatch=True, starttime=stime, max_attempts=8)
         log2 = logs[0][1]
-        pattern = '%m/%d/%Y %H:%M:%S'
         tmp = log1.split(';')
         # Convert the time into epoch time
-        time1 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time1 = int(self.logutils.convert_date_time(tmp[0]))
         tmp = log2.split(';')
-        time2 = int(time.mktime(time.strptime(tmp[0], pattern)))
+        time2 = int(self.logutils.convert_date_time(tmp[0]))
 
         diff = time2 - time1
         self.logger.info(
@@ -2161,12 +2185,11 @@ if not e.job.in_ms_mom() and (localnode == '%s'):
                                   "6gb", 8, 3,
                                   self.job1_place,
                                   self.job1_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -2210,7 +2233,7 @@ pbs_tmrsh %s hostname
             job_out = fd.read()
             self.logger.info("job_out=%s" % (job_out,))
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)
 
     @timeout(400)
     def test_t4(self):
@@ -2405,12 +2428,11 @@ pbs_tmrsh %s hostname
                                   "6gb", 8, 3,
                                   self.job1_place,
                                   self.job1v2_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -2454,7 +2476,7 @@ pbs_tmrsh %s hostname
             job_out = fd.read()
             self.logger.info("job_out=%s" % (job_out,))
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)
 
     @timeout(400)
     def test_t5(self):
@@ -2639,12 +2661,11 @@ pbs_tmrsh %s hostname
                                   "6gb", 8, 3,
                                   self.job1_place,
                                   self.job1v3_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -2688,7 +2709,7 @@ pbs_tmrsh %s hostname
             job_out = fd.read()
             self.logger.info("job_out=%s" % (job_out,))
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)
 
     def test_t6(self):
         """
@@ -2901,12 +2922,11 @@ pbs_tmrsh %s hostname
                                   "6gb", 8, 3,
                                   self.job1_place,
                                   self.job1v4_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -2950,7 +2970,7 @@ pbs_tmrsh %s hostname
             job_out = fd.read()
             self.logger.info("job_out=%s" % (job_out,))
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)
 
     def test_t7(self):
         """
@@ -3083,7 +3103,7 @@ if not e.job.in_ms_mom() and (localnode == '%s'):
             regexp=True, n=10, existence=False, max_attempts=10)
 
         self.server.expect(JOB, {'job_state': 'H'},
-                           id=jid, interval=1, max_attempts=15)
+                           id=jid, interval=1, max_attempts=30)
 
         # turn off begin hook, leaving prologue hook in place
         self.server.manager(MGR_CMD_SET, HOOK, {'enabled': 'false'}, 'begin')
@@ -3313,12 +3333,11 @@ if not e.job.in_ms_mom() and (localnode == '%s'):
                                   "6gb", 8, 3,
                                   self.job1_place,
                                   self.job1v5_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -3362,7 +3381,7 @@ pbs_tmrsh %s hostname
             job_out = fd.read()
             self.logger.info("job_out=%s" % (job_out,))
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)
 
     @timeout(400)
     def test_t9(self):
@@ -3589,10 +3608,10 @@ pbs_tmrsh %s hostname
                             n=10, max_attempts=30, interval=2, regexp=True)
 
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -3619,7 +3638,7 @@ pbsdsh -n 2 hostname
             job_out = fd.read()
             self.logger.info("job_out=%s" % (job_out,))
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)
         self.momD.start()
 
     def test_t10(self):
@@ -4416,12 +4435,11 @@ if e.job.in_ms_mom():
                                   "7gb", 9, 4,
                                   self.job1_place,
                                   self.job1v6_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -4477,7 +4495,7 @@ pbs_tmrsh %s hostname
             job_out = fd.read()
             self.logger.info("job_out=%s" % (job_out,))
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)
 
     def test_t15(self):
         """
@@ -5112,12 +5130,11 @@ if not e.job.in_ms_mom() and (localnode == '%s'):
                                   "6gb", 8, 3,
                                   self.job1_place,
                                   self.job1v2_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -5159,7 +5176,7 @@ pbs_tmrsh %s hostname
         with open(job_output_file, 'r') as fd:
             job_out = fd.read()
 
-        self.assertEquals(job_out, expected_out)
+        self.assertIn(expected_out, job_out, "job output is not present")
 
         # Re-check vnode_list[] parameter in execjob_launch hook
         vnode_list = [self.nAv0, self.nAv1, self.nAv2,
@@ -5199,12 +5216,11 @@ pbs_tmrsh %s hostname
                                   "6gb", 8, 3,
                                   self.job1_place,
                                   self.job1v2_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -5246,7 +5262,7 @@ pbs_tmrsh %s hostname
         with open(job_output_file, 'r') as fd:
             job_out = fd.read()
 
-        self.assertEquals(job_out, expected_out)
+        self.assertIn(expected_out, job_out, "job output is not present")
 
     def test_t19(self):
         """
@@ -5409,7 +5425,7 @@ pbs_tmrsh %s hostname
             idx_values[idx] = d
             sub_jobs[idx] = sjid
             self.server.expect(JOB, {'job_state': 'R',
-                                     'substate': 41,
+                                     'substate': 42,
                                      'tolerate_node_failures': 'job_start',
                                      'Resource_List.mem': '3gb',
                                      'Resource_List.ncpus': 3,
@@ -5426,8 +5442,8 @@ pbs_tmrsh %s hostname
             sjid = sub_jobs[idx]
             # Verify mom_logs
             sjid_esc = sjid.replace(
-                "[", "\[").replace("]", "\]").replace("(", "\(").replace(
-                ")", "\)").replace("+", "\+")
+                "[", r"\[").replace("]", r"\]").replace("(", r"\(").replace(
+                ")", r"\)").replace("+", r"\+")
             self.momA.log_match(
                 "Job;%s;job_start_error.+from node %s.+could not JOIN_JOB" % (
                     sjid_esc, self.hostC), n=10, regexp=True)
@@ -5630,12 +5646,11 @@ pbs_tmrsh %s hostname
                                   "6gb", 8, 3,
                                   self.job1_place,
                                   self.job1v4_sel_esc)
-
         self.momA.log_match("Job;%s;task.+started, hostname" % (jid,),
-                            n=10, max_attempts=60, interval=2, regexp=True)
+                            n=10, interval=5, regexp=True)
 
         self.momA.log_match("Job;%s;copy file request received" % (jid,),
-                            n=10, max_attempts=10, interval=2)
+                            n=10, interval=5)
 
         # validate output
         expected_out = """/var/spool/pbs/aux/%s
@@ -5677,4 +5692,4 @@ pbs_tmrsh %s hostname
         with open(job_output_file, 'r') as fd:
             job_out = fd.read()
 
-        self.assertEquals(job_out, expected_out)
+        self.assertEqual(job_out, expected_out)

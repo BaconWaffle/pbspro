@@ -1,47 +1,47 @@
-
-/* 
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+/*
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
-#ifndef	_BITFIELD_H
-#define	_BITFIELD_H
-#ifdef	__cplusplus
+
+#ifndef _BITFIELD_H
+#define _BITFIELD_H
+#ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /*
  * Definition of interface for dealing with arbitrarily large numbers of
@@ -123,83 +123,79 @@ extern "C" {
 
 /* The size of bitfields being used.  Default to 256 bits. */
 #ifndef BITFIELD_SIZE
-#define	BITFIELD_SIZE		256
-#endif	/* !BITFIELD_SIZE */
+#define BITFIELD_SIZE 256
+#endif /* !BITFIELD_SIZE */
 
 #include <assert.h>
-#define BITFIELD_BPW		((int)(sizeof(unsigned long long) * 8))
+#define BITFIELD_BPW ((int) (sizeof(unsigned long long) * 8))
 
-#define BITFIELD_SHIFT(bit)	((bit) / BITFIELD_BPW)
-#define BITFIELD_OFFSET(bit)	((bit) & (BITFIELD_BPW - 1))
-#define	BITFIELD_WORDS		(BITFIELD_SHIFT(BITFIELD_SIZE))
+#define BITFIELD_SHIFT(bit) ((bit) / BITFIELD_BPW)
+#define BITFIELD_OFFSET(bit) ((bit) & (BITFIELD_BPW - 1))
+#define BITFIELD_WORDS (BITFIELD_SHIFT(BITFIELD_SIZE))
 
 typedef struct bitfield {
 	unsigned long long _bits[BITFIELD_WORDS];
 } Bitfield;
 
-#define	INLINE	__inline
+#define INLINE __inline
 
 /* Word-oriented operations on bitfields */
-#define BITFIELD_WORD(p,ndx) \
-	(( (ndx) >= 0 && (ndx) < BITFIELD_WORDS ) ? (p)->_bits[ndx] : 0ULL)
+#define BITFIELD_WORD(p, ndx) \
+	(((ndx) >= 0 && (ndx) < BITFIELD_WORDS) ? (p)->_bits[ndx] : 0ULL)
 
-#define BITFIELD_SET_WORD(p,ndx,word) { 		\
-	if ( (ndx) >= 0 && (ndx) < BITFIELD_WORDS ) 	\
-		(p)->_bits[ndx] = word; 		\
-}
+#define BITFIELD_SET_WORD(p, ndx, word)                   \
+	{                                                 \
+		if ((ndx) >= 0 && (ndx) < BITFIELD_WORDS) \
+			(p)->_bits[ndx] = word;           \
+	}
 
 /* Operate on least significant bit of a bitfield. */
 
-#define	BITFIELD_LSB_ISONE(p) \
-    ((p)->_bits[0] & 1ULL)
+#define BITFIELD_LSB_ISONE(p) \
+	((p)->_bits[0] & 1ULL)
 
-#define	BITFIELD_SET_LSB(p) \
-    ((p)->_bits[0] |= 1ULL)
+#define BITFIELD_SET_LSB(p) \
+	((p)->_bits[0] |= 1ULL)
 
-#define	BITFIELD_CLR_LSB(p) \
-    ((p)->_bits[0] &= ~(1ULL))
-
+#define BITFIELD_CLR_LSB(p) \
+	((p)->_bits[0] &= ~(1ULL))
 
 /* Operate on most significant bit of a bitfield. */
 
 #define BITFIELD_MSB_ISONE(p) \
-    ((p)->_bits[BITFIELD_SHIFT(BITFIELD_SIZE-1)] & (1ULL << (BITFIELD_BPW-1)))
+	((p)->_bits[BITFIELD_SHIFT(BITFIELD_SIZE - 1)] & (1ULL << (BITFIELD_BPW - 1)))
 
 #define BITFIELD_SET_MSB(p) \
-    ((p)->_bits[BITFIELD_SHIFT(BITFIELD_SIZE-1)] |= (1ULL << (BITFIELD_BPW-1)))
+	((p)->_bits[BITFIELD_SHIFT(BITFIELD_SIZE - 1)] |= (1ULL << (BITFIELD_BPW - 1)))
 
 #define BITFIELD_CLR_MSB(p) \
-    ((p)->_bits[BITFIELD_SHIFT(BITFIELD_SIZE-1)] &= ~(1ULL << (BITFIELD_BPW-1)))
-
+	((p)->_bits[BITFIELD_SHIFT(BITFIELD_SIZE - 1)] &= ~(1ULL << (BITFIELD_BPW - 1)))
 
 /* Operate on arbitrary bits within the bitfield. */
 
-#define BITFIELD_SETB(p,bit)	(((bit) >= 0 && (bit) < BITFIELD_SIZE) ? \
-    (p)->_bits[BITFIELD_SHIFT(bit)] |= (1ULL << BITFIELD_OFFSET(bit)) : 0)
+#define BITFIELD_SETB(p, bit) (((bit) >= 0 && (bit) < BITFIELD_SIZE) ? (p)->_bits[BITFIELD_SHIFT(bit)] |= (1ULL << BITFIELD_OFFSET(bit)) : 0)
 
-#define BITFIELD_CLRB(p,bit)	(((bit) >= 0 && (bit) < BITFIELD_SIZE) ? \
-    (p)->_bits[BITFIELD_SHIFT(bit)] &= ~(1ULL << BITFIELD_OFFSET(bit)) : 0)
+#define BITFIELD_CLRB(p, bit) (((bit) >= 0 && (bit) < BITFIELD_SIZE) ? (p)->_bits[BITFIELD_SHIFT(bit)] &= ~(1ULL << BITFIELD_OFFSET(bit)) : 0)
 
-#define BITFIELD_TSTB(p,bit)	(((bit) >= 0 && (bit) < BITFIELD_SIZE) ? \
-    ((p)->_bits[BITFIELD_SHIFT(bit)] & (1ULL << BITFIELD_OFFSET(bit))) : 0)
-
+#define BITFIELD_TSTB(p, bit) (((bit) >= 0 && (bit) < BITFIELD_SIZE) ? ((p)->_bits[BITFIELD_SHIFT(bit)] & (1ULL << BITFIELD_OFFSET(bit))) : 0)
 
 /* Clear or set all the bits in the bitfield. */
 
-#define BITFIELD_CLRALL(p)	{					\
-	int w;								\
-	assert(p != NULL);						\
-	for (w = 0; w < BITFIELD_WORDS; w++)				\
-		(p)->_bits[w] = 0ULL;					\
-}
+#define BITFIELD_CLRALL(p)                           \
+	{                                            \
+		int w;                               \
+		assert(p != NULL);                   \
+		for (w = 0; w < BITFIELD_WORDS; w++) \
+			(p)->_bits[w] = 0ULL;        \
+	}
 
-#define BITFIELD_SETALL(p)	{					\
-	int w;								\
-	assert(p != NULL);						\
-	for (w = 0; w < BITFIELD_WORDS; w++)				\
-		(p)->_bits[w] = ~(0ULL);				\
-}
-
+#define BITFIELD_SETALL(p)                           \
+	{                                            \
+		int w;                               \
+		assert(p != NULL);                   \
+		for (w = 0; w < BITFIELD_WORDS; w++) \
+			(p)->_bits[w] = ~(0ULL);     \
+	}
 
 /* Comparison functions for two bitfield. */
 
@@ -274,7 +270,7 @@ BITFIELD_LS_ONE(Bitfield *p)
 		return (-1);
 
 	/* Slide a single bit left, looking for the non-zero bit. */
-	for (x = 1ULL; !(n & x); bit ++)
+	for (x = 1ULL; !(n & x); bit++)
 		x <<= 1;
 
 	return (bit);
@@ -330,7 +326,6 @@ BITFIELD_NOTEQ(Bitfield *p, Bitfield *q)
 			return 1;
 	return 0;
 }
-
 
 /* Logical manipulation functions for applying one bitfield to another. */
 
@@ -416,7 +411,6 @@ BITFIELD_ORNOTM(Bitfield *p, Bitfield *q)
 	return 0;
 }
 
-
 /* Logical shift left and shift right for bitfield. */
 
 INLINE int
@@ -444,11 +438,11 @@ BITFIELD_SHIFTR(Bitfield *p)
 		lower = p->_bits[w] & 1ULL;
 		p->_bits[w] >>= 1;
 		p->_bits[w - 1] >>= 1;
-		p->_bits[w - 1] |= (lower ?(1ULL << (BITFIELD_BPW - 1)) : 0);
+		p->_bits[w - 1] |= (lower ? (1ULL << (BITFIELD_BPW - 1)) : 0);
 	}
 	return 0;
 }
-#ifdef	__cplusplus
+#ifdef __cplusplus
 }
 #endif
-#endif	/* _BITFIELD_H */
+#endif /* _BITFIELD_H */

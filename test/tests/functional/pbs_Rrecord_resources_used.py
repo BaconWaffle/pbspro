@@ -1,44 +1,48 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 import re
 
 
+@requirements(num_moms=2)
 class Test_Rrecord_with_resources_used(TestFunctional):
 
     """
@@ -64,17 +68,9 @@ class Test_Rrecord_with_resources_used(TestFunctional):
         # of hostname and MoM object
         self.momA = self.moms.values()[0]
         self.momB = self.moms.values()[1]
-        self.momA.delete_vnode_defs()
-        self.momB.delete_vnode_defs()
 
         self.hostA = self.momA.shortname
         self.hostB = self.momB.shortname
-
-        self.server.manager(MGR_CMD_DELETE, NODE, None, "")
-
-        self.server.manager(MGR_CMD_CREATE, NODE, id=self.hostA)
-
-        self.server.manager(MGR_CMD_CREATE, NODE, id=self.hostB)
 
         a = {'resources_available.ncpus': 4}
         self.server.manager(MGR_CMD_SET, NODE, a, id=self.hostA)
@@ -421,7 +417,7 @@ class Test_Rrecord_with_resources_used(TestFunctional):
         j2 = Job(TEST_USER)
         j2.create_script(body=script)
         j2.set_attributes(
-            {ATTR_l + '.cput': 180, ATTR_l + '.ncpus': 3,  ATTR_k: 'oe'})
+            {ATTR_l + '.cput': 180, ATTR_l + '.ncpus': 3, ATTR_k: 'oe'})
         jid2 = self.server.submit(j2)
 
         # Verify that the jobs have started running.
@@ -536,18 +532,18 @@ class Test_Rrecord_with_resources_used(TestFunctional):
         self.server.rerunjob(jids, extend='force')
 
         # Verify that the accounting logs have R record with last known
-        # resource usage and run_count should be 2 for J1 and J2
+        # resource usage and run_count should be 1 for J1 and J2
 
         self.server.accounting_match(
             msg='.*R;' + jid1 +
-            '.*Exit_status=0.*.*resources_used.*.*run_count=1.*',
+            '.*Exit_status=-11.*.*resources_used.*.*run_count=1.*',
             id=jid1, regexp=True)
         self.server.accounting_match(
             msg='.*R;' + jid2 +
-            '.*Exit_status=0.*.*resources_used.*.*run_count=1.*',
+            '.*Exit_status=-11.*.*resources_used.*.*run_count=1.*',
             id=jid2, regexp=True)
         self.server.accounting_match(msg='.*R;' + re.escape(
-            jid3s1) + '.*Exit_status=0.*.*resources_used.*.*run_count=1.*',
+            jid3s1) + '.*Exit_status=-11.*.*resources_used.*.*run_count=1.*',
             id=jid3s1, regexp=True)
         time.sleep(5)
 
@@ -555,18 +551,18 @@ class Test_Rrecord_with_resources_used(TestFunctional):
         self.server.rerunjob(jids, extend='force')
 
         # Verify that the accounting logs have R record with last known
-        # usage and run_count should be 3 for J1 and J2.
+        # usage and run_count should be 2 for J1 and J2.
         self.server.accounting_match(
             msg='.*R;' + jid1 +
-            '.*Exit_status=0.*.*resources_used.*.*run_count=2.*',
+            '.*Exit_status=-11.*.*resources_used.*.*run_count=2.*',
             id=jid1, regexp=True)
         self.server.accounting_match(
             msg='.*R;' + jid2 +
-            '.*Exit_status=0.*.*resources_used.*.*run_count=2.*',
+            '.*Exit_status=-11.*.*resources_used.*.*run_count=2.*',
             id=jid2, regexp=True)
         self.server.accounting_match(msg='.*R;' + re.escape(
             jid3s1) +
-            '.*Exit_status=0.*.*resources_used.*.*run_count=1.*',
+            '.*Exit_status=-11.*.*resources_used.*.*run_count=2.*',
             id=jid3s1, regexp=True)
 
     def tearDown(self):

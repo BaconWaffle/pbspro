@@ -1,40 +1,43 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import sys
 import os
@@ -48,15 +51,34 @@ import importlib
 import ptl
 import nose
 from nose.plugins.base import Plugin
+from nose.plugins.manager import PluginManager
 from ptl.lib.pbs_testlib import PtlConfig
 from distutils.version import LooseVersion
 from ptl.utils.pbs_cliutils import CliUtils
+from ptl.utils.pbs_dshutils import TimeOut
 from ptl.utils.plugins.ptl_test_loader import PTLTestLoader
 from ptl.utils.plugins.ptl_test_runner import PTLTestRunner
 from ptl.utils.plugins.ptl_test_db import PTLTestDb
 from ptl.utils.plugins.ptl_test_info import PTLTestInfo
 from ptl.utils.plugins.ptl_test_tags import PTLTestTags
 from ptl.utils.plugins.ptl_test_data import PTLTestData
+
+
+class PTLNoseConfig(nose.config.Config):
+    def __init__(self, log_format=None, outfile_handler=None, **kw):
+        super().__init__(**kw)
+        self.outfile_handler = outfile_handler
+        self.log_format = log_format
+
+    def configureLogging(self):
+        super().configureLogging()
+        nose_logger = logging.getLogger('nose')
+        if self.log_format:
+            formatter = logging.Formatter(self.log_format)
+            for handler in nose_logger.handlers:
+                handler.setFormatter(formatter)
+        if self.outfile_handler:
+            nose_logger.addHandler(self.outfile_handler)
 
 
 # trap SIGINT and SIGPIPE
@@ -74,6 +96,10 @@ sys.excepthook = trap_exceptions
 def sighandler(signum, frames):
     signal.alarm(0)
     raise KeyboardInterrupt('Signal %d received' % (signum))
+
+
+def timeout_handler(signum, frames):
+    raise TimeOut('pbs_benchpress timed out by signal %d' % (signum))
 
 
 # join process group of caller makes it possible to programmatically interrupt
@@ -108,9 +134,9 @@ def usage():
     msg += ['.Plugin\n']
     msg += ['--db-type=<type>: Type of database to use.']
     msg += [' can be one of "html", "file", "sqlite", "pgsql", "json".']
-    msg += [' Default to "file"\n']
+    msg += [' Default to "json"\n']
     msg += ['--db-name=<name>: database name. Default to']
-    msg += [' ptl_test_results.db\n']
+    msg += [' ptl_test_results.json\n']
     msg += ['--db-access=<path>: Path to a file that defines db options '
             '(PostreSQL only)\n']
     msg += ['--lcov-bin=<bin>: path to lcov binary. Defaults to lcov\n']
@@ -142,6 +168,8 @@ def usage():
             'fails\n']
     msg += ['--timeout=<seconds>: duration after which no test suites are '
             'run\n']
+    msg += ['--repeat-count=<count>: repeat given all tests <count> times\n']
+    msg += ['--repeat-delay=<seconds>: delay between two repetition\n']
     msg += ['--follow-child: if set, walk the test hierarchy and run ' +
             'each test\n']
     msg += ['--tags=<tag>: Select only tests that have <tag> tag.']
@@ -171,9 +199,10 @@ def usage():
     msg += ['--list-tags: List all currenlty used tags\n']
     msg += [
         '--verbose: show verbose output (used with -i, -L or --tag-info)\n']
+    msg += ['--use-current-setup: Runs test on current PBS setup\n']
     msg += ['--version: show version number and exit\n']
 
-    print ''.join(msg)
+    print(''.join(msg))
 
 
 if __name__ == '__main__':
@@ -187,6 +216,7 @@ if __name__ == '__main__':
     outfile = None
     dbtype = None
     dbname = None
+    use_cur_setup = False
     dbaccess = None
     testfiles = None
     testsuites = None
@@ -209,6 +239,8 @@ if __name__ == '__main__':
     lcov_baseurl = None
     genhtml_bin = None
     timeout = None
+    repeat_count = 1
+    repeat_delay = 0
     nosedebug = False
     only_info = False
     tags = []
@@ -223,21 +255,21 @@ if __name__ == '__main__':
     user_plugins = None
     PtlConfig()
 
-    largs = ['exclude=', 'log-conf=', 'timeout=']
+    largs = ['exclude=', 'log-conf=', 'timeout=', 'repeat-count=']
     largs += ['param-file=', 'min-pyver=', 'max-pyver=']
     largs += ['db-name=', 'db-access=', 'db-type=', 'genhtml-bin=']
     largs += ['lcov-bin=', 'lcov-data=', 'lcov-out=', 'lcov-nosrc']
     largs += ['lcov-baseurl=', 'tags=', 'eval-tags=', 'tags-info', 'list-tags']
     largs += ['version', 'verbose', 'follow-child']
     largs += ['stop-on-failure', 'enable-nose-debug']
-    largs += ['post-analysis-data=', 'gen-ts-tree']
+    largs += ['post-analysis-data=', 'gen-ts-tree', 'repeat-delay=']
     largs += ['tc-failure-threshold=', 'cumulative-tc-failure-threshold=']
-    largs += ['max-postdata-threshold=', 'user-plugins=']
+    largs += ['max-postdata-threshold=', 'user-plugins=', 'use-current-setup']
 
     try:
         opts, args = getopt.getopt(
             sys.argv[1:], 'f:il:t:o:p:g:hLF', largs)
-    except:
+    except Exception:
         sys.stderr.write('Unrecognized option. Exiting\n')
         usage()
         sys.exit(1)
@@ -284,13 +316,17 @@ if __name__ == '__main__':
         elif o == '--exclude':
             excludes = val
         elif o == '-F':
-            fmt = '%(asctime)-15s %(levelname)-8s %(message)s'
+            fmt = '%(asctime)-15s %(levelname)-8s %(name)s %(message)s'
         elif o == '-p':
             testparam = val
         elif o == '-g':
             testgroup = val
         elif o == '--timeout':
             timeout = int(val)
+        elif o == '--repeat-count':
+            repeat_count = int(val)
+        elif o == '--repeat-delay':
+            repeat_delay = int(val)
         elif o == '--db-type':
             dbtype = val
         elif o == '--db-name':
@@ -336,8 +372,10 @@ if __name__ == '__main__':
         elif o == '-h':
             usage()
             sys.exit(0)
+        elif o == '--use-current-setup':
+            use_cur_setup = True
         elif o == '--version':
-            print ptl.__version__
+            print(ptl.__version__)
             sys.exit(0)
         else:
             sys.stderr.write('Unreocgnized option %s\n' % o)
@@ -347,20 +385,24 @@ if __name__ == '__main__':
     if nosedebug:
         level = 'DEBUG'
 
-    l = CliUtils.get_logging_level(level)
+    log_lvl = CliUtils.get_logging_level(level)
     if logconf:
         logging.config.fileConfig(logconf)
     else:
-        logging.basicConfig(filename=outfile, filemode='w+', level=l,
-                            format=fmt)
+        logging.basicConfig(level=log_lvl, format=fmt)
 
-    if outfile is not None:
-        stream_hdlr = logging.StreamHandler()
-        stream_hdlr.setLevel(l)
-        stream_hdlr.setFormatter(logging.Formatter(fmt))
+    if not log_lvl and level:
+        logging.error('Invalid log level:%s', level)
+        sys.exit(1)
+    if outfile:
+        outfile_hdlr = logging.FileHandler(outfile)
+        outfile_hdlr.setLevel(log_lvl)
+        outfile_hdlr.setFormatter(logging.Formatter(fmt))
         ptl_logger = logging.getLogger('ptl')
-        ptl_logger.addHandler(stream_hdlr)
-        ptl_logger.setLevel(l)
+        ptl_logger.addHandler(outfile_hdlr)
+        ptl_logger.setLevel(log_lvl)
+    else:
+        outfile_hdlr = None
 
     pyver = platform.python_version()
     if minpyver is not None and LooseVersion(pyver) < LooseVersion(minpyver):
@@ -381,7 +423,7 @@ if __name__ == '__main__':
         tc_failure_threshold = int(tc_failure_threshold)
         if tc_failure_threshold < 0:
             raise ValueError
-    except:
+    except ValueError:
         _msg = 'Invalid value provided for testcase failure threshold, '
         _msg += 'please provide integer'
         logging.error(_msg)
@@ -391,7 +433,7 @@ if __name__ == '__main__':
         cumulative_tc_failure_threshold = int(cumulative_tc_failure_threshold)
         if cumulative_tc_failure_threshold < 0:
             raise ValueError
-    except:
+    except ValueError:
         _msg = 'Invalid value provided for cumulative-tc-failure-threshold, '
         _msg += 'please provide integer'
         logging.error(_msg)
@@ -407,7 +449,7 @@ if __name__ == '__main__':
         max_postdata_threshold = int(max_postdata_threshold)
         if max_postdata_threshold < 0:
             raise ValueError
-    except:
+    except ValueError:
         _msg = 'Invalid value provided for max-postdata-threshold, '
         _msg += 'please provide integer'
         logging.error(_msg)
@@ -417,7 +459,8 @@ if __name__ == '__main__':
         os.mkdir(os.path.dirname(outfile))
 
     if timeout is not None:
-        signal.signal(signal.SIGALRM, sighandler)
+        PTLTestRunner.timeout = timeout
+        signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
 
     if list_test:
@@ -433,28 +476,32 @@ if __name__ == '__main__':
         testsuites = 'PBSTestSuite'
         follow = True
 
+    loader = PTLTestLoader()
+
     if only_info:
         testinfo = PTLTestInfo()
+        loader.set_data(testgroup, testsuites, excludes, True,
+                        testfiles)
         testinfo.set_data(testsuites, list_test,
                           showinfo, verbose, gen_ts_tree)
-        plugins = (testinfo,)
+        plugins = (loader, testinfo)
     elif (tags_info or list_tags):
-        loader = PTLTestLoader()
         testtags = PTLTestTags()
         loader.set_data(testgroup, testsuites, excludes, True)
         testtags.set_data(tags, eval_tags, tags_info, list_tags, verbose)
         plugins = (loader, testtags)
     else:
-        loader = PTLTestLoader()
         testtags = PTLTestTags()
         runner = PTLTestRunner()
         db = PTLTestDb()
         data = PTLTestData()
-        loader.set_data(testgroup, testsuites, excludes, follow)
+        loader.set_data(testgroup, testsuites, excludes, follow, testfiles)
         testtags.set_data(tags, eval_tags)
-        runner.set_data(paramfile, testparam, lcov_bin, lcov_data, lcov_out,
-                        genhtml_bin, lcov_nosrc, lcov_baseurl,
-                        tc_failure_threshold, cumulative_tc_failure_threshold)
+        runner.set_data(paramfile, testparam, repeat_count,
+                        repeat_delay, lcov_bin, lcov_data,
+                        lcov_out, genhtml_bin, lcov_nosrc,
+                        lcov_baseurl, tc_failure_threshold,
+                        cumulative_tc_failure_threshold, use_cur_setup)
         db.set_data(dbtype, dbname, dbaccess)
         data.set_data(post_data_dir, max_postdata_threshold)
         plugins = (loader, testtags, runner, db, data)
@@ -489,12 +536,13 @@ if __name__ == '__main__':
             plugins += (_plugin(),)
     test_regex = r'(^(?:[\w]+|^)Test|pbs_|^test_[\(]*)'
     os.environ['NOSE_TESTMATCH'] = test_regex
-    if nosedebug:
-        os.environ['NOSE_VERBOSE'] = '7'
-        if outfile:
-            os.environ['NOSE_DEBUG_LOG'] = outfile
-    else:
-        os.environ['NOSE_VERBOSE'] = '2'
-    if stoponfail:
-        os.environ['NOSE_STOP'] = '1'
-    nose.main(defaultTest=tests, argv=[sys.argv[0]], plugins=plugins)
+    nose_config = PTLNoseConfig(
+        env=os.environ,
+        log_format=fmt,
+        outfile_handler=outfile_hdlr,
+        plugins=PluginManager(plugins=plugins),
+        verbosity=7 if nosedebug else 2,
+        stopOnError=stoponfail)
+    nose.main(defaultTest=tests, argv=[sys.argv[0]], config=nose_config)
+    if outfile_hdlr:
+        outfile_hdlr.close()

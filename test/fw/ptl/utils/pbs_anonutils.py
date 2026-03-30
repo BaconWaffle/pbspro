@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import logging
 import os
@@ -41,7 +44,8 @@ import copy
 import shlex
 import re
 
-from ptl.lib.pbs_testlib import BatchUtils,  PbsTypeFGCLimit
+from ptl.lib.pbs_teslib import (PbsTypeFGCLimit,
+                                PbsAttribute)
 from ptl.lib.pbs_ifl_mock import *
 from ptl.utils.pbs_dshutils import DshUtils
 
@@ -122,7 +126,7 @@ class PBSAnonymizer(object):
         if key in attr_map.keys():
             anon_key = attr_map[key]
         else:
-            anon_key = self.utils.random_str(len(key))
+            anon_key = PbsAttribute.random_str(len(key))
             attr_map[key] = anon_key
 
         return anon_key
@@ -205,7 +209,7 @@ class PBSAnonymizer(object):
                 value_map = kv_map[key]
                 anon_val = self.__get_anon_key(val, value_map)
             else:
-                anon_val = self.utils.random_str(len(val))
+                anon_val = PbsAttribute.random_str(len(val))
                 kv_map[key] = {val: anon_val}
             value = value.replace(val, anon_val)
 
@@ -353,7 +357,7 @@ class PBSAnonymizer(object):
                         self.gmap_attr_val[ANON_USER_K] = {}
 
                 if euser is not None and anon_euser is None:
-                    anon_euser = self.utils.random_str(len(euser))
+                    anon_euser = PbsAttribute.random_str(len(euser))
                     self.gmap_attr_val[ANON_USER_K][euser] = anon_euser
 
                 if "egroup" not in self.attr_val:
@@ -370,7 +374,7 @@ class PBSAnonymizer(object):
                             self.gmap_attr_val[ANON_GROUP_K] = {}
 
                 if egroup is not None and anon_egroup is None:
-                    anon_egroup = self.utils.random_str(len(egroup))
+                    anon_egroup = PbsAttribute.random_str(len(egroup))
                     self.gmap_attr_val[ANON_GROUP_K][egroup] = anon_egroup
 
                 # reconstruct the fairshare info by combining euser and egroup
@@ -407,7 +411,7 @@ class PBSAnonymizer(object):
                     if curr_anon_resc in self.gmap_resc_key:
                         val = self.gmap_resc_key[curr_anon_resc]
                     else:
-                        val = self.utils.random_str(len(curr_anon_resc))
+                        val = PbsAttribute.random_str(len(curr_anon_resc))
                 elif curr_anon_resc not in self.gmap_resc_key:
                     self.gmap_resc_key[curr_anon_resc] = val
                 tmp_resc.set_name(val)
@@ -441,7 +445,7 @@ class PBSAnonymizer(object):
                         if nm in ar and ename in ar[nm]:
                             obf_ename = ar[nm][ename]
                         else:
-                            obf_ename = self.utils.random_str(len(ename))
+                            obf_ename = PbsAttribute.random_str(len(ename))
                         self.gmap_attr_val[nm] = {ename: obf_ename}
                     elif ename in self.gmap_attr_val[nm]:
                         if ename in self.gmap_attr_val[nm]:
@@ -486,7 +490,7 @@ class PBSAnonymizer(object):
                 elif name in m and v in m[name]:
                     r = m[name][v]
                 else:
-                    r = self.utils.random_str(len(v))
+                    r = PbsAttribute.random_str(len(v))
                     if not isinstance(ar[name], dict):
                         ar[name] = {}
                     ar[name][v] = r
@@ -515,7 +519,7 @@ class PBSAnonymizer(object):
             if name in m:
                 ar[name] = m[name]
             else:
-                randstr = self.utils.random_str(len(name))
+                randstr = PbsAttribute.random_str(len(name))
                 ar[name] = randstr
                 m[name] = randstr
 
@@ -611,7 +615,7 @@ class PBSAnonymizer(object):
                             if r in val:
                                 if r not in self.gmap_resc_key:
                                     self.gmap_resc_key[
-                                        r] = self.utils.random_str(len(r))
+                                        r] = PbsAttribute.random_str(len(r))
                                 val = val.replace(r, self.gmap_resc_key[r])
                                 setattr(self, attr, val)
 
@@ -1049,7 +1053,7 @@ class PBSAnonymizer(object):
 
                 # Anonymize IP addresses
                 pattern = re.compile(
-                    "\b*\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b*")
+                    r"\b*\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b*")
                 match_obj = re.search(pattern, line)
                 if match_obj:
                     ip = match_obj.group(0)
@@ -1100,7 +1104,7 @@ class PBSAnonymizer(object):
 
             skip_record = False
             # Split the attribute list into key value pairs
-            kvl_list = map(lambda n: n.split("=", 1), buf)
+            kvl_list = [n.split("=", 1) for n in buf]
             if kvl_list is None:
                 self.num_bad_acct_records += 1
                 self.logger.debug("Bad accounting record found:\n" +
@@ -1165,7 +1169,7 @@ class PBSAnonymizer(object):
                     if sres in self.gmap_resc_key:
                         sr[i] = self.gmap_resc_key[sres]
                     else:
-                        anon_res = self.utils.random_str(len(sres))
+                        anon_res = PbsAttribute.random_str(len(sres))
                         self.gmap_resc_key[sres] = anon_res
                         sr[i] = anon_res
 

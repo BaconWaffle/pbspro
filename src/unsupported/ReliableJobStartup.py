@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 # ReliableJobStartup.py:
 #
@@ -81,7 +84,11 @@ if e.type == pbs.QUEUEJOB:
     pbs.logmsg(pbs.LOG_DEBUG, "job's select spec changed to %s" % new_select)
 
 elif e.type == pbs.EXECJOB_LAUNCH:
-    if 'PBS_NODEFILE' not in e.env:
+    # PBS_TASKNUM exists on primary Mom when executing launch hook, has value:
+    # 1  - for the first time when launching top-level shell, or
+    # >1 - for the spawned tasks servicing TM_SPAWN requests
+    if not e.job.in_ms_mom() or (
+            ('PBS_TASKNUM' in e.env) and (int(e.env['PBS_TASKNUM']) > 1)):
         e.accept()
     # add a log entry in primary mom logs
     pbs.logmsg(pbs.LOG_DEBUG, "Executing launch")
@@ -100,9 +107,8 @@ elif e.type == pbs.EXECJOB_LAUNCH:
 
     # prune the job's vnodes to satisfy the select spec in resource 'site'
     # and vnodes in vnode_list_fail[] are not used.
-    if e.job.in_ms_mom():
-        pj = e.job.release_nodes(keep_select=e.job.Resource_List["site"])
-        if pj is None:
-            e.job.Hold_Types = pbs.hold_types("s")
-            e.job.rerun()
-            e.reject("unsuccessful at LAUNCH")
+    pj = e.job.release_nodes(keep_select=e.job.Resource_List["site"])
+    if pj is None:
+        e.job.Hold_Types = pbs.hold_types("s")
+        e.job.rerun()
+        e.reject("unsuccessful at LAUNCH")

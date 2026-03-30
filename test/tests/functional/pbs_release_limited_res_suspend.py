@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import time
 from tests.functional import *
@@ -157,7 +160,7 @@ class TestReleaseLimitedResOnSuspend(TestFunctional):
         rc = 0
         try:
             rc = self.server.deljob(jid2, wait=True)
-        except PbsDeljobError, e:
+        except PbsDeljobError as e:
             self.assertEqual(rc, 0, e.msg[0])
 
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
@@ -216,13 +219,13 @@ class TestReleaseLimitedResOnSuspend(TestFunctional):
 
         vn_attrs = {ATTR_rescavail + '.ncpus': 8,
                     ATTR_rescavail + '.mem': '1024mb'}
-        self.server.create_vnodes("vnode1", vn_attrs, 1,
-                                  self.mom, fname="vnodedef1")
+        self.mom.create_vnodes(vn_attrs, 1,
+                               fname="vnodedef1", vname="vnode1")
         # Append a vnode
         vn_attrs = {ATTR_rescavail + '.ncpus': 6,
                     ATTR_rescavail + '.mem': '1024mb'}
-        self.server.create_vnodes("vnode2", vn_attrs, 1,
-                                  self.mom, additive=True, fname="vnodedef2")
+        self.mom.create_vnodes(vn_attrs, 1, additive=True,
+                               fname="vnodedef2", vname="vnode2")
 
         # Submit a low priority job
         j1 = Job(TEST_USER)
@@ -243,7 +246,7 @@ class TestReleaseLimitedResOnSuspend(TestFunctional):
         job = self.server.status(JOB, id=jid1)
 
         rr = "(vnode1[0]:ncpus=8)+(vnode2[0]:ncpus=6)"
-        print job[0][ATTR_released]
+        self.logger.info("resources released are " + job[0][ATTR_released])
         self.assertEqual(job[0][ATTR_released], rr,
                          msg="resources_released incorrect")
 
@@ -362,13 +365,13 @@ class TestReleaseLimitedResOnSuspend(TestFunctional):
 
         vn_attrs = {ATTR_rescavail + '.ncpus': 8,
                     ATTR_rescavail + '.mem': '1024mb'}
-        self.server.create_vnodes("vnode1", vn_attrs, 1,
-                                  self.mom, fname="vnodedef1")
+        self.mom.create_vnodes(vn_attrs, 1,
+                               fname="vnodedef1", vname="vnode1")
         # Append a vnode
         vn_attrs = {ATTR_rescavail + '.ncpus': 6,
                     ATTR_rescavail + '.mem': '1024mb'}
-        self.server.create_vnodes("vnode2", vn_attrs, 1,
-                                  self.mom, additive=True, fname="vnodedef2")
+        self.mom.create_vnodes(vn_attrs, 1, additive=True,
+                               fname="vnodedef2", vname="vnode2")
 
         # Submit a low priority job
         j1 = Job(TEST_USER)
@@ -430,7 +433,7 @@ class TestReleaseLimitedResOnSuspend(TestFunctional):
         rc = 0
         try:
             rc = self.server.deljob(jid1, wait=True)
-        except PbsDeljobError, e:
+        except PbsDeljobError as e:
             self.assertEqual(rc, 0, e.msg[0])
 
         rv = self.server.status(
@@ -760,13 +763,13 @@ class TestReleaseLimitedResOnSuspend(TestFunctional):
 
         vn_attrs = {ATTR_rescavail + '.ncpus': 2,
                     ATTR_rescavail + '.mem': '1024mb'}
-        self.server.create_vnodes("vnode1", vn_attrs, 1,
-                                  self.mom, fname="vnodedef1")
+        self.mom.create_vnodes(vn_attrs, 1, fname="vnodedef1",
+                               vname="vnode1")
         # Append a vnode
         vn_attrs = {ATTR_rescavail + '.ncpus': 6,
                     ATTR_rescavail + '.mem': '1024mb'}
-        self.server.create_vnodes("vnode2", vn_attrs, 1,
-                                  self.mom, additive=True, fname="vnodedef2")
+        self.mom.create_vnodes(vn_attrs, 1, additive=True,
+                               fname="vnodedef2", vname="vnode2")
         j1 = Job(TEST_USER)
         j1.set_attributes({ATTR_l + '.select':
                            '1:ncpus=2+1:ncpus=6',
@@ -949,7 +952,7 @@ class TestReleaseLimitedResOnSuspend(TestFunctional):
         self.server.manager(MGR_CMD_SET, SCHED,
                             {'preempt_order': preempt_method}, runas=ROOT_USER)
 
-        # Set 1gb mem available on the node
+        # Set 2 ncpus available on the node
         a = {ATTR_rescavail + '.ncpus': "2"}
         self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
 
@@ -988,12 +991,115 @@ class TestReleaseLimitedResOnSuspend(TestFunctional):
                 kill $1
                 exit 0
                 """
-        pbs_home = self.server.pbs_conf['PBS_HOME']
-        self.chk_file = self.du.create_temp_file(body=chk_script,
-                                                 dirname=pbs_home)
-        self.du.chmod(path=self.chk_file, mode=0o755)
-        self.du.chown(path=self.chk_file, uid=0, gid=0, sudo=True)
-        c = {'$action': 'checkpoint_abort 30 !' + self.chk_file + ' %sid'}
-        self.mom.add_config(c)
-
+        pbs_home = self.mom.pbs_conf['PBS_HOME']
+        self.mom.add_checkpoint_abort_script(body=chk_script)
         self.helper_test_preempt_release_all("C")
+
+    def test_server_restart_with_suspened_job(self):
+        """
+        Test that when a job releases limited resources on a node and then
+        PBS server is restarted, the job is able to resume back on the same
+        node.
+        """
+        # Set ncpus in restrict_res_to_release_on_suspend server attribute
+        a = {ATTR_restrict_res_to_release_on_suspend: 'ncpus'}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+
+        # Set 2 ncpus available on the node
+        a = {ATTR_rescavail + '.ncpus': "2"}
+        self.server.manager(MGR_CMD_SET, NODE, a, self.mom.shortname)
+
+        # Submit a job which takes up all of the ncpus
+        j1 = Job(TEST_USER)
+        j1.set_attributes({ATTR_l + '.select': '1:ncpus=2'})
+        jid1 = self.server.submit(j1)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
+
+        # make sure that job id is part of node's jobs attribute
+        node = self.server.status(NODE, id=self.mom.shortname)
+        self.assertIn(jid1, node[0]['jobs'])
+
+        # suspend job
+        self.server.sigjob(jobid=jid1, signal="suspend")
+
+        self.server.restart()
+
+        self.assertTrue(self.server.isUp())
+        self.server.expect(NODE, {'state': 'free'}, id=self.mom.shortname)
+        self.server.expect(NODE, 'jobs', op=UNSET, id=self.mom.shortname)
+
+        # resume job
+        self.server.sigjob(jobid=jid1, signal="resume")
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
+        self.server.expect(NODE, 'jobs', op=SET, id=self.mom.shortname)
+
+    def test_server_restart_with_suspened_job_unset(self):
+        """
+        Test that when the attribute is set and unset,
+        the server does not crash on restart with a suspended job.
+        """
+        a = {'type': 'long', 'flag': 'q'}
+        self.server.manager(MGR_CMD_CREATE, RSC, a, id='l1')
+        self.server.manager(MGR_CMD_CREATE, RSC, a, id='l2')
+
+        self.scheduler.add_resource('l1, l2', apply=True)
+
+        a = {'Resources_available.l1': 5, 'Resources_available.l2': 5}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+
+        a = {ATTR_restrict_res_to_release_on_suspend: ['ncpus', 'l1']}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+
+        a = {'Resource_List.select': '1:ncpus=1:mem=1024kb',
+             'Resource_List.l1': 1,
+             'Resource_List.l2': 1}
+
+        j1 = Job(TEST_USER, attrs=a)
+        jid1 = self.server.submit(j1)
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
+
+        node = self.server.status(NODE, id=self.mom.shortname)
+        self.assertIn(jid1, node[0]['jobs'])
+        self.server.expect(NODE,
+                           {'resources_assigned.ncpus': 1,
+                            'resources_assigned.mem': '1024kb'},
+                           id=self.mom.shortname)
+        self.server.expect(SERVER,
+                           {'resources_assigned.l1': 1,
+                            'resources_assigned.l2': 1})
+
+        self.server.sigjob(jobid=jid1, signal="suspend")
+        self.server.expect(NODE,
+                           {'resources_assigned.ncpus': 0,
+                            'resources_assigned.mem': '1024kb'},
+                           id=self.mom.shortname)
+        self.server.expect(SERVER,
+                           {'resources_assigned.l1': 0,
+                            'resources_assigned.l2': 1})
+
+        a = [ATTR_restrict_res_to_release_on_suspend]
+        self.server.manager(MGR_CMD_UNSET, SERVER, a)
+
+        self.server.restart()
+
+        self.assertTrue(self.server.isUp())
+        self.server.expect(NODE,
+                           {'state': 'free',
+                            'resources_assigned.ncpus': 0,
+                            'resources_assigned.mem': '1024kb'},
+                           id=self.mom.shortname)
+        self.server.expect(SERVER,
+                           {'resources_assigned.l1': 0,
+                            'resources_assigned.l2': 1})
+        self.server.expect(NODE, 'jobs', op=UNSET, id=self.mom.shortname)
+
+        self.server.sigjob(jobid=jid1, signal="resume")
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
+        self.server.expect(NODE, 'jobs', op=SET, id=self.mom.shortname)
+        self.server.expect(NODE,
+                           {'resources_assigned.ncpus': 1,
+                            'resources_assigned.mem': '1024kb'},
+                           id=self.mom.shortname)
+        self.server.expect(SERVER,
+                           {'resources_assigned.l1': 1,
+                            'resources_assigned.l2': 1})

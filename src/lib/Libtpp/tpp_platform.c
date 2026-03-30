@@ -1,39 +1,40 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
 
 /**
@@ -56,15 +57,10 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#ifndef WIN32
 #include <netinet/tcp.h>
 #include <sys/resource.h>
 #include <signal.h>
-#endif
-
-#include "rpp.h"
-#include "tpp_common.h"
-#include "tpp_platform.h"
+#include "tpp_internal.h"
 
 #ifdef WIN32
 
@@ -145,9 +141,7 @@ tpp_pipe_err:
 		closesocket(fds[1]);
 
 	errno = tr_2_errno(WSAGetLastError());
-	snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ,
-		"%s failed, winsock errno= %d", op, WSAGetLastError());
-	tpp_log_func(LOG_CRIT, __func__, tpp_get_logbuf());
+	tpp_log(LOG_CRIT, __func__, "%s failed, winsock errno= %d", op, WSAGetLastError());
 	return -1;
 }
 
@@ -250,16 +244,16 @@ tpp_sock_socket(int af, int type, int protocol)
 	 * the support for Layered Service Providers. If Firewall/antivirus
 	 * are installed, the socket handle could get inherited despite
 	 * the fact that we are setting this as un-inheritable via a call
-	 * post the socket creation time. 
-	 * 
+	 * post the socket creation time.
+	 *
 	 * Use WSA_FLAG_NO_HANDLE_INHERIT available in newer windows
 	 * versions (7SP1 onwards) in the call to WSASocket().
-	 * 
+	 *
 	 * Also use the SetHandleInformation for older windows. (This may
 	 * not work with LSP's installed.
 	 *
 	 */
-#ifdef WSA_FLAG_NO_HANDLE_INHERIT 
+#ifdef WSA_FLAG_NO_HANDLE_INHERIT
 	dwFlags = WSA_FLAG_NO_HANDLE_INHERIT;
 #endif
 	if ((fd = WSASocket(af, type, protocol, NULL, 0, dwFlags)) == INVALID_SOCKET) {
@@ -462,14 +456,29 @@ tr_2_errno(int win_errno)
 	 * for others, we do not care,
 	 */
 	switch (win_errno) {
-		case WSAEINVAL: ret = EINVAL; break;
-		case WSAEINPROGRESS: ret = EINPROGRESS; break;
-		case WSAEINTR: ret = EINTR; break;
-		case WSAECONNREFUSED: ret = ECONNREFUSED; break;
-		case WSAEWOULDBLOCK: ret = EWOULDBLOCK; break;
-		case WSAEADDRINUSE: ret = EADDRINUSE; break;
-		case WSAEADDRNOTAVAIL: ret = EADDRNOTAVAIL; break;
-		default: ret = EINVAL;
+		case WSAEINVAL:
+			ret = EINVAL;
+			break;
+		case WSAEINPROGRESS:
+			ret = EINPROGRESS;
+			break;
+		case WSAEINTR:
+			ret = EINTR;
+			break;
+		case WSAECONNREFUSED:
+			ret = ECONNREFUSED;
+			break;
+		case WSAEWOULDBLOCK:
+			ret = EWOULDBLOCK;
+			break;
+		case WSAEADDRINUSE:
+			ret = EADDRINUSE;
+			break;
+		case WSAEADDRNOTAVAIL:
+			ret = EADDRNOTAVAIL;
+			break;
+		default:
+			ret = EINVAL;
 	}
 	return ret;
 }
@@ -491,10 +500,9 @@ tr_2_errno(int win_errno)
 int
 tpp_sock_layer_init()
 {
-	WSADATA	data;
+	WSADATA data;
 	if (WSAStartup(MAKEWORD(2, 2), &data)) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "winsock_init failed! error=%d\n", WSAGetLastError());
-		tpp_log_func(LOG_CRIT, NULL, tpp_get_logbuf());
+		tpp_log(LOG_CRIT, NULL, "winsock_init failed! error=%d", WSAGetLastError());
 		return -1;
 	}
 	return 0;
@@ -581,12 +589,11 @@ tpp_get_nfiles()
 	struct rlimit rlp;
 
 	if (getrlimit(RLIMIT_NOFILE, &rlp) == -1) {
-		tpp_log_func(LOG_CRIT, __func__, "getrlimit failed");
+		tpp_log(LOG_CRIT, __func__, "getrlimit failed");
 		return -1;
 	}
 
-	snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "Max files allowed = %ld", (long) rlp.rlim_cur);
-	tpp_log_func(LOG_INFO, NULL, tpp_get_logbuf());
+	tpp_log(LOG_INFO, NULL, "Max files allowed = %ld", (long) rlp.rlim_cur);
 
 	return (rlp.rlim_cur);
 }
@@ -623,12 +630,12 @@ set_pipe_disposition()
 		if (oact.sa_handler == SIG_DFL) {
 			act.sa_handler = SIG_IGN;
 			if (sigaction(SIGPIPE, &act, &oact) != 0) {
-				tpp_log_func(LOG_CRIT, __func__, "Could not set SIGPIPE to IGN");
+				tpp_log(LOG_CRIT, __func__, "Could not set SIGPIPE to IGN");
 				return -1;
 			}
 		}
 	} else {
-		tpp_log_func(LOG_CRIT, __func__, "Could not query SIGPIPEs disposition");
+		tpp_log(LOG_CRIT, __func__, "Could not query SIGPIPEs disposition");
 		return -1;
 	}
 	return 0;
@@ -674,10 +681,20 @@ tpp_sock_resolve_ip(tpp_addr_t *addr, char *host, int len)
 		sa->sa_family = AF_INET6;
 	} else
 		return -1;
-
+#ifndef WIN32
+	/* 
+	 * introducing a new mutex to prevent child process from 
+	 * inheriting getnameinfo mutex using pthread_atfork handlers
+	 */
+	tpp_lock(&tpp_nslookup_mutex);
+#endif
 	rc = getnameinfo(sa, salen, host, len, NULL, 0, 0);
+	/* unlock nslookup mutex */
+#ifndef WIN32
+	tpp_unlock(&tpp_nslookup_mutex);
+#endif
 	if (rc != 0) {
-		TPP_DBPRT(("Error: %s", gai_strerror(rc)));
+		TPP_DBPRT("Error: %s", gai_strerror(rc));
 	}
 	return rc;
 }
@@ -717,9 +734,20 @@ tpp_sock_resolve_host(char *host, int *count)
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 
-	if ((rc = getaddrinfo(host, NULL, &hints, &pai)) != 0) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "Error %d resolving %s\n", rc, host);
-		tpp_log_func(LOG_CRIT, NULL, tpp_get_logbuf());
+#ifndef WIN32
+	/* 
+	 * introducing a new mutex to prevent child process from 
+	 * inheriting getaddrinfo mutex using pthread_atfork handlers
+	 */
+	tpp_lock(&tpp_nslookup_mutex);
+#endif
+	rc = getaddrinfo(host, NULL, &hints, &pai);
+	/* unlock nslookup mutex */
+#ifndef WIN32
+	tpp_unlock(&tpp_nslookup_mutex);
+#endif
+	if (rc != 0) {
+		tpp_log(LOG_CRIT, NULL, "Error %d resolving %s", rc, host);
 		return NULL;
 	}
 
@@ -731,8 +759,7 @@ tpp_sock_resolve_host(char *host, int *count)
 	}
 
 	if (*count == 0) {
-		snprintf(tpp_get_logbuf(), TPP_LOGBUF_SZ, "Could not find any usable IP address for host %s", host);
-		tpp_log_func(LOG_CRIT, NULL, tpp_get_logbuf());
+		tpp_log(LOG_CRIT, NULL, "Could not find any usable IP address for host %s", host);
 		return NULL;
 	}
 
@@ -756,10 +783,10 @@ tpp_sock_resolve_host(char *host, int *count)
 				struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *) aip->ai_addr;
 				memcpy(&ips[i].ip, &sa6->sin6_addr, sizeof(sa6->sin6_addr));
 			}
-			ips[i].family = (aip->ai_family == AF_INET6)? TPP_ADDR_FAMILY_IPV6 : TPP_ADDR_FAMILY_IPV4;
+			ips[i].family = (aip->ai_family == AF_INET6) ? TPP_ADDR_FAMILY_IPV6 : TPP_ADDR_FAMILY_IPV4;
 			ips[i].port = 0;
 
-			for(j=0; j < i; j++) {
+			for (j = 0; j < i; j++) {
 				/* check for duplicate ip addresses dont add if duplicate */
 				if (memcmp(&ips[j].ip, &ips[i].ip, sizeof(ips[j].ip)) == 0) {
 					break;
@@ -781,7 +808,7 @@ tpp_sock_resolve_host(char *host, int *count)
 
 	if (i < *count) {
 		/* try to resize the buffer, don't bother if resize failed */
-		tmp = realloc(ips, i*sizeof(tpp_addr_t));
+		tmp = realloc(ips, i * sizeof(tpp_addr_t));
 		if (tmp)
 			ips = tmp;
 	}
@@ -823,22 +850,22 @@ tpp_sock_attempt_connection(int fd, char *host, int port)
 		return -1;
 	}
 
-	for(i = 0; i < count; i++) {
+	for (i = 0; i < count; i++) {
 		if (addr[i].family == TPP_ADDR_FAMILY_IPV4)
 			break;
 	}
 	if (i == count) {
 		/* did not find a ipv4 address, fail for now */
 		free(addr);
-		errno  = EADDRNOTAVAIL;
+		errno = EADDRNOTAVAIL;
 		return -1;
 	}
 
 	dest_addr.sin_family = AF_INET;
 	dest_addr.sin_port = htons(port);
 
-	memcpy((char *)&dest_addr.sin_addr, &addr[i].ip, sizeof(dest_addr.sin_addr));
-	rc = tpp_sock_connect(fd, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+	memcpy((char *) &dest_addr.sin_addr, &addr[i].ip, sizeof(dest_addr.sin_addr));
+	rc = tpp_sock_connect(fd, (struct sockaddr *) &dest_addr, sizeof(dest_addr));
 	free(addr);
 
 	return rc;

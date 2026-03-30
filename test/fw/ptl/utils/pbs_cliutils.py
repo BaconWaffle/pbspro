@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 import logging
 import os
@@ -57,26 +60,26 @@ class CliUtils(object):
         logging.INFOCLI = logging.INFO - 1
         logging.INFOCLI2 = logging.INFOCLI - 1
 
-        l = None
+        log_lvl = None
         level = str(level).upper()
         if level == 'INFO':
-            l = logging.INFO
+            log_lvl = logging.INFO
         elif level == 'INFOCLI':
-            l = logging.INFOCLI
+            log_lvl = logging.INFOCLI
         elif level == 'INFOCLI2':
-            l = logging.INFOCLI2
+            log_lvl = logging.INFOCLI2
         elif level == 'DEBUG':
-            l = logging.DEBUG
+            log_lvl = logging.DEBUG
         elif level == 'DEBUG2':
-            l = logging.DEBUG2
+            log_lvl = logging.DEBUG2
         elif level == 'WARNING':
-            l = logging.WARNING
+            log_lvl = logging.WARNING
         elif level == 'ERROR':
-            l = logging.ERROR
+            log_lvl = logging.ERROR
         elif level == 'FATAL':
-            l = logging.FATAL
+            log_lvl = logging.FATAL
 
-        return l
+        return log_lvl
 
     @staticmethod
     def check_bin(bin_name):
@@ -97,7 +100,7 @@ class CliUtils(object):
         try:
             import json
             return json.dumps(data, sort_keys=True, indent=4)
-        except:
+        except Exception:
             # first escape any existing double quotes
             _pre = str(data).replace('"', '\\"')
             # only then, replace the single quotes with double quotes
@@ -123,11 +126,11 @@ class CliUtils(object):
         """
         from ptl.utils.pbs_dshutils import DshUtils
 
-        netstat_tag = re.compile("tcp[\s]+[\d]+[\s]+[\d]+[\s]+"
-                                 "(?P<srchost>[\w\*\.]+):(?P<srcport>[\d]+)"
-                                 "[\s]+(?P<desthost>[\.\w\*:]+):"
-                                 "(?P<destport>[\d]+)"
-                                 "[\s]+(?P<state>[\w]+).*")
+        netstat_tag = re.compile(r"tcp[\s]+[\d]+[\s]+[\d]+[\s]+"
+                                 r"(?P<srchost>[\w\*\.]+):(?P<srcport>[\d]+)"
+                                 r"[\s]+(?P<desthost>[\.\w\*:]+):"
+                                 r"(?P<destport>[\d]+)"
+                                 r"[\s]+(?P<state>[\w]+).*")
         du = DshUtils()
         ret = du.run_cmd(hostname, ['netstat', '-at', '--numeric-ports'])
         if ret['rc'] != 0:
@@ -163,7 +166,7 @@ class CliUtils(object):
             msg.append('\nPrivilege ports in use: ')
             for k, v in resv_ports.items():
                 msg.append('\t' + k + ': ' +
-                           str(",".join(map(lambda l: str(l), v))))
+                           str(",".join([str(l) for l in v])))
             for sh in source_hosts:
                 msg.append('\nTotal on ' + sh + ': ' +
                            str(len(resv_ports[sh])))

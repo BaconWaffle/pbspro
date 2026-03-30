@@ -1,48 +1,45 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
 
 from tests.functional import *
 import math
-
-
-def get_epoch(msg):
-    # Since its a log message split on ';' to get timestamp
-    a = time.strptime(msg.split(';')[0], "%m/%d/%Y %H:%M:%S")
-    return int(time.mktime(a))
+from ptl.utils.pbs_logutils import PBSLogUtils
 
 
 @tags('cray')
@@ -58,6 +55,12 @@ class TestCrayAlpsReleaseTunables(TestFunctional):
             self.skipTest("Test suite only meant to run on a Cray")
         TestFunctional.setUp(self)
 
+    @staticmethod
+    def get_epoch(msg):
+        # Since its a log message split on ';' to get timestamp
+        a = PBSLogUtils.convert_date_time(msg.split(';')[0])
+        return a
+
     def test_alps_release_wait_time(self):
         """
         Set alps_release_wait_time to a higher value and then notice that
@@ -70,7 +73,7 @@ class TestCrayAlpsReleaseTunables(TestFunctional):
         self.mom.add_config({'$alps_release_wait_time': arwt})
 
         # submit a job and then delete it after it starts running
-        start_time = int(time.time())
+        start_time = time.time()
         j1 = Job(TEST_USER)
         jid1 = self.server.submit(j1)
         self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
@@ -93,12 +96,12 @@ class TestCrayAlpsReleaseTunables(TestFunctional):
         if len(out) >= 2:
             # variable 'out' is a list of tuples and every second element
             # in a tuple is the matched log message
-            time_prev = get_epoch(out[0][1])
+            time_prev = self.get_epoch(out[0][1])
             for data in out[1:]:
-                time_current = get_epoch(data[1])
+                time_current = self.get_epoch(data[1])
                 fail_msg = "alps_release_wait_time not working"
                 self.assertGreaterEqual(time_current - time_prev,
-                                        math.ceil(arwt),
+                                        math.floor(arwt),
                                         msg=fail_msg)
                 time_prev = time_current
 
@@ -124,7 +127,7 @@ class TestCrayAlpsReleaseTunables(TestFunctional):
         n = retry = 5
         for _ in range(n):
             # submit a job and then delete it after it starts running
-            start_time = int(time.time())
+            start_time = time.time()
             j1 = Job(TEST_USER)
             jid1 = self.server.submit(j1)
             self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
@@ -148,10 +151,11 @@ class TestCrayAlpsReleaseTunables(TestFunctional):
                 retry -= 1
                 # variable 'out' is a list of tuples and every second element
                 # in a tuple is the matched log message
-                time_prev = get_epoch(out[0][1])
+                time_prev = self.get_epoch(out[0][1])
                 for data in out[1:]:
-                    time_current = get_epoch(data[1])
-                    self.assertLessEqual(time_current - time_prev, max_delay,
+                    time_current = self.get_epoch(data[1])
+                    self.assertLessEqual(time_current - time_prev,
+                                         max_delay,
                                          msg="alps_release_jitter not working")
                     time_prev = time_current
         if retry == 5:

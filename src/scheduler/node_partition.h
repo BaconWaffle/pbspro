@@ -1,49 +1,47 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
-#ifndef	_NODE_PARTITION_H
+
+#ifndef _NODE_PARTITION_H
 #define _NODE_PARTITION_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
 
 #include "data_types.h"
 #include <pbs_ifl.h>
-
 
 /*
  *
@@ -102,13 +100,17 @@ node_partition **dup_node_partition_array(node_partition **onp_arr, server_info 
  */
 node_partition *dup_node_partition(node_partition *onp, server_info *nsinfo);
 
+/* copy a node partition array from pointers out of another.*/
+node_partition **copy_node_partition_ptr_array(node_partition **onp_arr, node_partition **new_nps);
+
 /*
  *
  *      create_node_partitions - break apart nodes into partitions
  *
- *         IN: sinfo - nodes to create partitions from
+ *         IN: policy - policy info
+ *         IN: nodes  -  the nodes to create partitions from
  *	   IN: resname - node grouping resource name
- *         IN: dont_set_node - don't set the np_arr flags on the nodes
+ *         IN: flags - flags which change operations of node partition creation
  *	  OUT: num_parts - the number of node partitions created
  *
  *      returns node_partition array or NULL on error
@@ -116,9 +118,8 @@ node_partition *dup_node_partition(node_partition *onp, server_info *nsinfo);
  *
  *
  */
-node_partition **
-create_node_partitions(status *policy, node_info **nodes, char **resnames,
-	unsigned int flags, int *num_parts);
+node_partition **create_node_partitions(status *policy, node_info **nodes, const std::vector<std::string> &resnames,
+					unsigned int flags, int *num_parts);
 
 /*
  *
@@ -130,7 +131,7 @@ create_node_partitions(status *policy, node_info **nodes, char **resnames,
  *      returns found node partition or NULL if not found
  *
  */
-node_partition *find_node_partition(node_partition **np_arr, char *name);
+node_partition *find_node_partition(node_partition **np_arr, const std::string &name);
 
 /* find node partition by unique rank */
 
@@ -156,14 +157,9 @@ int node_partition_update_array(status *policy, node_partition **nodepart);
 int node_partition_update(status *policy, node_partition *np);
 
 /*
- *	new_np_cache - constructor
- */
-np_cache *new_np_cache(void);
-
-/*
  *	free_np_cache_array - destructor for array
  */
-void free_np_cache_array(np_cache **npc_arr);
+void free_np_cache_array(std::vector<np_cache *> &npc_arr);
 
 /*
  *	free_np_cache - destructor
@@ -185,42 +181,47 @@ void free_np_cache(np_cache *npc);
  */
 np_cache *
 find_np_cache(np_cache **npc_arr,
-	char **resnames, node_info **ninfo_arr);
+	      const std::vector<std::string> &resnames, node_info **ninfo_arr);
 /*
  *	find_alloc_np_cache - find a np_cache by the array of resource names
  *			      and nodes which created it.  If the np_cache
  *			      does not exist, create it and add it to the list
  */
 np_cache *
-find_alloc_np_cache(status *policy, np_cache ***pnpc_arr,
-	char **resnames, node_info **ninfo_arr,
-	int (*sort_func)(const void *, const void *));
-/*
- *	add_np_cache - add an np_cache to an array
- *	returns 1 on success - 0 on failure
- */
-int add_np_cache(np_cache ***npc_arr, np_cache *npc);
+find_alloc_np_cache(status *policy, std::vector<np_cache *> &pnpc_arr,
+		    const std::vector<std::string> &resnames, node_info **ninfo_arr,
+		    int (*sort_func)(const void *, const void *));
 
 /*
  * do an inital check to see if a resresv can fit into a node partition
  * based on the meta data we keep
  */
-int resresv_can_fit_nodepart(status *policy, node_partition *np, resource_resv *resresv, int total, schd_error *err);
+int resresv_can_fit_nodepart(status *policy, node_partition *np, resource_resv *resresv, unsigned int flags, schd_error *err);
 
 /*
  *	create_specific_nodepart - create a node partition with specific
  *				   nodes, rather than from a placement
  *				   set resource=value
  */
-node_partition *create_specific_nodepart(status *policy, char *name, node_info **nodes);
+node_partition *create_specific_nodepart(status *policy, const char *name, node_info **nodes, int flags);
 /* create the placement sets for the server and queues */
-int create_placement_sets(status *policy, server_info *sinfo);
+bool create_placement_sets(status *policy, server_info *sinfo);
 
 /* Update placement sets and allparts */
 void update_all_nodepart(status *policy, server_info *sinfo, unsigned int flags);
 
+/* Sort all placement sets (server's psets, queue's psets, and hostsets) */
+void sort_all_nodepart(status *policy, server_info *sinfo);
 
-#ifdef	__cplusplus
-}
-#endif
-#endif	/* _NODE_PARTITION_H */
+/*
+ * update the node buckets associated with a node
+ */
+void update_buckets_for_node(node_bucket **bkts, node_info *ninfo);
+
+/*
+ * update the node buckets associated with a node partition on
+ * job/resv run/end
+ */
+void update_buckets_for_node_array(node_bucket **bkts, node_info **ninfo_arr);
+
+#endif /* _NODE_PARTITION_H */

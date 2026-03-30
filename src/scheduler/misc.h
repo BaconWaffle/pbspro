@@ -1,76 +1,64 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
-#ifndef	_MISC_H
-#define	_MISC_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
+
+#ifndef _MISC_H
+#define _MISC_H
+
+#include <string>
 
 #include "data_types.h"
 #include "server_info.h"
 #include "queue_info.h"
 #include "job_info.h"
+#include "sched_cmds.h"
 
 /*
  *	string_dup - duplicate a string
  */
-char *string_dup(char *str);
-
-/*
- *	concat_str - contactenate up to three strings together in newly
- *		     allocated memory
- *	  str1 - first string to concat
- *	  str2 - second string to concat
- *	  str3 - third string to concat -- could be NULL
- *	  append - boolean to determine if str1 should be freed
- *
- *
- *	returns newly allocated string with strings concatenated
- */
-char *concat_str(char *str1, char *str2, char *str3, int append);
-
+char *string_dup(const char *str);
 
 /*
  *      res_to_num - convert a resource string to an integer in the lowest
  *                      form of resource on the machine (btye/word)
  *                      example: 1kb -> 1024 or 1kw -> 1024
  */
-sch_resource_t res_to_num(char * res_str, struct resource_type *type);
+sch_resource_t res_to_num(const char *res_str, struct resource_type *type);
 
 /*
  *      skip_line - find if the line of the config file needs to be skipped
@@ -79,20 +67,14 @@ sch_resource_t res_to_num(char * res_str, struct resource_type *type);
 int skip_line(char *line);
 
 /*
- *      schdlog - write a log entry to the scheduler log file using log_record
- */
-
-void schdlog(int event, int class, int sev, const char *name, const char *text);
-
-/*
- *      schdlogerr - combination of schdlog and translate_fail_code()
+ *      schdlogerr - combination of log_event() and translate_fail_code()
  *                   If we're actually going to log a message, translate
  *                   err into a message and then log it.  The translated
  *                   error will be printed after the message
  */
 void
-schdlogerr(int event, int class, int sev, char *name, char *text,
-	schd_error *err);
+schdlogerr(int event, int event_class, int sev, const std::string &name, const char *text,
+	   schd_error *err);
 
 /*
  *
@@ -109,25 +91,15 @@ schdlogerr(int event, int class, int sev, char *name, char *text,
  *              - returns 0: ptr will NOT be added to filtered array
  */
 void **
-filter_array(void **ptrarr, int (*filter_func)(void*, void*),
-	void *arg, int flags);
+filter_array(void **ptrarr, int (*filter_func)(void *, void *),
+	     void *arg, int flags);
 
 /**
  * 	calc_time_left_STF - calculate the amount of time left
  *  for minimum duration and maximum duration of a STF resource resv
  *
  */
-int calc_time_left_STF(resource_resv *resresv, sch_resource_t* min_time_left);
-
-/*
- *      dup_string_array - duplicate an array of strings
- */
-char **dup_string_array(char **ostrs);
-
-/*
- *      string_array_verify - verify two string arrays are equal
- */
-unsigned string_array_verify(char **sa1, char **sa2);
+int calc_time_left_STF(resource_resv *resresv, sch_resource_t *min_time_left);
 
 /*
  *
@@ -139,16 +111,8 @@ unsigned string_array_verify(char **sa1, char **sa2);
  *		 SA_NO_MATCH		: no match
  *
  */
-enum match_string_array_ret match_string_array(char **strarr1, char **strarr2);
-
-/*
- *
- *	match_string_to_array - see if a string array contains a single string
- *
- *	returns value from match_string_array()
- *
- */
-enum match_string_array_ret match_string_to_array(char *str, char **strarr);
+enum match_string_array_ret match_string_array(const char *const *strarr1, const char *const *strarr2);
+enum match_string_array_ret match_string_array(const std::vector<std::string> &strarr1, const std::vector<std::string> &strarr2);
 
 /*
  * convert a string array into a printable string
@@ -158,25 +122,30 @@ char *string_array_to_str(char **strarr);
 /*
  *      calc_time_left - calculate the remaining time of a job
  */
-int calc_time_left(resource_resv *jinfo, int use_hard_duration);
+int calc_time_left(resource_resv *resresv, int use_hard_duration);
 
 /*
  *      cstrcmp - check string compare - compares two strings but doesn't bomb
  *                if either one is null
  */
-int cstrcmp(char *s1, char *s2);
+int cstrcmp(const char *s1, const char *s2);
 
 /*
  *      is_num - checks to see if the string is a number, size, float
  *               or time in string form
  */
-int is_num(char *str);
+int is_num(const char *str);
 
 /*
  *	count_array - count the number of elements in a NULL terminated array
  *		      of pointers
  */
-int count_array(void **arr);
+int count_array(const void *arr);
+
+/*
+ *	dup_array - make a shallow copy of elements in a NULL terminated array of pointers.
+ */
+void **dup_array(void *ptr);
 
 /*
  *	remove_ptr_from_array - remove a pointer from a ptr list and move
@@ -187,7 +156,18 @@ int count_array(void **arr);
  *	returns non-zero if the ptr was successfully removed from the array
  *		zero if the array has not been modified
  */
-int remove_ptr_from_array(void **arr, void *ptr);
+int remove_ptr_from_array(void *arr, void *ptr);
+
+/**
+ * @brief add pointer to NULL terminated pointer array
+ * @param[in] ptr_arr - pointer array to add to
+ * @param[in] ptr - pointer to add
+ *
+ * @return void *
+ * @retval pointer array with new element added
+ * @retval NULL on error
+ */
+void *add_ptr_to_array(void *ptr_arr, void *ptr);
 
 /*
  *      is_valid_pbs_name - is str a valid pbs username (POSIX.1 + ' ')
@@ -218,8 +198,7 @@ char *res_to_str_r(void *p, enum resource_fields fld, char *buf, int bufsize);
  */
 char *
 res_to_str_c(sch_resource_t amount, resdef *def, enum resource_fields fld,
-	char *buf, int bufsize);
-
+	     char *buf, int bufsize);
 
 /**
  *
@@ -232,7 +211,7 @@ res_to_str_c(sch_resource_t amount, resdef *def, enum resource_fields fld,
  */
 char *
 res_to_str_re(void *p, enum resource_fields fld, char **buf,
-	int *bufsize, unsigned int flags);
+	      int *bufsize, unsigned int flags);
 
 /*
  * clear schd_error structure for reuse
@@ -252,10 +231,10 @@ void move_schd_error(schd_error *err, schd_error *oerr);
 void copy_schd_error(schd_error *err, schd_error *oerr);
 
 /* safely set the schd_config arg buffers without worrying about leaking */
-void set_schd_error_arg(schd_error *err, int arg_field, char *arg);
+void set_schd_error_arg(schd_error *err, enum schd_error_args arg_field, const char *arg);
 
 /* set the status code and error code of a schd_error structure to ensure both are set together  */
-void set_schd_error_codes(schd_error *err, enum schd_err_status status_code, enum sched_error error_code);
+void set_schd_error_codes(schd_error *err, enum schd_err_status status_code, enum sched_error_code error_code);
 
 /* schd_error destuctor */
 void
@@ -265,14 +244,13 @@ free_schd_error_list(schd_error *err_list);
 
 /* helper functions to create schd_errors*/
 schd_error *
-create_schd_error(int error_code, int status_code) ;
+create_schd_error(enum sched_error_code error_code, enum schd_err_status status_code);
 schd_error *
-create_schd_error_complex(int error_code, int status_code, char *arg1, char *arg2, char *arg3, char *errbuf);
+create_schd_error_complex(enum sched_error_code error_code, enum schd_err_status status_code, char *arg1, char *arg2, char *arg3, char *specmsg);
 
 /* add schd_errors to linked list */
 void
 add_err(schd_error **prev_err, schd_error *err);
-
 
 /*
  * add string to NULL terminated string array
@@ -286,7 +264,16 @@ add_str_to_array(char ***str_arr, char *str);
 int
 add_str_to_unique_array(char ***str_arr, char *str);
 
-#ifdef	__cplusplus
-}
-#endif
-#endif	/* _MISC_H */
+/*
+ * helper function to free an array of pointers
+ */
+void free_ptr_array(void *inp);
+
+void log_eventf(int eventtype, int objclass, int sev, const std::string &objname, const char *fmt, ...);
+void log_event(int eventtype, int objclass, int sev, const std::string &objname, const char *text);
+
+/*
+ * overloaded break_comma_list function
+ */
+std::vector<std::string> break_comma_list(const std::string &strlist);
+#endif /* _MISC_H */

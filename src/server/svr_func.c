@@ -1,148 +1,51 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
+
 /**
- * @file    svr_func.c
  *
  * @brief
- * 		svr_func.c - miscellaneous server functions
+ * 		miscellaneous server functions
  *
- * Functions included are:
- * 	encode_svrstate()
- * 	set_resc_assigned()
- * 	rassnLists_to_change()
- * 	ck_chkpnt()
- * 	decode_null()
- * 	set_null()
- * 	cred_name_okay()
- * 	poke_scheduler()
- * 	set_reserve_retry_init()
- * 	set_reserve_retry_cutoff()
- * 	set_rpp_retry()
- * 	set_rpp_highwater()
- * 	set_sched_sock()
- * 	is_valid_resource()
- * 	ssignon_transition_okay()
- * 	deflt_chunk_action()
- * 	set_license_location()
- * 	unset_license_location()
- * 	set_license_min()
- * 	unset_license_min()
- * 	set_license_max()
- * 	unset_license_max()
- * 	set_license_linger()
- * 	unset_license_linger()
- * 	unset_job_history_enable()
- * 	set_job_history_enable()
- * 	set_log_events()
- * 	set_job_history_duration()
- * 	unset_job_history_duration()
- * 	set_max_job_sequence_id()
- * 	unset_max_job_sequence_id()
- * 	eligibletime_action()
- * 	decode_formula()
- * 	is_attrs_in_list_set()
- * 	log_mixed_limit_controls()
- * 	action_entlim_chk()
- * 	entlim_resum()
- * 	action_entlim_ct()
- * 	action_entlim_res()
- * 	check_no_entlim()
- * 	check_single_entity_ct()
- * 	check_single_entity_res()
- * 	check_entity_ct_limit_queued()
- * 	check_entity_ct_limit_max()
- * 	check_entity_resc_limit_queued()
- * 	check_entity_resc_limit_max()
- * 	set_single_entity_ct()
- * 	set_single_entity_res()
- * 	set_entity_ct_sum_queued()
- * 	set_entity_ct_sum_max()
- * 	set_entity_resc_sum_queued()
- * 	set_entity_resc_sum_max()
- *	revert_entity_resources()
- * 	add_prov_record()
- * 	remove_prov_record()
- * 	prov_track_save()
- * 	get_prov_record_by_vnode()
- * 	get_prov_record_by_pid()
- * 	free_pvnfo()
- * 	check_req_aoe_available()
- * 	disable_svr_prov()
- * 	parse_prov_vnode()
- * 	node_need_prov()
- * 	find_prov_vnode_list()
- * 	find_prov_vnode()
- * 	free_prov_vnode()
- * 	is_runnable()
- * 	fail_vnode_job()
- * 	mark_prov_vnode_offline()
- * 	fail_vnode()
- * 	offline_all_provisioning_vnodes()
- * 	check_and_run_jobs()
- * 	is_vnode_prov_done()
- * 	prov_request_deferred()
- * 	prov_request_timed()
- * 	set_srv_prov_attributes()
- * 	set_srv_pwr_prov_attribute()
- * 	execute_python_prov_script()
- * 	start_vnode_provisioning()
- * 	check_and_enqueue_provisioning()
- * 	do_provisioning()
- * 	del_prov_vnode_entry()
- * 	action_backfill_depth()
- * 	action_est_start_time_freq()
- * 	svr_load_jobscript()
- * 	svr_create_tmp_jobscript()
- * 	place_sharing_type()
- * 	default_queue_chk()
- * 	force_qsub_daemons_update()
- * 	force_qsub_daemons_update_action()
- * 	read_db_svrhost_file()
- * 	replace_db_svrhost_file()
- * 	chk_and_update_db_svrhost()
- * 	set_sched_throughput_mode()
- * 	keepfiles_action()
- * 	removefiles_action()
- *	are_we_primary()
  */
-#include <pbs_config.h>   /* the master config generated by configure */
+#include <pbs_config.h> /* the master config generated by configure */
 
-#ifdef 	PYTHON
+#ifdef PYTHON
 #include "pbs_python_private.h"
 #endif
 
@@ -158,12 +61,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
-#ifndef SIGKILL
 #include <signal.h>
-#endif
-#ifdef	WIN32
-#include "windows.h"
-#endif
 #include "server_limits.h"
 #include "list_link.h"
 #include "log.h"
@@ -177,7 +75,7 @@
 #include "sched_cmds.h"
 #include "ticket.h"
 #include "pbs_nodes.h"
-#include "rpp.h"
+#include "tpp.h"
 #include "pbs_license.h"
 #include "pbs_share.h"
 #include "pbs_entlim.h"
@@ -193,19 +91,18 @@
 #include "libutil.h"
 #include "pbs_ecl.h"
 #include "pbs_sched.h"
+#include "liblicense.h"
 
-extern struct python_interpreter_data  svr_interp_data;
+extern struct python_interpreter_data svr_interp_data;
+extern pbs_list_head svr_runjob_hooks;
+extern pbs_list_head svr_deferred_req;
 
 extern time_t time_now;
-extern char  *resc_in_err;
-extern char  *msg_daemonname;
-extern pbs_list_head task_list_event;
-extern pbs_list_head task_list_timed;
-extern char   server_name[];
-extern char   server_host[];
+extern char *resc_in_err;
+extern char *msg_daemonname;
+extern char server_name[];
 
 extern pbs_list_head svr_allconns;
-extern int max_connection;
 
 #define ERR_MSG_SIZE 256
 #define MAXNLINE 2048
@@ -216,11 +113,8 @@ extern int max_connection;
  */
 #define APP_PROV_SUCCESS 1
 
-extern char *msg_internal;
-extern char *msg_job_prov_failed;
 extern char *path_hooks_workdir;
 extern char *path_priv;
-extern char *pbs_server_name;
 
 char *path_prov_track;
 int max_concurrent_prov = PBS_MAX_CONCURRENT_PROV;
@@ -231,7 +125,7 @@ int provision_timeout;
  */
 pbs_list_head prov_allvnodes;
 
-static int  is_runnable(job *, struct prov_vnode_info *);
+static int is_runnable(job *, struct prov_vnode_info *);
 extern void set_srv_prov_attributes();
 static void del_prov_vnode_entry(job *);
 extern int resize_prov_table(int);
@@ -241,8 +135,8 @@ extern enum failover_state are_we_primary(void);
 /*
  * Added for History jobs.
  */
-extern void  svr_clean_job_history(struct work_task *);
-long svr_history_enable = 0; /* disable by default */
+extern void svr_clean_job_history(struct work_task *);
+long svr_history_enable = 0;			 /* disable by default */
 long svr_history_duration = SVR_JOBHIST_DEFAULT; /* default 2 weeks */
 /* Added for Trillion Jobid*/
 long long svr_max_job_sequence_id = SVR_MAX_JOB_SEQ_NUM_DEFAULT; /* default max job id 9999999 */
@@ -250,7 +144,7 @@ long long svr_max_job_sequence_id = SVR_MAX_JOB_SEQ_NUM_DEFAULT; /* default max 
 /*
  * Added for Node_fail_requeue
  */
-long	node_fail_requeue = PBS_NODE_FAIL_REQUEUE_DEFAULT; /* default value for node_fail_requeue 310 */
+long node_fail_requeue = PBS_NODE_FAIL_REQUEUE_DEFAULT; /* default value for node_fail_requeue 310 */
 
 /*
  * Added for jobscript_max_size
@@ -258,32 +152,40 @@ long	node_fail_requeue = PBS_NODE_FAIL_REQUEUE_DEFAULT; /* default value for nod
 struct attribute attr_jobscript_max_size; /* to store default size value for jobscript_max_size */
 
 extern int do_sync_mom_hookfiles;
-extern int sync_mom_hookfiles_proc_running;
+extern int sync_mom_hookfiles_replies_pending;
+
+/*
+ * Added for licensing
+ */
+extern struct work_task *init_licensing_task;
+extern struct work_task *get_more_licenses_task;
+extern struct work_task *licenses_linger_time_task;
+extern void get_more_licenses(struct work_task *ptask);
+extern void return_lingering_licenses(struct work_task *ptask);
 
 /*
  * Miscellaneous server functions
  */
-extern void  est_start_timed_task(struct work_task *);
 extern void db_to_svr_svr(struct server *ps, pbs_db_svr_info_t *pdbsvr);
 #ifdef NAS /* localmod 005 */
 extern int write_single_node_state(struct pbsnode *np);
 #endif /* localmod 005 */
 
-char primary_host[PBS_MAXHOSTNAME+1]; /* host_name of primary */
+char primary_host[PBS_MAXHOSTNAME + 1]; /* host_name of primary */
 
 /*
  * the following array of strings is used in decoding/encoding the server state
  */
-static char *svr_idle   = "Idle";
-static char *svr_sched  = "Scheduling";
+static char *svr_idle = "Idle";
+static char *svr_sched = "Scheduling";
 static char *svr_state_names[] = {
-	"",			/* SV_STATE_DOWN */
-	"",			/* SV_STATE_INIT */
-	"Hot_Start",		/* SV_STATE_HOT  */
-	"Active",		/* SV_STATE_RUN  */
-	"Terminating_Delay",	/* SV_STATE_SHUTDEL */
-	"Terminating",		/* SV_STATE_SHUTIMM */
-	"Terminating"		/* SV_STATE_SHUTSIG */
+	"",		     /* SV_STATE_DOWN */
+	"",		     /* SV_STATE_INIT */
+	"Hot_Start",	     /* SV_STATE_HOT  */
+	"Active",	     /* SV_STATE_RUN  */
+	"Terminating_Delay", /* SV_STATE_SHUTDEL */
+	"Terminating",	     /* SV_STATE_SHUTIMM */
+	"Terminating"	     /* SV_STATE_SHUTSIG */
 };
 
 /**
@@ -304,39 +206,36 @@ static char *svr_state_names[] = {
  */
 
 int
-encode_svrstate(attribute *pattr, pbs_list_head *phead, char *atname, char *rsname, int mode, svrattrl **rtnl)
+encode_svrstate(const attribute *pattr, pbs_list_head *phead, char *atname, char *rsname, int mode, svrattrl **rtnl)
 {
 	svrattrl *pal;
 	char *psname;
 
 	if (!pattr)
 		return (-1);
-	if ((mode == ATR_ENCODE_SAVE)			||
-		(pattr->at_val.at_long <= SV_STATE_DOWN)	||
-		(pattr->at_val.at_long > SV_STATE_SHUTSIG))
-		return (0);		/* don't bother to encode it */
-
+	if ((mode == ATR_ENCODE_SAVE) ||
+	    (pattr->at_val.at_long <= SV_STATE_DOWN) ||
+	    (pattr->at_val.at_long > SV_STATE_SHUTSIG))
+		return (0); /* don't bother to encode it */
 
 	psname = svr_state_names[pattr->at_val.at_long];
 	if (pattr->at_val.at_long == SV_STATE_RUN) {
-		if (server.sv_attr[(int)SRV_ATR_scheduling].at_val.at_long == 0)
+		if (get_sattr_long(SVR_ATR_scheduling) == 0)
 			psname = svr_idle;
-		else if (dflt_scheduler->scheduler_sock != -1)
+		else if (dflt_scheduler && dflt_scheduler->sc_cycle_started == 1)
 			psname = svr_sched;
 	}
 
 	pal = attrlist_create(atname, rsname, strlen(psname) + 1);
 	if (pal == NULL)
 		return (-1);
-	(void)strcpy(pal->al_value, psname);
+	(void) strcpy(pal->al_value, psname);
 	pal->al_flags = pattr->at_flags;
 	append_link(phead, &pal->al_link, pal);
 	if (rtnl)
 		*rtnl = pal;
 	return (1);
 }
-
-
 
 /**
  * @brief
@@ -352,13 +251,13 @@ encode_svrstate(attribute *pattr, pbs_list_head *phead, char *atname, char *rsna
 void
 set_resc_assigned(void *pobj, int objtype, enum batch_op op)
 {
-	resc_resv    *presv = NULL;
+	resc_resv *presv = NULL;
 	resource_def *rscdef;
-	job	     *pjob = NULL;
-	resource     *pr = NULL;
-	resource     *rescp = NULL;
-	attribute    *queru = NULL;
-	attribute    *sysru = NULL;
+	job *pjob = NULL;
+	resource *pr = NULL;
+	resource *rescp = NULL;
+	attribute *queru = NULL;
+	attribute *sysru = NULL;
 
 	/*First part of this lengthy function figures out which
 	 *"resources_assigned" lists need to get updated.  Most of
@@ -369,59 +268,59 @@ set_resc_assigned(void *pobj, int objtype, enum batch_op op)
 	 */
 
 	if (!objtype) {
-		pjob = (job *)pobj;
+		pjob = (job *) pobj;
 
 		if ((pjob->ji_qhdr == 0) ||
-			(pjob->ji_qhdr->qu_qs.qu_type != QTYPE_Execution))
+		    (pjob->ji_qhdr->qu_qs.qu_type != QTYPE_Execution))
 			return;
 
 		if (op == INCR) {
 			if (pjob->ji_qs.ji_svrflags & JOB_SVFLG_RescAssn)
-				return;		/* already added in */
+				return; /* already added in */
 			pjob->ji_qs.ji_svrflags |= JOB_SVFLG_RescAssn;
 		} else if (op == DECR) {
 			if ((pjob->ji_qs.ji_svrflags & JOB_SVFLG_RescAssn) == 0)
-				return;		/* not currently included */
+				return; /* not currently included */
 			pjob->ji_qs.ji_svrflags &= ~JOB_SVFLG_RescAssn;
 		} else {
-			return;			/* invalid op */
+			return; /* invalid op */
 		}
 
-		rescp = (resource *) GET_NEXT(pjob->ji_wattr[(int) JOB_ATR_resource].at_val.at_list);
-		if ((pjob->ji_qs.ji_substate == JOB_SUBSTATE_SUSPEND) ||
-			(pjob->ji_qs.ji_substate == JOB_SUBSTATE_SCHSUSP)) {
+		rescp = (resource *) GET_NEXT(get_jattr_list(pjob, JOB_ATR_resource));
+		if ((check_job_substate(pjob, JOB_SUBSTATE_SUSPEND)) ||
+		    (check_job_substate(pjob, JOB_SUBSTATE_SCHSUSP))) {
 			/* If resources_released attribute is not set for this suspended job then use release all
 			 * resources assigned to the job */
-			if ((pjob->ji_wattr[(int) JOB_ATR_resc_released].at_flags & ATR_VFLAG_SET) == 0)
-				rescp = (resource *) GET_NEXT(pjob->ji_wattr[(int) JOB_ATR_resource].at_val.at_list);
+			if ((is_jattr_set(pjob, JOB_ATR_resc_released)) == 0)
+				rescp = (resource *) GET_NEXT(get_jattr_list(pjob, JOB_ATR_resource));
 			else {
 				/* Use resource_released_list for updating queue/server resources,
 				 * If resource_released_list is not present then create it by
 				 * using resources_released attribute.
 				 */
-				if (pjob->ji_wattr[(int) JOB_ATR_resc_released_list].at_flags & ATR_VFLAG_SET)
-					rescp = (resource *) GET_NEXT(pjob->ji_wattr[(int) JOB_ATR_resc_released_list].at_val.at_list);
+				if (is_jattr_set(pjob, JOB_ATR_resc_released_list))
+					rescp = (resource *) GET_NEXT(get_jattr_list(pjob, JOB_ATR_resc_released_list));
 				else {
-					if (update_resources_rel(pjob, &pjob->ji_wattr[(int) JOB_ATR_resc_released], INCR) != 0)
-						rescp = (resource *) GET_NEXT(pjob->ji_wattr[(int) JOB_ATR_resource].at_val.at_list);
+					if (update_resources_rel(pjob, get_jattr(pjob, JOB_ATR_resc_released), INCR) != 0)
+						rescp = (resource *) GET_NEXT(get_jattr_list(pjob, JOB_ATR_resource));
 					else
-						rescp = (resource *) GET_NEXT(pjob->ji_wattr[(int) JOB_ATR_resc_released_list].at_val.at_list);
+						rescp = (resource *) GET_NEXT(get_jattr_list(pjob, JOB_ATR_resc_released_list));
 				}
 			}
 		} else {
 			/* If job is not suspended then just release all resources assigned to the job */
-			rescp = (resource *) GET_NEXT(pjob->ji_wattr[(int) JOB_ATR_resource].at_val.at_list);
-			if (pjob->ji_wattr[(int) JOB_ATR_resc_released_list].at_flags & ATR_VFLAG_SET)
-				rescp = (resource *) GET_NEXT(pjob->ji_wattr[(int) JOB_ATR_resc_released_list].at_val.at_list);
+			rescp = (resource *) GET_NEXT(get_jattr_list(pjob, JOB_ATR_resource));
+			if (is_jattr_set(pjob, JOB_ATR_resc_released_list))
+				rescp = (resource *) GET_NEXT(get_jattr_list(pjob, JOB_ATR_resc_released_list));
 		}
-		sysru = &server.sv_attr[(int)SRV_ATR_resource_assn];
-		queru = &pjob->ji_qhdr->qu_attr[(int)QE_ATR_ResourceAssn];
+		sysru = get_sattr(SVR_ATR_resource_assn);
+		queru = get_qattr(pjob->ji_qhdr, QE_ATR_ResourceAssn);
 
-		if (pjob->ji_resvp || (pjob->ji_myResv &&
-			(pjob->ji_myResv->ri_qs.ri_state == RESV_RUNNING ||
-			pjob->ji_myResv->ri_qs.ri_state == RESV_DELETED ||
-			pjob->ji_myResv->ri_qs.ri_state == RESV_BEING_DELETED ||
-			pjob->ji_myResv->ri_qs.ri_state == RESV_FINISHED))) {
+		if (pjob->ji_myResv &&
+		    (pjob->ji_myResv->ri_qs.ri_state == RESV_RUNNING ||
+		     pjob->ji_myResv->ri_qs.ri_state == RESV_DELETED ||
+		     pjob->ji_myResv->ri_qs.ri_state == RESV_BEING_DELETED ||
+		     pjob->ji_myResv->ri_qs.ri_state == RESV_FINISHED)) {
 
 			/*for jobs running under a reservation, server's
 			 *"resources_assigned" is updated when reservation
@@ -432,29 +331,27 @@ set_resc_assigned(void *pobj, int objtype, enum batch_op op)
 		}
 	} else if (objtype == 1) {
 
-		presv = (resc_resv *)pobj;
+		presv = (resc_resv *) pobj;
 		queru = NULL;
 		sysru = NULL;
-		rescp = (resource *)GET_NEXT(presv->ri_wattr[(int)RESV_ATR_resource]
-			.at_val.at_list);
+		rescp = (resource *) GET_NEXT(get_rattr_list(presv, RESV_ATR_resource));
 		if (presv->ri_parent != NULL &&
-			(presv->ri_parent->ri_qs.ri_state == RESV_RUNNING ||
-			presv->ri_parent->ri_qs.ri_state == RESV_DELETED ||
-			presv->ri_parent->ri_qs.ri_state == RESV_BEING_DELETED ||
-			presv->ri_parent->ri_qs.ri_state == RESV_FINISHED)) {
+		    (presv->ri_parent->ri_qs.ri_state == RESV_RUNNING ||
+		     presv->ri_parent->ri_qs.ri_state == RESV_DELETED ||
+		     presv->ri_parent->ri_qs.ri_state == RESV_BEING_DELETED ||
+		     presv->ri_parent->ri_qs.ri_state == RESV_FINISHED)) {
 			/*if the reservation has a parent (as reservation jobs can)
 			 *the parent's "resources_assigned" list is the relevant list
 			 *to modify
 			 *Remark: The -server's- "resources_assigned" updates when the
 			 *parent starts running or is terminated
 			 */
-			sysru = &presv->
-				ri_parent->ri_qp->qu_attr[(int)QE_ATR_ResourceAssn];
+			sysru = get_qattr(presv->ri_parent->ri_qp, QE_ATR_ResourceAssn);
 		} else if (presv->ri_parent == NULL &&
-			(presv->ri_qs.ri_state == RESV_RUNNING ||
-			presv->ri_qs.ri_state == RESV_DELETED ||
-			presv->ri_qs.ri_state == RESV_BEING_DELETED ||
-			presv->ri_qs.ri_state == RESV_FINISHED)) {
+			   (presv->ri_qs.ri_state == RESV_RUNNING ||
+			    presv->ri_qs.ri_state == RESV_DELETED ||
+			    presv->ri_qs.ri_state == RESV_BEING_DELETED ||
+			    presv->ri_qs.ri_state == RESV_FINISHED)) {
 			/*when reservation object has no parent reservation, the server's
 			 *"resources_asigned" list is the one that's relevant in this case.
 			 *if the reservation object is that of a "reservation job",
@@ -462,7 +359,7 @@ set_resc_assigned(void *pobj, int objtype, enum batch_op op)
 			 *modified.  Otherwise the "queru" should be set NULL
 			 */
 
-			sysru = &server.sv_attr[(int)SRV_ATR_resource_assn];
+			sysru = get_sattr(SVR_ATR_resource_assn);
 		}
 	}
 
@@ -481,7 +378,7 @@ set_resc_assigned(void *pobj, int objtype, enum batch_op op)
 
 		/* if resource usage is to be tracked */
 		if ((rscdef->rs_flags & ATR_DFLAG_RASSN) &&
-			(rescp->rs_value.at_flags & ATR_VFLAG_SET)) {
+		    (is_attr_set(&rescp->rs_value))) {
 
 			/* update system attribute of resources assigned */
 
@@ -493,7 +390,7 @@ set_resc_assigned(void *pobj, int objtype, enum batch_op op)
 						return;
 				}
 				rscdef->rs_set(&pr->rs_value, &rescp->rs_value, op);
-				sysru->at_flags |= ATR_VFLAG_MODCACHE;
+				sysru->at_flags |= ATR_MOD_MCACHE;
 			}
 
 			/* update queue attribute of resources assigned */
@@ -506,24 +403,24 @@ set_resc_assigned(void *pobj, int objtype, enum batch_op op)
 						return;
 				}
 				rscdef->rs_set(&pr->rs_value, &rescp->rs_value, op);
-				queru->at_flags |= ATR_VFLAG_MODCACHE;
+				queru->at_flags |= ATR_MOD_MCACHE;
 			}
 		}
-		rescp = (resource *)GET_NEXT(rescp->rs_link);
+		rescp = (resource *) GET_NEXT(rescp->rs_link);
 	}
 
 	/* if a job, update resource_assigned at the node level */
 	if (objtype == 1)
-		update_node_rassn(&presv->ri_wattr[(int)RESV_ATR_resv_nodes], op);
+		update_node_rassn(get_rattr(presv, RESV_ATR_resv_nodes), op);
 	else if ((objtype == 0) && (pjob->ji_myResv == NULL)) {
-		if (pjob->ji_wattr[(int) JOB_ATR_resc_released].at_flags & ATR_VFLAG_SET)
+		if (is_jattr_set(pjob, JOB_ATR_resc_released))
 			/* This is just the normal case when job was not suspended but trying to run| end */
-			update_node_rassn(&pjob->ji_wattr[(int) JOB_ATR_resc_released], op);
+			update_job_node_rassn(pjob, get_jattr(pjob, JOB_ATR_resc_released), op);
 		else
 			/* updating all resources from exec vnode attribute */
-			update_node_rassn(&pjob->ji_wattr[(int) JOB_ATR_exec_vnode], op);
-		if (pjob->ji_wattr[(int)JOB_ATR_exec_vnode_deallocated].at_flags & ATR_VFLAG_SET) {
-			update_job_node_rassn(pjob, &pjob->ji_wattr[(int) JOB_ATR_exec_vnode_deallocated], op);
+			update_job_node_rassn(pjob, get_jattr(pjob, JOB_ATR_exec_vnode), op);
+		if (is_jattr_set(pjob, JOB_ATR_exec_vnode_deallocated)) {
+			update_job_node_rassn(pjob, get_jattr(pjob, JOB_ATR_exec_vnode_deallocated), op);
 		}
 	}
 }
@@ -544,17 +441,15 @@ int
 ck_chkpnt(attribute *pattr, void *pobject, int mode)
 {
 	char *val;
-	pbs_queue *pque;
 
 	val = pattr->at_val.at_str;
 	if (val == NULL)
 		return (0);
 
 	if ((*val == 'n') || (*val == 's') || (*val == 'u')) {
-		if (*(val+1) != '\0')
+		if (*(val + 1) != '\0')
 			return (PBSE_BADATVAL);
-	}
-	else if (*val == 'c') {
+	} else if (*val == 'c') {
 		val++;
 		if (*val != '\0') {
 			if (*val++ != '=')
@@ -575,14 +470,10 @@ ck_chkpnt(attribute *pattr, void *pobject, int mode)
 
 	/* If the checkpoint attribute is being altered, then check    */
 	/* against the queue's Checkpoint_min attribute as when queued */
-	if (mode == ATR_ACTION_ALTER) {
-		pque = ((job *)pobject)->ji_qhdr;
-
-		eval_chkpnt(pattr, &pque->qu_attr[(int)QE_ATR_ChkptMim]);
-	}
+	if (mode == ATR_ACTION_ALTER)
+		eval_chkpnt((job *) pobject, get_qattr(((job *) pobject)->ji_qhdr, QE_ATR_ChkptMin));
 	return (0);
 }
-
 
 /**
  * @brief
@@ -597,14 +488,14 @@ ck_chkpnt(attribute *pattr, void *pobject, int mode)
  * @retval  !0  : PBS Error Code
  */
 int
-keepfiles_action(attribute *pattr, void *pobject, int mode) {
-    if ((mode != ATR_ACTION_ALTER) && (mode != ATR_ACTION_NEW))
-        return PBSE_NONE;
-    if (pobject && ((job *)pobject)->ji_qs.ji_state == JOB_STATE_RUNNING)
-        return PBSE_MODATRRUN;
-    return verify_keepfiles_common(pattr->at_val.at_str);
+keepfiles_action(attribute *pattr, void *pobject, int mode)
+{
+	if ((mode != ATR_ACTION_ALTER) && (mode != ATR_ACTION_NEW))
+		return PBSE_NONE;
+	if (pobject && check_job_state((job *) pobject, JOB_STATE_LTR_RUNNING))
+		return PBSE_MODATRRUN;
+	return verify_keepfiles_common(pattr->at_val.at_str);
 }
-
 
 /**
  * @brief
@@ -619,12 +510,13 @@ keepfiles_action(attribute *pattr, void *pobject, int mode) {
  * @retval  !0  : PBS Error Code
  */
 int
-removefiles_action(attribute *pattr, void *pobject, int mode) {
-    if ((mode != ATR_ACTION_ALTER) && (mode != ATR_ACTION_NEW))
-        return PBSE_NONE;
-    if (pobject && ((job *)pobject)->ji_qs.ji_state == JOB_STATE_RUNNING)
-        return PBSE_MODATRRUN;
-    return verify_removefiles_common(pattr->at_val.at_str);
+removefiles_action(attribute *pattr, void *pobject, int mode)
+{
+	if ((mode != ATR_ACTION_ALTER) && (mode != ATR_ACTION_NEW))
+		return PBSE_NONE;
+	if (pobject && check_job_state((job *) pobject, JOB_STATE_LTR_RUNNING))
+		return PBSE_MODATRRUN;
+	return verify_removefiles_common(pattr->at_val.at_str);
 }
 
 /**
@@ -644,16 +536,16 @@ removefiles_action(attribute *pattr, void *pobject, int mode) {
 int
 cred_name_okay(attribute *pattr, void *pobj, int actmode)
 {
-	static	const	char	*cred_list[] = {
+	static const char *cred_list[] = {
 		PBS_CREDNAME_AES,
-		NULL				/* must be last */
+		NULL /* must be last */
 	};
 
 	if (actmode == ATR_ACTION_ALTER) {
-		char	*val = pattr->at_val.at_str;
-		int	i;
+		char *val = pattr->at_val.at_str;
+		int i;
 
-		for (i=0; cred_list[i]; i++) {
+		for (i = 0; cred_list[i]; i++) {
 			if (strcmp(cred_list[i], val) == 0)
 				return PBSE_NONE;
 		}
@@ -664,7 +556,34 @@ cred_name_okay(attribute *pattr, void *pobj, int actmode)
 
 /**
  * @brief
- * 		set_reserve_retry_init - action routine for the server's
+ * 		action_resv_retry_time - action routine for the server's
+ * 		"reserve_retry_time" attribute.
+ *
+ * @param[in]	pattr	-	pointer to attribute structure
+ * @param[in]	pobj	-	not used
+ * @param[in]	actmode	-	action mode
+ *
+ * @return	int
+ * @retval	zero	: success
+ * @retval	nonzero	: failure
+ */
+int
+action_reserve_retry_time(attribute *pattr, void *pobj, int actmode)
+{
+	if (actmode == ATR_ACTION_ALTER ||
+	    actmode == ATR_ACTION_RECOV) {
+
+		if (pattr->at_val.at_long <= 0)
+			return PBSE_BADATVAL;
+		ATR_UNSET(get_sattr(SVR_ATR_resv_retry_init));
+		resv_retry_time = pattr->at_val.at_long;
+	}
+	return PBSE_NONE;
+}
+
+/**
+ * @brief
+ * 		action_resv_retry_init - action routine for the server's
  * 		"reserve_retry_init" attribute.
  *
  * @param[in]	pattr	-	pointer to attribute structure
@@ -676,63 +595,23 @@ cred_name_okay(attribute *pattr, void *pobj, int actmode)
  * @retval	nonzero	: failure
  */
 int
-set_reserve_retry_init(attribute *pattr, void *pobj, int actmode)
+action_reserve_retry_init(attribute *pattr, void *pobj, int actmode)
 {
 	if (actmode == ATR_ACTION_ALTER ||
-		actmode == ATR_ACTION_RECOV) {
+	    actmode == ATR_ACTION_RECOV) {
 
 		if (pattr->at_val.at_long <= 0)
 			return PBSE_BADATVAL;
+		set_sattr_l_slim(SVR_ATR_resv_retry_time, pattr->at_val.at_long, SET);
 
-		reserve_retry_init = (int)pattr->at_val.at_long;
-		if (reserve_retry_init < RESV_RETRY_INIT) {
-			sprintf(log_buffer,
-				"warning: low value for reserve_retry_init: %ld",
-				reserve_retry_init);
-			log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-				LOG_DEBUG, msg_daemonname, log_buffer);
-		}
+		resv_retry_time = pattr->at_val.at_long;
 	}
 	return PBSE_NONE;
 }
 
 /**
  * @brief
- * 		set_reserve_retry_cutoff - action routine for the server's
- * 		"reserve_retry_cutoff" attribute.
- *
- * @param[in]	pattr	-	pointer to attribute structure
- * @param[in]	pobj	-	not used
- * @param[in]	actmode	-	action mode
- *
- * @return	int
- * @retval	zero	: success
- * @retval	nonzero	: failure
- */
-int
-set_reserve_retry_cutoff(attribute *pattr, void *pobj, int actmode)
-{
-	if (actmode == ATR_ACTION_ALTER ||
-		actmode == ATR_ACTION_RECOV) {
-
-		if (pattr->at_val.at_long <= 0)
-			return PBSE_BADATVAL;
-
-		reserve_retry_cutoff = (int)pattr->at_val.at_long;
-		if (reserve_retry_cutoff < RESV_RETRY_CUTOFF) {
-			sprintf(log_buffer,
-				"warning: low value for reserve_retry_cutoff: %ld",
-				reserve_retry_cutoff);
-			log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-				LOG_DEBUG, msg_daemonname, log_buffer);
-		}
-	}
-	return PBSE_NONE;
-}
-
-/**
- * @brief
- * 		set_rpp_retry - action routine for the server's "rpp_retry" attribute.
+ * 		dummy action function for rpp_retry
  *
  * @param[in]	pattr	-	pointer to attribute structure
  * @param[in]	pobj	-	not used
@@ -745,30 +624,13 @@ set_reserve_retry_cutoff(attribute *pattr, void *pobj, int actmode)
 int
 set_rpp_retry(attribute *pattr, void *pobj, int actmode)
 {
-	if (actmode == ATR_ACTION_ALTER ||
-		actmode == ATR_ACTION_RECOV) {
-		/*
-		 ** rpp_retry can be zero, i.e. no retries.
-		 */
-		if (pattr->at_val.at_long < 0)
-			return PBSE_BADATVAL;
-
-		rpp_retry = (int)pattr->at_val.at_long;
-		if (rpp_retry < 10) {
-			sprintf(log_buffer,
-				"warning: low value for rpp_retry: %d",
-				rpp_retry);
-			log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-				LOG_DEBUG, msg_daemonname, log_buffer);
-		}
-	}
+	log_err(-1, __func__, "rpp_retry is deprecated. This functionality is now automatic without needing this attribute");
 	return PBSE_NONE;
 }
 
 /**
  * @brief
- * 		set_rpp_highwater - action routine for the server's "rpp_highwater"
- * 		attribute.
+ * 		dummy action function for rpp_highwater
  *
  * @param[in]	pattr	-	pointer to attribute structure
  * @param[in]	pobj	-	not used
@@ -781,37 +643,9 @@ set_rpp_retry(attribute *pattr, void *pobj, int actmode)
 int
 set_rpp_highwater(attribute *pattr, void *pobj, int actmode)
 {
-	if (actmode == ATR_ACTION_ALTER ||
-		actmode == ATR_ACTION_RECOV) {
-		/*
-		 ** rpp_highwater must be greater than zero.
-		 ** It is the number of packets allowed to be "on the wire"
-		 ** at any given time.
-		 */
-		if (pattr->at_val.at_long <= 0)
-			return PBSE_BADATVAL;
-
-		rpp_highwater = (int)pattr->at_val.at_long;
-	}
+	log_err(-1, __func__, "rpp_highwater is deprecated. This functionality is now automatic without needing this attribute");
 	return PBSE_NONE;
 }
-
-/**
- * @brief
- * 		set_sched_sock - set the internal socket used to communicate with the
- *		scheduler.   Done here because also need to invalidate the server
- *		state attribute cache.
- *
- * @param[in] s		-	internal socket used to communicate with the scheduler
- * @param[in] psched	-	pointer to sched object
- */
-void
-set_sched_sock(int s, pbs_sched *psched)
-{
-	psched->scheduler_sock = s;
-	server.sv_attr[(int)SRV_ATR_State].at_flags |= ATR_VFLAG_MODCACHE;
-}
-
 
 /**
  * @brief
@@ -829,107 +663,26 @@ set_sched_sock(int s, pbs_sched *psched)
 int
 is_valid_resource(attribute *pattr, void *pobject, int actmode)
 {
-	int                  i;
+	int i;
 	struct resource_def *pres;
 
 	if (actmode == ATR_ACTION_FREE)
 		return (PBSE_NONE);
 
-	if ((pattr->at_flags & ATR_VFLAG_SET) == 0)
+	if (is_attr_set(pattr) == 0)
 		return (PBSE_NONE);
 
-	for (i=0; i<pattr->at_val.at_arst->as_usedptr; ++i) {
-		pres = find_resc_def(svr_resc_def,
-			pattr->at_val.at_arst->as_string[i],
-			svr_resc_size);
-
+	for (i = 0; i < pattr->at_val.at_arst->as_usedptr; ++i) {
+		pres = find_resc_def(svr_resc_def, pattr->at_val.at_arst->as_string[i]);
 		if (pres == NULL)
 			return PBSE_UNKRESC;
 
-		if ((pres->rs_type != ATR_TYPE_STR)    &&
-			(pres->rs_type != ATR_TYPE_ARST))
+		if ((pres->rs_type != ATR_TYPE_STR) &&
+		    (pres->rs_type != ATR_TYPE_ARST))
 			return PBSE_RESCNOTSTR;
 	}
 
 	return PBSE_NONE;
-}
-
-
-/**
- * @brief
- *		The action function for the "single_signon_password_enable" server
- *		attribute, which validates transitions between "true" and "false"
- *		values.
- *
- * @param[in]	pattr	-	target "single_signon_password_enable" attribute value
- * @param[in]	pobject -	pointer to some parent object.(required but unused here)
- * @param[in]	actmode	-	the action to take (e.g. ATR_ACTION_ALTER)
- *
- * @return	Whether or not okay to set to new value.
- * @retval	0	: Action is okay.
- * @retval	PBSE_SSIGNON_BAD_TRANSITION1	:
- * 				single_signon_password_enable from true to false: jobs exist!
- *
- * @retval	PBSE_SSIGNON_BAD_TRANSITION2	:
- * 				single_signon_password_enable from false to true: not all jobs have a
- *      		bad password hold!
- */
-int
-ssignon_transition_okay(attribute *pattr, void *pobject, int actmode)
-{
-	job *pjob;
-
-	if (actmode == ATR_ACTION_FREE)
-		return (0);
-
-	/* from true to false */
-	if ( (server.sv_attr[SRV_ATR_ssignon_enable].at_flags & ATR_VFLAG_SET) && \
-          (server.sv_attr[SRV_ATR_ssignon_enable].at_val.at_long == 1) && \
-	  (pattr->at_val.at_long == 0) ) {
-
-
-		for (pjob = (job *)GET_NEXT(svr_alljobs); pjob;
-			pjob = (job *)GET_NEXT(pjob->ji_alljobs)) {
-
-
-			if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-				(pjob->ji_qs.ji_state == JOB_STATE_FINISHED)) {
-				continue;
-			}
-
-			/* found at least a job that is not moved or finished */
-			return (PBSE_SSIGNON_BAD_TRANSITION1);
-
-		}
-	}
-
-	/* from false to true */
-
-	if ( (!(server.sv_attr[SRV_ATR_ssignon_enable].at_flags & ATR_VFLAG_SET) ||\
-           (server.sv_attr[SRV_ATR_ssignon_enable].at_val.at_long == 0)) && \
-	  (pattr->at_val.at_long == 1) ) {
-
-		for (pjob = (job *)GET_NEXT(svr_alljobs); pjob;
-			pjob = (job *)GET_NEXT(pjob->ji_alljobs)) {
-
-			if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-				(pjob->ji_qs.ji_state == JOB_STATE_FINISHED)) {
-				continue;
-			}
-
-			/* any unheld job found, or if held but not */
-			/* containing password hold */
-			if (!(pjob->ji_wattr[(int)JOB_ATR_hold].at_flags &
-			ATR_VFLAG_SET) || \
-			    !(pjob->ji_wattr[(int)JOB_ATR_hold].at_val.at_long \
-						         & HOLD_bad_password) )
-				return (PBSE_SSIGNON_BAD_TRANSITION2);
-		}
-
-	}
-
-	return (0);
-
 }
 
 /**
@@ -950,10 +703,8 @@ action_svr_iteration(attribute *pattr, void *pobj, int mode)
 	/* set this attribute on main scheduler */
 	if (dflt_scheduler) {
 		if (mode == ATR_ACTION_NEW || mode == ATR_ACTION_ALTER || mode == ATR_ACTION_RECOV) {
-			dflt_scheduler->sch_attr[SCHED_ATR_schediteration].at_val.at_long = pattr->at_val.at_long;
-			dflt_scheduler->sch_attr[SCHED_ATR_schediteration].at_flags |=
-					ATR_VFLAG_SET | ATR_VFLAG_MODIFY | ATR_VFLAG_MODCACHE;
-			(void)sched_save_db(dflt_scheduler, SVR_SAVE_FULL);
+			set_sched_attr_l_slim(dflt_scheduler, SCHED_ATR_schediteration, pattr->at_val.at_long, SET);
+			sched_save_db(dflt_scheduler);
 		}
 	}
 	return PBSE_NONE;
@@ -977,42 +728,41 @@ action_svr_iteration(attribute *pattr, void *pobj, int mode)
 int
 deflt_chunk_action(attribute *pattr, void *pobj, int mode)
 {
-	int		 i;
-	int		 j;
-	int	         nelem;
-	int	        *nkv;
-	int		 old_perm;
+	int i;
+	int j;
+	int nelem;
+	int *nkv;
+	int old_perm;
 	struct key_value_pair **pkvp;
-	resource	*presc;
-	pbs_list_head        head;
-	svrattrl	*psvratrl;
-	int		 rc;
-	extern int       resc_access_perm;
+	resource *presc;
+	pbs_list_head head;
+	svrattrl *psvratrl;
+	int rc;
+	extern int resc_access_perm;
 
 	CLEAR_HEAD(head);
 
-	if (pobj == (void *)&server) {
+	if (pobj == (void *) &server) {
 		pkvp = &server.sv_seldft;
-		nkv  = &server.sv_nseldft;
+		nkv = &server.sv_nseldft;
 	} else {
-		pkvp = &((pbs_queue *)pobj)->qu_seldft;
-		nkv  = &((pbs_queue *)pobj)->qu_nseldft;
+		pkvp = &((pbs_queue *) pobj)->qu_seldft;
+		nkv = &((pbs_queue *) pobj)->qu_nseldft;
 	}
-
 
 	/* free any existing key_value_pair structure */
 	if (*pkvp) {
-		for (i=0; i < *nkv; ++i) {
-			free(((*pkvp)+i)->kv_keyw);
-			free(((*pkvp)+i)->kv_val);
+		for (i = 0; i < *nkv; ++i) {
+			free(((*pkvp) + i)->kv_keyw);
+			free(((*pkvp) + i)->kv_val);
 		}
 		free(*pkvp);
 		*pkvp = NULL;
 	}
 	*nkv = 0;
 
-	if (((pattr->at_flags & ATR_VFLAG_SET) == 0) ||
-		(mode == ATR_ACTION_FREE))
+	if (((is_attr_set(pattr)) == 0) ||
+	    (mode == ATR_ACTION_FREE))
 		return 0;
 
 	/* validate and count the number of pairs in the default attribute */
@@ -1039,7 +789,7 @@ deflt_chunk_action(attribute *pattr, void *pobj, int mode)
 		return PBSE_SYSTEM;
 	}
 
-	*pkvp = (struct key_value_pair *)malloc((nelem+1) * sizeof(struct key_value_pair));
+	*pkvp = (struct key_value_pair *) malloc((nelem + 1) * sizeof(struct key_value_pair));
 	if (*pkvp == NULL) {
 		free_attrlist(&head);
 		return PBSE_SYSTEM;
@@ -1049,24 +799,24 @@ deflt_chunk_action(attribute *pattr, void *pobj, int mode)
 	i = 0;
 	psvratrl = GET_NEXT(head);
 	while (psvratrl && i < nelem) {
-		if ((((*pkvp)+i)->kv_keyw = strdup(psvratrl->al_resc)) == NULL) {
+		if ((((*pkvp) + i)->kv_keyw = strdup(psvratrl->al_resc)) == NULL) {
 			free_attrlist(&head);
 			if (*pkvp) {
-				for (j=0; j < i; ++j) {
-					free(((*pkvp)+j)->kv_keyw);
-					free(((*pkvp)+j)->kv_val);
+				for (j = 0; j < i; ++j) {
+					free(((*pkvp) + j)->kv_keyw);
+					free(((*pkvp) + j)->kv_val);
 				}
 				free(*pkvp);
 				*pkvp = NULL;
 			}
 			return PBSE_SYSTEM;
 		}
-		if ((((*pkvp)+i)->kv_val  = strdup(psvratrl->al_value)) == NULL) {
+		if ((((*pkvp) + i)->kv_val = strdup(psvratrl->al_value)) == NULL) {
 			free_attrlist(&head);
 			if (*pkvp) {
-				for (j=0; j < i; ++j) {
-					free(((*pkvp)+j)->kv_keyw);
-					free(((*pkvp)+j)->kv_val);
+				for (j = 0; j < i; ++j) {
+					free(((*pkvp) + j)->kv_keyw);
+					free(((*pkvp) + j)->kv_val);
 				}
 				free(*pkvp);
 				*pkvp = NULL;
@@ -1076,17 +826,16 @@ deflt_chunk_action(attribute *pattr, void *pobj, int mode)
 		++i;
 		psvratrl = GET_NEXT(psvratrl->al_link);
 	}
-	free_attrlist(&head);	/* free svrattrl list created by the encode */
+	free_attrlist(&head); /* free svrattrl list created by the encode */
 
 	*nkv = i;
 
 	return 0;
 }
 
-
 /**
  * @brief
- *		set_license_location - action function for the pbs_licensing_license_location
+ *	set_license_location - action function for the pbs_license_info
  * 				server attribute.
  *
  * @param[in]	pattr	-	pointer to attribute structure
@@ -1099,55 +848,26 @@ deflt_chunk_action(attribute *pattr, void *pobj, int mode)
 int
 set_license_location(attribute *pattr, void *pobject, int actmode)
 {
-
 	if (actmode == ATR_ACTION_FREE)
 		return (PBSE_NONE);
 
 	if ((actmode == ATR_ACTION_ALTER) ||
-		(actmode == ATR_ACTION_RECOV)) {
+	    (actmode == ATR_ACTION_RECOV)) {
+		int delay = 5;
 
-		if( (server.sv_attr[SRV_ATR_pbs_license_info].at_flags & \
-							    ATR_VFLAG_SET) &&
-		(server.sv_attr[SRV_ATR_pbs_license_info].at_val.at_str[0] \
-							!= '\0') ) {
-			close_licensing();	/* checkin, close connection */
-		} else { /* from no license server */
-			init_fl_license_attrs(&licenses);
-			/* set svr_unlicensedjobs list to currently running */
-			/* jobs.                                            */
-			clear_and_populate_svr_unlicensedjobs();
-		}
+		if (pbs_licensing_location)
+			free(pbs_licensing_location);
 
-		if (pbs_licensing_license_location)
-			free(pbs_licensing_license_location);
-
-		pbs_licensing_license_location = \
-			strdup(pattr->at_val.at_str?pattr->at_val.at_str:"");
-		if (pbs_licensing_license_location == NULL) {
+		pbs_licensing_location = strdup(pattr->at_val.at_str ? pattr->at_val.at_str : "");
+		if (pbs_licensing_location == NULL) {
 			log_err(errno, __func__, "warning: strdup failed!");
+			return PBSE_SYSTEM;
 		}
 
-		if (pbs_licensing_license_location &&
-			(pbs_licensing_license_location[0] != '\0')) {
-			init_licensing();
-			if (license_sanity_check())
-				license_more_nodes();
-		} else {   /* no pbs_licensing_license_location */
+		if (actmode == ATR_ACTION_RECOV)
+			delay = 0;
 
-			/* get trial license */
-			if (check_license(&licenses) < 0) {
-				log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-					LOG_ALERT, msg_daemonname,
-					"One or more PBS license keys are invalid, jobs may not run");
-			} else {
-				sprintf(log_buffer,
-					"Licenses valid for %d floating hosts",
-					licenses.lb_aval_floating);
-				log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-					LOG_NOTICE, msg_daemonname, log_buffer);
-				relicense_svr_unlicensedjobs();
-			}
-		}
+		init_licensing_task = set_task(WORK_Timed, time_now + delay, init_licensing, NULL);
 	}
 
 	return (PBSE_NONE);
@@ -1163,39 +883,18 @@ void
 unset_license_location(void)
 {
 
-	if (pbs_licensing_license_location) {
+	if (pbs_licensing_location) {
 
-		if (pbs_licensing_license_location[0] != '\0') {
+		if (pbs_licensing_location[0] != '\0') {
+			lic_close();
+			unlicense_nodes();
+			memset(&license_counts, 0, sizeof(license_counts));
+		} else
+			reset_license_counters(&license_counts);
 
-			close_licensing();
-			sockets_reset();
-			unlicense_socket_licensed_nodes();
-
-		} else { /* from no license server */
-			init_fl_license_attrs(&licenses);
-			/* set svr_unlicensedjobs list to currently running */
-			/* jobs.                                            */
-			clear_and_populate_svr_unlicensedjobs();
-		}
-		free(pbs_licensing_license_location);
-		pbs_licensing_license_location = NULL;
-		licstate_unconfigured(LIC_SERVER);
+		free(pbs_licensing_location);
+		pbs_licensing_location = NULL;
 	}
-
-	/* try to find a trial license */
-	if (check_license(&licenses) < 0) {
-		log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-			LOG_ALERT, msg_daemonname,
-			"One or more PBS license keys are invalid, jobs may not run");
-	} else {
-		sprintf(log_buffer,
-			"Licenses valid for %d floating hosts",
-			licenses.lb_aval_floating);
-		log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-			LOG_NOTICE, msg_daemonname, log_buffer);
-		relicense_svr_unlicensedjobs();
-	}
-
 }
 
 /*
@@ -1223,7 +922,7 @@ set_node_fail_requeue(attribute *pattr, void *pobject, int actmode)
 		return (PBSE_NONE);
 
 	if ((actmode == ATR_ACTION_ALTER) ||
-		(actmode == ATR_ACTION_RECOV)) {
+	    (actmode == ATR_ACTION_RECOV)) {
 
 		node_fail_requeue = pattr->at_val.at_long;
 		sprintf(log_buffer,
@@ -1231,12 +930,10 @@ set_node_fail_requeue(attribute *pattr, void *pobject, int actmode)
 			node_fail_requeue);
 		log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
 			  LOG_NOTICE, msg_daemonname, log_buffer);
-
 	}
 
 	return (PBSE_NONE);
 }
-
 
 /*
  *
@@ -1261,8 +958,71 @@ unset_node_fail_requeue(void)
 		"node_fail_requeue reverting back to default val %ld",
 		node_fail_requeue);
 	log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+		  LOG_NOTICE, msg_daemonname, log_buffer);
+}
 
+/*
+ *
+ * @brief
+ *	Set resend_term_delay attribute.
+ *
+ * @par Functionality:
+ *	This function sets the resend_term_delay server attribute.
+ *	resend_term_delay can not be < 0 and > 1800.
+ *
+ * @param[in]	pattr	-	ptr to attribute
+ * @param[in]	pobject	-	pointer to some parent object.(required but unused here)
+ * @param[in]	actmode	-	the action to take (e.g. ATR_ACTION_ALTER)
+ *
+ * @return	int
+ * @retval	PBSE_NONE
+ *
+ */
+int
+set_resend_term_delay(attribute *pattr, void *pobject, int actmode)
+{
+	if (actmode == ATR_ACTION_FREE)
+		return (PBSE_NONE);
+
+	if ((actmode == ATR_ACTION_ALTER) ||
+	    (actmode == ATR_ACTION_RECOV)) {
+
+		if (pattr->at_val.at_long >= 0 && pattr->at_val.at_long <= 1800) {
+			set_sattr_l_slim(SVR_ATR_ResendTermDelay, pattr->at_val.at_long, SET);
+		} else {
+			return (PBSE_BADATVAL);
+		}
+		log_eventf(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
+			LOG_NOTICE, msg_daemonname, "resend_term_delay value changed to %ld",
+			pattr->at_val.at_long);
+	}
+
+	return (PBSE_NONE);
+}
+
+/*
+ *
+ * @brief
+ *	Unset resend_term_delay attribute.
+ *
+ * @par Functionality:
+ *	This function unsets the resend_term_delay server attribute
+ *	by reverting it back to it's default value.
+ *
+ * @param[in]	void
+ *
+ * @return	void
+ *
+ */
+void
+unset_resend_term_delay(void)
+{
+	set_sattr_l_slim(SVR_ATR_ResendTermDelay,
+		PBS_RESEND_TERM_DELAY_DEFAULT, SET);
+	log_eventf(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
+		LOG_NOTICE, msg_daemonname,
+		"resend_term_delay reverting back to default val %ld",
+		PBS_RESEND_TERM_DELAY_DEFAULT);
 }
 
 /**
@@ -1284,14 +1044,17 @@ set_license_min(attribute *pattr, void *pobject, int actmode)
 		return (PBSE_NONE);
 
 	if ((actmode == ATR_ACTION_ALTER) ||
-		(actmode == ATR_ACTION_RECOV)) {
+	    (actmode == ATR_ACTION_RECOV)) {
 
 		if ((pattr->at_val.at_long < 0) ||
-			(pattr->at_val.at_long > pbs_max_licenses)) {
+		    (pattr->at_val.at_long > licensing_control.licenses_max)) {
 			return (PBSE_LICENSE_MIN_BADVAL);
 		}
-		pbs_min_licenses = pattr->at_val.at_long;
+		licensing_control.licenses_min = pattr->at_val.at_long;
 
+		if (licensing_control.licenses_min > licensing_control.licenses_checked_out)
+			if (get_more_licenses_task == NULL)
+				get_more_licenses_task = set_task(WORK_Timed, time(NULL) + 2, get_more_licenses, NULL);
 	}
 
 	return (PBSE_NONE);
@@ -1305,13 +1068,13 @@ set_license_min(attribute *pattr, void *pobject, int actmode)
 void
 unset_license_min(void)
 {
-	pbs_min_licenses = PBS_MIN_LICENSING_LICENSES;
+	licensing_control.licenses_min = PBS_MIN_LICENSING_LICENSES;
 
 	sprintf(log_buffer,
 		"pbs_license_min reverting back to default val %ld",
-		pbs_min_licenses);
+		licensing_control.licenses_min);
 	log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+		  LOG_NOTICE, msg_daemonname, log_buffer);
 }
 
 /**
@@ -1334,14 +1097,19 @@ set_license_max(attribute *pattr, void *pobject, int actmode)
 		return (PBSE_NONE);
 
 	if ((actmode == ATR_ACTION_ALTER) ||
-		(actmode == ATR_ACTION_RECOV)) {
+	    (actmode == ATR_ACTION_RECOV)) {
 
 		if ((pattr->at_val.at_long < 0) ||
-			(pattr->at_val.at_long < pbs_min_licenses)) {
+		    (pattr->at_val.at_long < licensing_control.licenses_min)) {
 			return (PBSE_LICENSE_MAX_BADVAL);
 		}
-		pbs_max_licenses = pattr->at_val.at_long;
+		licensing_control.licenses_max = pattr->at_val.at_long;
 
+		if ((licensing_control.licenses_max < licensing_control.licenses_checked_out) ||
+		    ((licensing_control.licenses_checked_out < licensing_control.licenses_total_needed) &&
+		     (licensing_control.licenses_checked_out < licensing_control.licenses_max)))
+			if (get_more_licenses_task == NULL)
+				get_more_licenses_task = set_task(WORK_Timed, time(NULL) + 2, get_more_licenses, NULL);
 	}
 
 	return (PBSE_NONE);
@@ -1355,13 +1123,13 @@ set_license_max(attribute *pattr, void *pobject, int actmode)
 void
 unset_license_max(void)
 {
-	pbs_max_licenses = PBS_MAX_LICENSING_LICENSES;
+	licensing_control.licenses_max = PBS_MAX_LICENSING_LICENSES;
 
 	sprintf(log_buffer,
 		"pbs_license_max reverting back to default val %ld",
-		pbs_max_licenses);
+		licensing_control.licenses_max);
 	log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+		  LOG_NOTICE, msg_daemonname, log_buffer);
 }
 
 /**
@@ -1384,15 +1152,20 @@ set_license_linger(attribute *pattr, void *pobject, int actmode)
 	if (actmode == ATR_ACTION_FREE)
 		return (PBSE_NONE);
 
-
 	if ((actmode == ATR_ACTION_ALTER) ||
-		(actmode == ATR_ACTION_RECOV)) {
+	    (actmode == ATR_ACTION_RECOV)) {
 
 		if ((pattr->at_val.at_long <= 0)) {
 			return (PBSE_LICENSE_LINGER_BADVAL);
 		}
-		pbs_licensing_linger = pattr->at_val.at_long;
+		licensing_control.licenses_linger_time = pattr->at_val.at_long;
 
+		if (licenses_linger_time_task)
+			delete_task(licenses_linger_time_task);
+
+		licenses_linger_time_task = set_task(WORK_Timed,
+						     licensing_control.licenses_checkout_time + licensing_control.licenses_linger_time,
+						     return_lingering_licenses, NULL);
 	}
 
 	return (PBSE_NONE);
@@ -1406,13 +1179,13 @@ set_license_linger(attribute *pattr, void *pobject, int actmode)
 void
 unset_license_linger(void)
 {
-	pbs_licensing_linger = PBS_LIC_LINGER_TIME;
+	licensing_control.licenses_linger_time = PBS_LIC_LINGER_TIME;
 
 	sprintf(log_buffer,
-		"pbs_license_linger_time reverting back to default val %d",
-		pbs_licensing_linger);
+		"pbs_license_linger_time reverting back to default val %ld",
+		licensing_control.licenses_linger_time);
 	log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+		  LOG_NOTICE, msg_daemonname, log_buffer);
 }
 
 /**
@@ -1438,7 +1211,7 @@ unset_job_history_enable(void)
 
 	sprintf(log_buffer, "job_history_enable has been unset.");
 	log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+		  LOG_NOTICE, msg_daemonname, log_buffer);
 
 	/*
 	 * Reset the SERVER level global switch for job history
@@ -1448,18 +1221,18 @@ unset_job_history_enable(void)
 	svr_history_enable = 0;
 
 	/*
-	 * Find all the history jobs (jobs with state JOB_STATE_MOVED
-	 * and JOB_STATE_FINISHED) in the server and purge them right
+	 * Find all the history jobs (jobs with state JOB_STATE_LTR_MOVED
+	 * and JOB_STATE_LTR_FINISHED) in the server and purge them right
 	 * now as job_history_enable has been UNSET OR SET to FALSE.
 	 */
-	pjob = (job *)GET_NEXT(svr_alljobs);
+	pjob = (job *) GET_NEXT(svr_alljobs);
 	while (pjob != NULL) {
 		/* save the next */
-		nxpjob = (job *)GET_NEXT(pjob->ji_alljobs);
+		nxpjob = (job *) GET_NEXT(pjob->ji_alljobs);
 
-		if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-			(pjob->ji_qs.ji_state == JOB_STATE_FINISHED) ||
-			(pjob->ji_qs.ji_state == JOB_STATE_EXPIRED)) {
+		if ((check_job_state(pjob, JOB_STATE_LTR_MOVED)) ||
+		    (check_job_state(pjob, JOB_STATE_LTR_FINISHED)) ||
+		    (check_job_state(pjob, JOB_STATE_LTR_EXPIRED))) {
 			job_purge(pjob);
 			pjob = NULL;
 		}
@@ -1484,13 +1257,13 @@ int
 set_job_history_enable(attribute *pattr, void *pobject, int actmode)
 {
 	if ((actmode == ATR_ACTION_ALTER) ||
-		(actmode == ATR_ACTION_RECOV)) {
+	    (actmode == ATR_ACTION_RECOV)) {
 
 		svr_history_enable = pattr->at_val.at_long;
 		if (svr_history_enable) {
-			(void)set_task(WORK_Timed,
-				(long)(time_now + SVR_CLEAN_JOBHIST_TM),
-				svr_clean_job_history, 0);
+			(void) set_task(WORK_Timed,
+					(long) (time_now + SVR_CLEAN_JOBHIST_TM),
+					svr_clean_job_history, 0);
 		} else {
 			unset_job_history_enable();
 		}
@@ -1514,7 +1287,7 @@ int
 set_log_events(attribute *pattr, void *pobject, int actmode)
 {
 	if ((actmode == ATR_ACTION_ALTER) ||
-		(actmode == ATR_ACTION_RECOV)) {
+	    (actmode == ATR_ACTION_RECOV)) {
 		tpp_set_logmask(pattr->at_val.at_long);
 	}
 	return (PBSE_NONE);
@@ -1538,7 +1311,7 @@ set_job_history_duration(attribute *pattr, void *pobject, int actmode)
 {
 
 	if ((actmode == ATR_ACTION_ALTER) ||
-		(actmode == ATR_ACTION_RECOV)) {
+	    (actmode == ATR_ACTION_RECOV)) {
 
 		if ((pattr->at_val.at_long < 0))
 			return (PBSE_BADATVAL);
@@ -1547,7 +1320,7 @@ set_job_history_duration(attribute *pattr, void *pobject, int actmode)
 		sprintf(log_buffer, "svr_history_duration set to val %ld",
 			svr_history_duration);
 		log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-			LOG_NOTICE, msg_daemonname, log_buffer);
+			  LOG_NOTICE, msg_daemonname, log_buffer);
 	}
 	return (PBSE_NONE);
 }
@@ -1566,7 +1339,7 @@ unset_job_history_duration(void)
 		"svr_history_duration reverting back to default val %ld",
 		svr_history_duration);
 	log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+		  LOG_NOTICE, msg_daemonname, log_buffer);
 }
 
 /**
@@ -1586,25 +1359,25 @@ set_max_job_sequence_id(attribute *pattr, void *pobject, int actmode)
 {
 
 	if ((actmode == ATR_ACTION_ALTER) ||
-		(actmode == ATR_ACTION_RECOV)) {
+	    (actmode == ATR_ACTION_RECOV)) {
 
 		if ((pattr->at_val.at_ll < SVR_MAX_JOB_SEQ_NUM_DEFAULT) ||
-			(pattr->at_val.at_ll > PBS_SEQNUMTOP)) {
+		    (pattr->at_val.at_ll > PBS_SEQNUMTOP)) {
 			return (PBSE_INVALID_MAX_JOB_SEQUENCE_ID);
 		}
 		svr_max_job_sequence_id = pattr->at_val.at_ll;
 		/* If the max_job_sequence_id is set to something smaller than current job id,
 		 * then it will wrap to 0(ZERO)*/
 		if (server.sv_qs.sv_jobidnumber > svr_max_job_sequence_id) {
-			(void)reset_svr_sequence_window();/* wrap it*/
+			(void) reset_svr_sequence_window(); /* wrap it*/
 			sprintf(log_buffer, "svr_max_job_sequence_id wrapped to 0");
 			log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-				LOG_NOTICE, msg_daemonname, log_buffer);
+				  LOG_NOTICE, msg_daemonname, log_buffer);
 		} else {
 			sprintf(log_buffer, "svr_max_job_sequence_id set to val %lld",
-					svr_max_job_sequence_id);
+				svr_max_job_sequence_id);
 			log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-					LOG_NOTICE, msg_daemonname, log_buffer);
+				  LOG_NOTICE, msg_daemonname, log_buffer);
 		}
 	}
 	return (PBSE_NONE);
@@ -1622,16 +1395,16 @@ unset_max_job_sequence_id(void)
 	/* If the max_job_sequence_id is set to something smaller than current job id,
 	 * then it will wrap to 0(ZERO)*/
 	if (server.sv_qs.sv_jobidnumber >= svr_max_job_sequence_id) {
-		(void)reset_svr_sequence_window();/* wrap it*/
+		(void) reset_svr_sequence_window(); /* wrap it*/
 		sprintf(log_buffer, "svr_max_job_sequence_id wrapped to 0");
 		log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-			LOG_NOTICE, msg_daemonname, log_buffer);
+			  LOG_NOTICE, msg_daemonname, log_buffer);
 	}
 	sprintf(log_buffer,
 		"svr_max_job_sequence_id reverting back to default val %lld",
 		svr_max_job_sequence_id);
 	log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+		  LOG_NOTICE, msg_daemonname, log_buffer);
 }
 
 /**
@@ -1657,42 +1430,22 @@ eligibletime_action(attribute *pattr, void *pobject, int actmode)
 	 */
 	if (pattr->at_val.at_long == 1) {
 
-		pj = (job *)GET_NEXT(svr_alljobs);
+		pj = (job *) GET_NEXT(svr_alljobs);
 		while (pj != NULL) {
-			/*
-			 * try to determine accruetype for
-			 * jobs submitted when eligible_time_enable was 'off'
-			 * if unable to determine now, wait for scheduling cycle
-			 */
-			if ((pj->ji_wattr[(int)JOB_ATR_accrue_type].at_val.at_long == JOB_INITIAL) ||
-				((pj->ji_wattr[(int)JOB_ATR_accrue_type].at_flags & ATR_VFLAG_SET) == 0)) {
-				accruetype = determine_accruetype(pj);
-				if (accruetype == -1)
-					pj->ji_wattr[(int)JOB_ATR_accrue_type].at_val.at_long = JOB_INITIAL;
-				else
-					pj->ji_wattr[(int)JOB_ATR_accrue_type].at_val.at_long = accruetype;
+			accruetype = determine_accruetype(pj);
+			update_eligible_time(accruetype, pj);
 
-				pj->ji_wattr[(int)JOB_ATR_accrue_type].at_flags |=
-					(ATR_VFLAG_SET | ATR_VFLAG_MODCACHE | ATR_VFLAG_MODIFY);
-				pj->ji_wattr[(int)JOB_ATR_eligible_time].at_flags |=
-					(ATR_VFLAG_SET | ATR_VFLAG_MODCACHE | ATR_VFLAG_MODIFY);
-				pj->ji_wattr[(int)JOB_ATR_sample_starttime].at_flags |=
-					(ATR_VFLAG_SET | ATR_VFLAG_MODCACHE | ATR_VFLAG_MODIFY);
-			}
-
-			pj = (job *)GET_NEXT(pj->ji_alljobs);
+			pj = (job *) GET_NEXT(pj->ji_alljobs);
 		}
 
 		/* if scheduling is true, need to run the scheduling cycle */
 		/* so that, accrue type is determined for cases */
-		if (server.sv_attr[SRV_ATR_scheduling].at_val.at_long)
+		if (get_sattr_long(SVR_ATR_scheduling))
 			set_scheduler_flag(SCH_SCHEDULE_ETE_ON, NULL);
-
 	}
 
 	return 0;
 }
-
 
 /**
  * @brief
@@ -1719,7 +1472,7 @@ decode_formula(attribute *patr, char *name, char *rescn, char *val)
 	int rc;
 
 	/* when we are coming up, we need to read from the server's database */
-	if (server.sv_attr[(int)SRV_ATR_State].at_val.at_long == SV_STATE_INIT)
+	if (get_sattr_long(SVR_ATR_State) == SV_STATE_INIT)
 		return decode_str(patr, name, rescn, val);
 
 	sprintf(pathbuf, "%s/%s", pbs_conf.pbs_home_path, FORMULA_ATTR_PATH);
@@ -1731,8 +1484,8 @@ decode_formula(attribute *patr, char *name, char *rescn, char *val)
 	formula_buf = malloc(formula_buf_len);
 	if (formula_buf == NULL) {
 		log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-			LOG_ALERT, msg_daemonname,
-			"unable to decode formula, no memory");
+			  LOG_ALERT, msg_daemonname,
+			  "unable to decode formula, no memory");
 		fclose(fp);
 		remove(pathbuf);
 		return PBSE_INTERNAL;
@@ -1752,12 +1505,11 @@ decode_formula(attribute *patr, char *name, char *rescn, char *val)
 	remove(pathbuf);
 
 	/* remove the newline */
-	formula_buf[strlen(formula_buf)-1] = '\0';
+	formula_buf[strlen(formula_buf) - 1] = '\0';
 
 	rc = decode_str(patr, name, rescn, formula_buf);
 	free(formula_buf);
 	return rc;
-
 }
 
 /*
@@ -1787,46 +1539,42 @@ decode_formula(attribute *patr, char *name, char *rescn, char *val)
 static int entlim_type_in_use = 0;
 
 static int svr_oldstyle[] = {
-	(int)SRV_ATR_max_running,
-	(int)SRV_ATR_MaxUserRun,
-	(int)SRV_ATR_MaxGrpRun,
-	(int)SVR_ATR_MaxUserRes,
-	(int)SVR_ATR_MaxGroupRes,
-	(int)SVR_ATR_MaxUserRunSoft,
-	(int)SVR_ATR_MaxGrpRunSoft,
-	(int)SVR_ATR_MaxUserResSoft,
-	(int)SVR_ATR_MaxGroupResSoft,
-	-1
-};
+	(int) SVR_ATR_max_running,
+	(int) SVR_ATR_MaxUserRun,
+	(int) SVR_ATR_MaxGrpRun,
+	(int) SVR_ATR_MaxUserRes,
+	(int) SVR_ATR_MaxGroupRes,
+	(int) SVR_ATR_MaxUserRunSoft,
+	(int) SVR_ATR_MaxGrpRunSoft,
+	(int) SVR_ATR_MaxUserResSoft,
+	(int) SVR_ATR_MaxGroupResSoft,
+	-1};
 static int svr_newstyle[] = {
-	(int)SRV_ATR_max_run,
-	(int)SRV_ATR_max_run_res,
-	(int)SRV_ATR_max_run_soft,
-	(int)SRV_ATR_max_run_res_soft,
-	-1
-};
+	(int) SVR_ATR_max_run,
+	(int) SVR_ATR_max_run_res,
+	(int) SVR_ATR_max_run_soft,
+	(int) SVR_ATR_max_run_res_soft,
+	-1};
 static int que_oldstyle[] = {
-	(int)QA_ATR_MaxJobs,
-	(int)QA_ATR_MaxRun,
-	(int)QE_ATR_MaxUserRun,
-	(int)QE_ATR_MaxGrpRun,
-	(int)QE_ATR_MaxUserRes,
-	(int)QE_ATR_MaxGroupRes,
-	(int)QE_ATR_MaxUserRunSoft,
-	(int)QE_ATR_MaxGrpRunSoft,
-	(int)QE_ATR_MaxUserResSoft,
-	(int)QE_ATR_MaxGroupResSoft,
-	-1
-};
+	(int) QA_ATR_MaxJobs,
+	(int) QA_ATR_MaxRun,
+	(int) QE_ATR_MaxUserRun,
+	(int) QE_ATR_MaxGrpRun,
+	(int) QE_ATR_MaxUserRes,
+	(int) QE_ATR_MaxGroupRes,
+	(int) QE_ATR_MaxUserRunSoft,
+	(int) QE_ATR_MaxGrpRunSoft,
+	(int) QE_ATR_MaxUserResSoft,
+	(int) QE_ATR_MaxGroupResSoft,
+	-1};
 static int que_newstyle[] = {
-	(int)QA_ATR_max_queued,
-	(int)QA_ATR_queued_jobs_threshold,
-	(int)QE_ATR_max_run,
-	(int)QE_ATR_max_run_res,
-	(int)QE_ATR_max_run_soft,
-	(int)QE_ATR_max_run_res_soft,
-	-1
-};
+	(int) QA_ATR_max_queued,
+	(int) QA_ATR_queued_jobs_threshold,
+	(int) QE_ATR_max_run,
+	(int) QE_ATR_max_run_res,
+	(int) QE_ATR_max_run_soft,
+	(int) QE_ATR_max_run_res_soft,
+	-1};
 
 extern pbs_list_head svr_queues;
 /**
@@ -1843,11 +1591,11 @@ extern pbs_list_head svr_queues;
 static int
 is_attrs_in_list_set(int *wlist, attribute *attrs)
 {
-	int 	   i;
+	int i;
 
-	for (i=0; *(wlist+i) != -1; ++i) {
-		if (((attrs+*(wlist+i))->at_flags & ATR_VFLAG_SET) != 0)
-			return *(wlist+i);
+	for (i = 0; *(wlist + i) != -1; ++i) {
+		if (((attrs + *(wlist + i))->at_flags & ATR_VFLAG_SET) != 0)
+			return *(wlist + i);
 	}
 	return -1;
 }
@@ -1865,7 +1613,7 @@ static void
 log_mixed_limit_controls(pbs_queue *pq, int index, char *type)
 {
 	attribute_def *pdef;
-	char          *objname;
+	char *objname;
 
 	if (pq) {
 		objname = pq->qu_qs.qu_name;
@@ -1874,12 +1622,12 @@ log_mixed_limit_controls(pbs_queue *pq, int index, char *type)
 		objname = "Server";
 		pdef = &svr_attr_def[index];
 	}
-	snprintf(log_buffer, LOG_BUF_SIZE-1,
-		"%s style attribute \"%s\" already set in %s %s, cannot mix types",
-		type, pdef->at_name, pq ? "queue" : "", objname);
-	log_buffer[LOG_BUF_SIZE-1] = '\0';
+	snprintf(log_buffer, LOG_BUF_SIZE - 1,
+		 "%s style attribute \"%s\" already set in %s %s, cannot mix types",
+		 type, pdef->at_name, pq ? "queue" : "", objname);
+	log_buffer[LOG_BUF_SIZE - 1] = '\0';
 	log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER, LOG_ALERT,
-		msg_daemonname, log_buffer);
+		  msg_daemonname, log_buffer);
 }
 
 /**
@@ -1898,7 +1646,7 @@ log_mixed_limit_controls(pbs_queue *pq, int index, char *type)
 int
 action_entlim_chk(attribute *pattr, void *pobject, int actmode)
 {
-	int        i;
+	int i;
 	pbs_queue *pq;
 
 	/* first check if the new style limits cannot be used */
@@ -1906,7 +1654,7 @@ action_entlim_chk(attribute *pattr, void *pobject, int actmode)
 	if (entlim_type_in_use == +1)
 		return PBSE_NONE;
 	else if (entlim_type_in_use == 0) {
-		entlim_type_in_use = +1;	/* show new stype in use */
+		entlim_type_in_use = +1; /* show new stype in use */
 		return PBSE_NONE;
 	}
 
@@ -1915,16 +1663,16 @@ action_entlim_chk(attribute *pattr, void *pobject, int actmode)
 		log_mixed_limit_controls(NULL, i, "old");
 		return PBSE_MIXENTLIMS;
 	}
-	pq = (pbs_queue *)GET_NEXT(svr_queues);
+	pq = (pbs_queue *) GET_NEXT(svr_queues);
 	while (pq) {
-		if ((i=is_attrs_in_list_set(que_oldstyle, pq->qu_attr)) != -1) {
+		if ((i = is_attrs_in_list_set(que_oldstyle, pq->qu_attr)) != -1) {
 			log_mixed_limit_controls(pq, i, "old");
 			return PBSE_MIXENTLIMS;
 		}
-		pq = (pbs_queue *)GET_NEXT(pq->qu_link);
+		pq = (pbs_queue *) GET_NEXT(pq->qu_link);
 	}
 
-	entlim_type_in_use = +1;	/* show new stype in use */
+	entlim_type_in_use = +1; /* show new stype in use */
 	return PBSE_NONE;
 }
 
@@ -1939,76 +1687,63 @@ action_entlim_chk(attribute *pattr, void *pobject, int actmode)
 static void
 entlim_resum(struct work_task *pwt)
 {
-	void		  *ctx;
-	int		   is_resc;
-	attribute	  *pattr;
-	attribute	  *pattr2;
-	pbs_entlim_key_t  *pkey;
+	void *ctx;
+	int is_resc;
+	attribute *pattr;
+	attribute *pattr2;
+	char *key = NULL;
 	svr_entlim_leaf_t *plf;
-	job		  *pj;
-	void		  *pobject;
-	pbs_queue	  *pque;
-	extern  pbs_list_head  svr_alljobs;
+	job *pj;
+	void *pobject;
+	pbs_queue *pque;
+	extern pbs_list_head svr_alljobs;
 
-	pobject = pwt->wt_parm1;    /* pointer to parent object */
-	is_resc = pwt->wt_aux;	    /* 1=resource, 0-count */
+	pobject = pwt->wt_parm1; /* pointer to parent object */
+	is_resc = pwt->wt_aux;	 /* 1=resource, 0-count */
 
 	/* now determine if the parent object is a queue or is the Server */
 	/* this tells us which list of jobs we need to walk.		  */
-	if ((struct server *)pobject == &server) {
+	if ((struct server *) pobject == &server) {
 		/* server is the parent */
 		pque = NULL;
 		if (is_resc) {
-			pattr = &server.sv_attr[(int)SRV_ATR_max_queued_res];
-			pattr2 = &server.sv_attr[(int)SRV_ATR_queued_jobs_threshold_res];
+			pattr = get_sattr(SVR_ATR_max_queued_res);
+			pattr2 = get_sattr(SVR_ATR_queued_jobs_threshold_res);
+		} else {
+			pattr = get_sattr(SVR_ATR_max_queued);
+			pattr2 = get_sattr(SVR_ATR_queued_jobs_threshold);
 		}
-		else {
-			pattr = &server.sv_attr[(int)SRV_ATR_max_queued];
-			pattr2 = &server.sv_attr[(int)SRV_ATR_queued_jobs_threshold];
-		}
-		pj   = (job *)GET_NEXT(svr_alljobs);
+		pj = (job *) GET_NEXT(svr_alljobs);
 	} else {
 		/* a queue is the parent */
-		pque = (pbs_queue *)pobject;
+		pque = (pbs_queue *) pobject;
 		if (is_resc) {
-			pattr = &pque->qu_attr[(int)QA_ATR_max_queued_res];
-			pattr2 = &pque->qu_attr[(int)QA_ATR_queued_jobs_threshold_res];
+			pattr = get_qattr(pque, QA_ATR_max_queued_res);
+			pattr2 = get_qattr(pque, QA_ATR_queued_jobs_threshold_res);
+		} else {
+			pattr = get_qattr(pque, QA_ATR_max_queued);
+			pattr2 = get_qattr(pque, QA_ATR_queued_jobs_threshold);
 		}
-		else {
-			pattr = &pque->qu_attr[(int)QA_ATR_max_queued];
-			pattr2 = &pque->qu_attr[(int)QA_ATR_queued_jobs_threshold];
-		}
-		pj = (job *)GET_NEXT(pque->qu_jobs);
+		pj = (job *) GET_NEXT(pque->qu_jobs);
 	}
 
 	/* Next, walk the limit tree and clear all current values */
 
 	ctx = pattr->at_val.at_enty.ae_tree;
-	pkey = NULL;
-
-	pkey = entlim_get_next(NULL, ctx);
-	while (pkey) {
-
-		plf = pkey->recptr;
-		if ((plf->slf_sum.at_flags & ATR_VFLAG_SET) != 0) {
+	while ((plf = entlim_get_next(ctx, (void **) &key)) != NULL) {
+		if (is_attr_set(&plf->slf_sum)) {
 			plf->slf_rescd->rs_free(&plf->slf_sum);
-			DBPRT(("clearing %s\n", pkey->key))
+			DBPRT(("clearing %s\n", key))
 		}
-		pkey = entlim_get_next(pkey, ctx);
 	}
 
 	ctx = pattr2->at_val.at_enty.ae_tree;
-	pkey = NULL;
-
-	pkey = entlim_get_next(NULL, ctx);
-	while (pkey) {
-
-		plf = pkey->recptr;
-		if ((plf->slf_sum.at_flags & ATR_VFLAG_SET) != 0) {
+	key = NULL;
+	while ((plf = entlim_get_next(ctx, (void **) &key)) != NULL) {
+		if (is_attr_set(&plf->slf_sum)) {
 			plf->slf_rescd->rs_free(&plf->slf_sum);
-			DBPRT(("clearing %s\n", pkey->key))
+			DBPRT(("clearing %s\n", key))
 		}
-		pkey = entlim_get_next(pkey, ctx);
 	}
 
 	/* then for each job in the parent object, sum up its count/resource */
@@ -2023,9 +1758,9 @@ entlim_resum(struct work_task *pwt)
 		}
 
 		if (pque)
-			pj = (job *)GET_NEXT(pj->ji_jobque);
+			pj = (job *) GET_NEXT(pj->ji_jobque);
 		else
-			pj = (job *)GET_NEXT(pj->ji_alljobs);
+			pj = (job *) GET_NEXT(pj->ji_alljobs);
 	}
 }
 
@@ -2048,7 +1783,7 @@ int
 action_entlim_ct(attribute *pattr, void *pobject, int actmode)
 {
 	struct work_task *pwt;
-	int	   rc;
+	int rc;
 
 	rc = action_entlim_chk(pattr, pobject, actmode);
 	if (rc != PBSE_NONE)
@@ -2063,7 +1798,7 @@ action_entlim_ct(attribute *pattr, void *pobject, int actmode)
 		 */
 		pwt = set_task(WORK_Immed, 0, entlim_resum, pobject);
 		if (pwt)
-			pwt->wt_aux = 0;	/* resum count of jobs */
+			pwt->wt_aux = 0; /* resum count of jobs */
 	}
 	return PBSE_NONE;
 }
@@ -2086,7 +1821,7 @@ action_entlim_ct(attribute *pattr, void *pobject, int actmode)
 int
 action_entlim_res(attribute *pattr, void *pobject, int actmode)
 {
-	int	   rc;
+	int rc;
 	struct work_task *pwt;
 
 	rc = action_entlim_chk(pattr, pobject, actmode);
@@ -2102,11 +1837,10 @@ action_entlim_res(attribute *pattr, void *pobject, int actmode)
 		 */
 		pwt = set_task(WORK_Immed, 0, entlim_resum, pobject);
 		if (pwt)
-			pwt->wt_aux = 1;	/* resum resources */
+			pwt->wt_aux = 1; /* resum resources */
 	}
 	return PBSE_NONE;
 }
-
 
 /**
  * @brief
@@ -2123,18 +1857,15 @@ action_entlim_res(attribute *pattr, void *pobject, int actmode)
  * @retval	PBSE_MIXENTLIMS	: here is a new style entlim limit set
  */
 int
-check_no_entlim(pattr, pobject, actmode)
-attribute *pattr;
-void *pobject;
-int actmode;
+check_no_entlim(attribute *pattr, void *pobject, int actmode)
 {
-	int        i;
+	int i;
 	pbs_queue *pq;
 
 	if (entlim_type_in_use == -1)
 		return PBSE_NONE;
 	else if (entlim_type_in_use == 0) {
-		entlim_type_in_use = -1;	/* show old style in use */
+		entlim_type_in_use = -1; /* show old style in use */
 		return PBSE_NONE;
 	}
 
@@ -2143,32 +1874,32 @@ int actmode;
 		log_mixed_limit_controls(NULL, i, "new");
 		return PBSE_MIXENTLIMS;
 	}
-	pq = (pbs_queue *)GET_NEXT(svr_queues);
+	pq = (pbs_queue *) GET_NEXT(svr_queues);
 	while (pq) {
-		if ((i=is_attrs_in_list_set(que_newstyle, pq->qu_attr)) != -1) {
+		if ((i = is_attrs_in_list_set(que_newstyle, pq->qu_attr)) != -1) {
 			log_mixed_limit_controls(pq, i, "new");
 			return PBSE_MIXENTLIMS;
 		}
-		pq = (pbs_queue *)GET_NEXT(pq->qu_link);
+		pq = (pbs_queue *) GET_NEXT(pq->qu_link);
 	}
 
-	entlim_type_in_use = -1;	/* show old style in use */
+	entlim_type_in_use = -1; /* show old style in use */
 	return 0;
 }
 
 /* Defines for return value of check_single_entity_* */
 #define Exceeds_Generic -2
 #define Exceeds_Limit -1
-#define No_Limit       0
-#define Within_Limit   1
+#define No_Limit 0
+#define Within_Limit 1
 
-#define ET_LIM_DBG(format, ...) \
-if (will_log_event(PBSEVENT_DEBUG4)) {\
-	snprintf(log_buffer, LOG_BUF_SIZE-1, "ET_LIM_DBG: %s: "format, __VA_ARGS__);\
-	log_event(PBSEVENT_DEBUG4, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, log_buffer);\
-}
+#define ET_LIM_DBG(format, ...)                                                                              \
+	if (will_log_event(PBSEVENT_DEBUG4)) {                                                               \
+		snprintf(log_buffer, LOG_BUF_SIZE - 1, "ET_LIM_DBG: %s: " format, __VA_ARGS__);              \
+		log_event(PBSEVENT_DEBUG4, PBS_EVENTCLASS_JOB, LOG_DEBUG, pjob->ji_qs.ji_jobid, log_buffer); \
+	}
 
-extern char	 statechars[];
+extern char statechars[];
 
 /**
  * @brief
@@ -2192,19 +1923,19 @@ check_single_entity_ct(enum lim_keytypes kt, char *ename, attribute *patr, int s
 	char *kstr;
 	void *ctx;
 	svr_entlim_leaf_t *plf;
-	int   count = subjobs;
+	int count = subjobs;
 
 	kstr = entlim_mk_runkey(kt, ename);
 	if (kstr == NULL) {
 		log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-			LOG_ALERT, msg_daemonname,
-			"rejecting job,  unable to make entity limit key, no memory");
+			  LOG_ALERT, msg_daemonname,
+			  "rejecting job,  unable to make entity limit key, no memory");
 		ET_LIM_DBG("exiting, ret %d [kstr is NULL]", __func__, LIM_OVERALL)
 		return LIM_OVERALL;
 	}
 	ET_LIM_DBG("kstr %s, %d", __func__, kstr, subjobs)
 	ctx = patr->at_val.at_enty.ae_tree;
-	plf = (svr_entlim_leaf_t *)entlim_get(kstr, ctx);
+	plf = (svr_entlim_leaf_t *) entlim_get(kstr, ctx);
 
 	if (plf) {
 		count += plf->slf_sum.at_val.at_long;
@@ -2214,7 +1945,7 @@ check_single_entity_ct(enum lim_keytypes kt, char *ename, attribute *patr, int s
 	free(kstr);
 
 	ET_LIM_DBG("count is %d", __func__, count)
-	if (plf && (plf->slf_limit.at_flags & ATR_VFLAG_SET)) {
+	if (plf && (is_attr_set(&plf->slf_limit))) {
 		if (count > plf->slf_limit.at_val.at_long) {
 			ET_LIM_DBG("exiting, ret Exceeds_Limit [specific limit]", __func__)
 			return Exceeds_Limit;
@@ -2229,8 +1960,8 @@ check_single_entity_ct(enum lim_keytypes kt, char *ename, attribute *patr, int s
 			ET_LIM_DBG("exiting, ret No_Limit [generic limit]", __func__)
 			return No_Limit;
 		}
-		plf = (svr_entlim_leaf_t *)entlim_get(kstr, ctx);
-		if (plf && (plf->slf_limit.at_flags & ATR_VFLAG_SET)) {
+		plf = (svr_entlim_leaf_t *) entlim_get(kstr, ctx);
+		if (plf && (is_attr_set(&plf->slf_limit))) {
 			ET_LIM_DBG("ct generic limit for %s is %ld", __func__, kstr, plf->slf_limit.at_val.at_long)
 			free(kstr);
 			if (count > plf->slf_limit.at_val.at_long) {
@@ -2266,30 +1997,30 @@ check_single_entity_ct(enum lim_keytypes kt, char *ename, attribute *patr, int s
  */
 static int
 check_single_entity_res(enum lim_keytypes kt, char *ename,
-	attribute *patr,
-	resource  *newr,
-	resource  *oldr,
-	int	  subjobs,
-	job	  *pjob)
+			attribute *patr,
+			resource *newr,
+			resource *oldr,
+			int subjobs,
+			job *pjob)
 {
 	char *kstr;
-	void               *ctx;
+	void *ctx;
 	svr_entlim_leaf_t *plf;
-	int		   rc;
+	int rc;
 	int i;
-	attribute  tmpval = {0};
+	attribute tmpval = {0};
 
 	kstr = entlim_mk_reskey(kt, ename, newr->rs_defin->rs_name);
 	if (kstr == NULL) {
 		log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-			LOG_ALERT, msg_daemonname,
-			"rejecting job,  unable to make entity limit key, no memory");
+			  LOG_ALERT, msg_daemonname,
+			  "rejecting job,  unable to make entity limit key, no memory");
 		ET_LIM_DBG("exiting, ret %d [kstr is NULL]", __func__, LIM_OVERALL)
 		return LIM_OVERALL;
 	}
 	ET_LIM_DBG("kstr %s, %d, oldr %p", __func__, kstr, subjobs, oldr)
 	ctx = patr->at_val.at_enty.ae_tree;
-	plf = (svr_entlim_leaf_t *)entlim_get(kstr, ctx);
+	plf = (svr_entlim_leaf_t *) entlim_get(kstr, ctx);
 
 	if (plf) {
 		tmpval = plf->slf_sum;
@@ -2300,14 +2031,14 @@ check_single_entity_res(enum lim_keytypes kt, char *ename,
 			plf->slf_rescd->rs_set(&tmpval, &newr->rs_value, INCR);
 		}
 		if (will_log_event(PBSEVENT_DEBUG4)) {
-			svrattrl *sum = NULL,*limit = NULL;
-			char *sum_val,*limit_val;
-			if (plf->slf_sum.at_flags & ATR_VFLAG_SET) {
+			svrattrl *sum = NULL, *limit = NULL;
+			char *sum_val, *limit_val;
+			if (is_attr_set(&plf->slf_sum)) {
 				plf->slf_rescd->rs_encode(&plf->slf_sum, NULL, "sumval", NULL, ATR_ENCODE_CLIENT, &sum);
 				sum_val = sum->al_value;
 			} else
 				sum_val = "(not_set)";
-			if (plf->slf_limit.at_flags & ATR_VFLAG_SET) {
+			if (is_attr_set(&plf->slf_limit)) {
 				plf->slf_rescd->rs_encode(&plf->slf_limit, NULL, "limval", NULL, ATR_ENCODE_CLIENT, &limit);
 				limit_val = limit->al_value;
 			} else
@@ -2319,7 +2050,7 @@ check_single_entity_res(enum lim_keytypes kt, char *ename,
 		}
 	}
 	free(kstr);
-	if (plf && (plf->slf_limit.at_flags & ATR_VFLAG_SET)) {
+	if (plf && (is_attr_set(&plf->slf_limit))) {
 		/* check the specific user's limit */
 		rc = plf->slf_rescd->rs_comp(&tmpval, &plf->slf_limit);
 		if (rc > 0) {
@@ -2335,14 +2066,14 @@ check_single_entity_res(enum lim_keytypes kt, char *ename,
 			ET_LIM_DBG("exiting, ret No_Limit [generic limit]", __func__)
 			return No_Limit;
 		}
-		plf = (svr_entlim_leaf_t *)entlim_get(kstr, ctx);
-		if (plf && (plf->slf_limit.at_flags & ATR_VFLAG_SET)) {
-			if (!(tmpval.at_flags & ATR_VFLAG_SET)) {  /* for no recorded usage for entity */
+		plf = (svr_entlim_leaf_t *) entlim_get(kstr, ctx);
+		if (plf && (is_attr_set(&plf->slf_limit))) {
+			if (!(is_attr_set(&tmpval))) { /* for no recorded usage for entity */
 				plf->slf_rescd->rs_set(&tmpval, &newr->rs_value, SET);
-				for (i = 0; i < (subjobs-1); i++) {
+				for (i = 0; i < (subjobs - 1); i++) {
 					plf->slf_rescd->rs_set(&tmpval, &newr->rs_value, INCR);
 				}
-				if (will_log_event(PBSEVENT_DEBUG4) && (tmpval.at_flags & ATR_VFLAG_SET)) {
+				if (will_log_event(PBSEVENT_DEBUG4) && (is_attr_set(&tmpval))) {
 					svrattrl *count;
 					plf->slf_rescd->rs_encode(&tmpval, NULL, "tmpval", NULL, ATR_ENCODE_CLIENT, &count);
 					ET_LIM_DBG("res generic limit for %s is %s", __func__, kstr, count->al_value)
@@ -2386,13 +2117,13 @@ check_single_entity_res(enum lim_keytypes kt, char *ename,
 int
 check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 {
-	char	    *egroup;
-	char	    *project;
-	char	    *euser;
-	attribute   *pqueued_jobs_threshold;
-	int	     rc;
-	int	     subjobs;
-	char	     ebuff[COMMENT_BUF_SIZE+1];
+	char *egroup;
+	char *project;
+	char *euser;
+	attribute *pqueued_jobs_threshold;
+	int rc;
+	int subjobs;
+	char ebuff[COMMENT_BUF_SIZE + 1];
 	extern char *msg_et_qct_q;
 	extern char *msg_et_sct_q;
 	extern char *msg_et_ggq_q;
@@ -2409,26 +2140,26 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 	extern char *msg_et_sus_q;
 
 	ET_LIM_DBG("entered for %s", __func__, pque ? pque->qu_qs.qu_name : "server")
-	euser  = pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str;
-	egroup = pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str;
-	project = pjob->ji_wattr[(int)JOB_ATR_project].at_val.at_str;
+	euser = get_jattr_str(pjob, JOB_ATR_euser);
+	egroup = get_jattr_str(pjob, JOB_ATR_egroup);
+	project = get_jattr_str(pjob, JOB_ATR_project);
 	if (pjob->ji_clterrmsg) {
 		free(pjob->ji_clterrmsg);
 		pjob->ji_clterrmsg = NULL;
 	}
 	if (pque)
-		pqueued_jobs_threshold = &pque->qu_attr[(int)QA_ATR_queued_jobs_threshold];
+		pqueued_jobs_threshold = get_qattr(pque, QA_ATR_queued_jobs_threshold);
 	else
-		pqueued_jobs_threshold = &server.sv_attr[(int)SRV_ATR_queued_jobs_threshold];
+		pqueued_jobs_threshold = get_sattr(SVR_ATR_queued_jobs_threshold);
 
-	if ((pqueued_jobs_threshold->at_flags & ATR_VFLAG_SET) == 0) {
+	if (!is_attr_set(pqueued_jobs_threshold)) {
 		ET_LIM_DBG("exiting, ret 0 [queued_jobs_threshold limit not set for %s]", __func__, pque ? pque->qu_qs.qu_name : "server")
-		return PBSE_NONE;	/* no limits set */
+		return PBSE_NONE; /* no limits set */
 	}
 
 	if ((subjobs = get_queued_subjobs_ct(pjob)) < 0) {
 		ET_LIM_DBG("exiting, ret %d [get_queued_subjobs_ct() returned %d]", __func__,
-				PBSE_INTERNAL, subjobs)
+			   PBSE_INTERNAL, subjobs)
 		return PBSE_INTERNAL;
 	}
 
@@ -2439,15 +2170,15 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 	if (rc == Exceeds_Limit) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_qct_q,
-				pque->qu_qs.qu_name);
+				 pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, "%s", msg_et_sct_q);
 		}
 		ebuff[COMMENT_BUF_SIZE] = '\0';
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
-		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(o:"PBS_ALL_ENTITY",%d) returned Exceeds_Limit]", __func__,
-				PBSE_ENTLIMCT, subjobs)
+		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(o:" PBS_ALL_ENTITY ",%d) returned Exceeds_Limit]", __func__,
+			   PBSE_ENTLIMCT, subjobs)
 		return PBSE_ENTLIMCT;
 	}
 
@@ -2456,7 +2187,7 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 	if (rc == Exceeds_Limit) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_suq_q,
-				euser, pque->qu_qs.qu_name);
+				 euser, pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_sus_q, euser);
 		}
@@ -2464,13 +2195,13 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(u:%s,%d) returned Exceeds_Limit]", __func__,
-				PBSE_ENTLIMCT, euser, subjobs)
+			   PBSE_ENTLIMCT, euser, subjobs)
 		return PBSE_ENTLIMCT;
 
 	} else if (rc == Exceeds_Generic) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_guq_q,
-				"generic", pque->qu_qs.qu_name);
+				 "generic", pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_gus_q, "generic");
 		}
@@ -2478,7 +2209,7 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(u:%s,%d) returned Exceeds_Generic]", __func__,
-				PBSE_ENTLIMCT, euser, subjobs)
+			   PBSE_ENTLIMCT, euser, subjobs)
 		return PBSE_ENTLIMCT;
 	}
 
@@ -2487,7 +2218,7 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 	if (rc == Exceeds_Limit) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_sgq_q,
-				egroup, pque->qu_qs.qu_name);
+				 egroup, pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_sgs_q, egroup);
 		}
@@ -2495,13 +2226,13 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(g:%s,%d) returned Exceeds_Limit]", __func__,
-				PBSE_ENTLIMCT, egroup, subjobs)
+			   PBSE_ENTLIMCT, egroup, subjobs)
 		return PBSE_ENTLIMCT;
 
 	} else if (rc == Exceeds_Generic) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_ggq_q,
-				pque->qu_qs.qu_name);
+				 pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, "%s", msg_et_ggs_q);
 		}
@@ -2509,17 +2240,16 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(g:%s,%d) returned Exceeds_Generic]", __func__,
-				PBSE_ENTLIMCT, egroup, subjobs)
+			   PBSE_ENTLIMCT, egroup, subjobs)
 		return PBSE_ENTLIMCT;
 	}
-
 
 	/* 4. Check against specific project limit, [p:project] */
 	rc = check_single_entity_ct(LIM_PROJECT, project, pqueued_jobs_threshold, subjobs, pjob);
 	if (rc == Exceeds_Limit) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_spq_q,
-				project, pque->qu_qs.qu_name);
+				 project, pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_sps_q, project);
 		}
@@ -2527,13 +2257,13 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(p:%s,%d) returned Exceeds_Limit]", __func__,
-				PBSE_ENTLIMCT, project, subjobs)
+			   PBSE_ENTLIMCT, project, subjobs)
 		return PBSE_ENTLIMCT;
 
 	} else if (rc == Exceeds_Generic) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_gpq_q,
-				pque->qu_qs.qu_name);
+				 pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, "%s", msg_et_gps_q);
 		}
@@ -2541,12 +2271,12 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(p:%s,%d) returned Exceeds_Generic]", __func__,
-				PBSE_ENTLIMCT, project, subjobs)
+			   PBSE_ENTLIMCT, project, subjobs)
 		return PBSE_ENTLIMCT;
 	}
 
 	ET_LIM_DBG("exiting, ret 0 [all ok]", __func__)
-	return 0;	/* within all count limits */
+	return 0; /* within all count limits */
 }
 
 /**
@@ -2570,13 +2300,13 @@ check_entity_ct_limit_queued(job *pjob, pbs_queue *pque)
 int
 check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 {
-	char	    *egroup;
-	char	    *project;
-	char	    *euser;
-	attribute   *pmax_queued;
-	int	     rc;
-	int	     subjobs;
-	char	     ebuff[COMMENT_BUF_SIZE+1];
+	char *egroup;
+	char *project;
+	char *euser;
+	attribute *pmax_queued;
+	int rc;
+	int subjobs;
+	char ebuff[COMMENT_BUF_SIZE + 1];
 	extern char *msg_et_qct;
 	extern char *msg_et_sct;
 	extern char *msg_et_ggq;
@@ -2593,26 +2323,26 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 	extern char *msg_et_sus;
 
 	ET_LIM_DBG("entered for %s", __func__, pque ? pque->qu_qs.qu_name : "server")
-	euser  = pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str;
-	egroup = pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str;
-	project = pjob->ji_wattr[(int)JOB_ATR_project].at_val.at_str;
+	euser = get_jattr_str(pjob, JOB_ATR_euser);
+	egroup = get_jattr_str(pjob, JOB_ATR_egroup);
+	project = get_jattr_str(pjob, JOB_ATR_project);
 	if (pjob->ji_clterrmsg) {
 		free(pjob->ji_clterrmsg);
 		pjob->ji_clterrmsg = NULL;
 	}
 	if (pque)
-		pmax_queued = &pque->qu_attr[(int)QA_ATR_max_queued];
+		pmax_queued = get_qattr(pque, QA_ATR_max_queued);
 	else
-		pmax_queued = &server.sv_attr[(int)SRV_ATR_max_queued];
+		pmax_queued = get_sattr(SVR_ATR_max_queued);
 
-	if ((pmax_queued->at_flags & ATR_VFLAG_SET) == 0) {
+	if (!is_attr_set(pmax_queued)) {
 		ET_LIM_DBG("exiting, ret 0 [max_queued limit not set for %s]", __func__, pque ? pque->qu_qs.qu_name : "server")
-		return PBSE_NONE;	/* no limits set */
+		return PBSE_NONE; /* no limits set */
 	}
 
 	if ((subjobs = get_queued_subjobs_ct(pjob)) < 0) {
 		ET_LIM_DBG("exiting, ret %d [get_queued_subjobs_ct() returned %d]", __func__,
-				PBSE_INTERNAL, subjobs)
+			   PBSE_INTERNAL, subjobs)
 		return PBSE_INTERNAL;
 	}
 
@@ -2623,15 +2353,15 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 	if (rc == Exceeds_Limit) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_qct,
-				pque->qu_qs.qu_name);
+				 pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, "%s", msg_et_sct);
 		}
 		ebuff[COMMENT_BUF_SIZE] = '\0';
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
-		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(o:"PBS_ALL_ENTITY",%d) returned Exceeds_Limit]", __func__,
-				PBSE_ENTLIMCT, subjobs)
+		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(o:" PBS_ALL_ENTITY ",%d) returned Exceeds_Limit]", __func__,
+			   PBSE_ENTLIMCT, subjobs)
 		return PBSE_ENTLIMCT;
 	}
 
@@ -2640,7 +2370,7 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 	if (rc == Exceeds_Limit) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_suq,
-				euser, pque->qu_qs.qu_name);
+				 euser, pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_sus, euser);
 		}
@@ -2648,13 +2378,13 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(u:%s,%d) returned Exceeds_Limit]", __func__,
-				PBSE_ENTLIMCT, euser, subjobs)
+			   PBSE_ENTLIMCT, euser, subjobs)
 		return PBSE_ENTLIMCT;
 
 	} else if (rc == Exceeds_Generic) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_guq,
-				"generic", pque->qu_qs.qu_name);
+				 "generic", pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_gus, "generic");
 		}
@@ -2662,7 +2392,7 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(u:%s,%d) returned Exceeds_Generic]", __func__,
-				PBSE_ENTLIMCT, euser, subjobs)
+			   PBSE_ENTLIMCT, euser, subjobs)
 		return PBSE_ENTLIMCT;
 	}
 
@@ -2671,7 +2401,7 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 	if (rc == Exceeds_Limit) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_sgq,
-				egroup, pque->qu_qs.qu_name);
+				 egroup, pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_sgs, egroup);
 		}
@@ -2679,13 +2409,13 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(g:%s,%d) returned Exceeds_Limit]", __func__,
-				PBSE_ENTLIMCT, egroup, subjobs)
+			   PBSE_ENTLIMCT, egroup, subjobs)
 		return PBSE_ENTLIMCT;
 
 	} else if (rc == Exceeds_Generic) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_ggq,
-				pque->qu_qs.qu_name);
+				 pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, "%s", msg_et_ggs);
 		}
@@ -2693,17 +2423,16 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(g:%s,%d) returned Exceeds_Generic]", __func__,
-				PBSE_ENTLIMCT, egroup, subjobs)
+			   PBSE_ENTLIMCT, egroup, subjobs)
 		return PBSE_ENTLIMCT;
 	}
-
 
 	/* 4. Check against specific project limit, [p:project] */
 	rc = check_single_entity_ct(LIM_PROJECT, project, pmax_queued, subjobs, pjob);
 	if (rc == Exceeds_Limit) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_spq,
-				project, pque->qu_qs.qu_name);
+				 project, pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_sps, project);
 		}
@@ -2711,13 +2440,13 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(p:%s,%d) returned Exceeds_Limit]", __func__,
-				PBSE_ENTLIMCT, project, subjobs)
+			   PBSE_ENTLIMCT, project, subjobs)
 		return PBSE_ENTLIMCT;
 
 	} else if (rc == Exceeds_Generic) {
 		if (pque) {
 			snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_gpq,
-				pque->qu_qs.qu_name);
+				 pque->qu_qs.qu_name);
 		} else {
 			snprintf(ebuff, COMMENT_BUF_SIZE, "%s", msg_et_gps);
 		}
@@ -2725,12 +2454,12 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 		if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 			return PBSE_SYSTEM;
 		ET_LIM_DBG("exiting, ret %d [check_single_entity_ct(p:%s,%d) returned Exceeds_Generic]", __func__,
-				PBSE_ENTLIMCT, project, subjobs)
+			   PBSE_ENTLIMCT, project, subjobs)
 		return PBSE_ENTLIMCT;
 	}
 
 	ET_LIM_DBG("exiting, ret 0 [all ok]", __func__)
-	return 0;	/* within all count limits */
+	return 0; /* within all count limits */
 }
 
 /**
@@ -2756,17 +2485,17 @@ check_entity_ct_limit_max(job *pjob, pbs_queue *pque)
 int
 check_entity_resc_limit_queued(job *pjob, pbs_queue *pque, attribute *altered_resc)
 {
-	char	    *egroup;
-	char	    *project;
-	char	    *euser;
-	int 	    rc;
-	int 	    subjobs;
-	attribute   *pmaxqresc;
-	attribute   *pattr_new;
-	attribute   *pattr_old;
-	resource    *presc_new;
-	resource    *presc_old;
-	char	     ebuff[COMMENT_BUF_SIZE+1];
+	char *egroup;
+	char *project;
+	char *euser;
+	int rc;
+	int subjobs;
+	attribute *pmaxqresc;
+	attribute *pattr_new;
+	attribute *pattr_old;
+	resource *presc_new;
+	resource *presc_old;
+	char ebuff[COMMENT_BUF_SIZE + 1];
 
 	extern char *msg_et_ggq_q;
 	extern char *msg_et_ggs_q;
@@ -2794,45 +2523,44 @@ check_entity_resc_limit_queued(job *pjob, pbs_queue *pque, attribute *altered_re
 	extern char *msg_et_rsus_q;
 
 	ET_LIM_DBG("entered for %s, alt_res %p", __func__, pque ? pque->qu_qs.qu_name : "server", altered_resc)
-	euser  = pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str;
-	egroup = pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str;
-	project = pjob->ji_wattr[(int)JOB_ATR_project].at_val.at_str;
+	euser = get_jattr_str(pjob, JOB_ATR_euser);
+	egroup = get_jattr_str(pjob, JOB_ATR_egroup);
+	project = get_jattr_str(pjob, JOB_ATR_project);
 	if (pjob->ji_clterrmsg) {
 		free(pjob->ji_clterrmsg);
 		pjob->ji_clterrmsg = NULL;
 	}
 	if (pque)
-		pmaxqresc = &pque->qu_attr[(int)QA_ATR_queued_jobs_threshold_res];
+		pmaxqresc = get_qattr(pque, QA_ATR_queued_jobs_threshold_res);
 	else
-		pmaxqresc = &server.sv_attr[(int)SRV_ATR_queued_jobs_threshold_res];
+		pmaxqresc = get_sattr(SVR_ATR_queued_jobs_threshold_res);
 
-	if ((pmaxqresc->at_flags & ATR_VFLAG_SET) == 0) {
+	if (!is_attr_set(pmaxqresc)) {
 		ET_LIM_DBG("exiting, ret 0 [queued_jobs_threshold_res limit not set for %s]", __func__, pque ? pque->qu_qs.qu_name : "server")
-		return 0;	/* no limits set */
+		return 0; /* no limits set */
 	}
 
 	if (altered_resc) {
 		pattr_new = altered_resc;
-		pattr_old = &pjob->ji_wattr[(int)JOB_ATR_resource];
+		pattr_old = get_jattr(pjob, JOB_ATR_resource);
 	} else {
-		pattr_new = &pjob->ji_wattr[(int)JOB_ATR_resource];
-		pattr_old = NULL;	/* null */
+		pattr_new = get_jattr(pjob, JOB_ATR_resource);
+		pattr_old = NULL; /* null */
 	}
 
 	if ((subjobs = get_queued_subjobs_ct(pjob)) < 0) {
 		ET_LIM_DBG("exiting, ret %d [get_queued_subjobs_ct() returned %d]", __func__,
-				PBSE_INTERNAL, subjobs)
+			   PBSE_INTERNAL, subjobs)
 		return PBSE_INTERNAL;
 	}
 
-	for (presc_new = (resource *)GET_NEXT(pattr_new->at_val.at_list);
-		presc_new != NULL;
-		presc_new = (resource *)GET_NEXT(presc_new->rs_link)) {
+	for (presc_new = (resource *) GET_NEXT(pattr_new->at_val.at_list);
+	     presc_new != NULL;
+	     presc_new = (resource *) GET_NEXT(presc_new->rs_link)) {
 		char *rescn = presc_new->rs_defin->rs_name;
 		/* is there an entity limit set for this resource */
-		if  (!(presc_new->rs_value.at_flags & ATR_VFLAG_SET)
-			|| (presc_new->rs_defin->rs_entlimflg != PBS_ENTLIM_LIMITSET))
-			continue;	/* no limit set */
+		if (!(is_attr_set(&presc_new->rs_value)) || (presc_new->rs_defin->rs_entlimflg != PBS_ENTLIM_LIMITSET))
+			continue; /* no limit set */
 
 		/* If this is from qalter where presc_old is set, see if    */
 		/* corresponding resource is in presc_old, had a pior value */
@@ -2845,138 +2573,138 @@ check_entity_resc_limit_queued(job *pjob, pbs_queue *pque, attribute *altered_re
 		ET_LIM_DBG("checking for resc %s", __func__, rescn)
 		/* 1. check against overall limit o:PBS_ALL */
 		rc = check_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
-			pmaxqresc,
-			presc_new, presc_old, subjobs, pjob);
+					     pmaxqresc,
+					     presc_new, presc_old, subjobs, pjob);
 		if (rc == Exceeds_Limit) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_raq_q,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_ras_q,
-					presc_new->rs_defin->rs_name);
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
-			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(o:"PBS_ALL_ENTITY";%s,%d) returned Exceeds_Limit]", __func__,
-					PBSE_ENTLIMRESC, rescn, subjobs)
+			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(o:" PBS_ALL_ENTITY ";%s,%d) returned Exceeds_Limit]", __func__,
+				   PBSE_ENTLIMRESC, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 		}
 
 		/* 2. check aginst user/generic-user limit */
 		rc = check_single_entity_res(LIM_USER, euser,
-			pmaxqresc,
-			presc_new, presc_old, subjobs, pjob);
+					     pmaxqresc,
+					     presc_new, presc_old, subjobs, pjob);
 		if (rc == Exceeds_Limit) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsuq_q,
-					euser,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 euser,
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsus_q,
-					euser, presc_new->rs_defin->rs_name);
+					 euser, presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(u:%s;%s,%d) returned Exceeds_Limit]", __func__,
-					PBSE_ENTLIMRESC, euser, rescn, subjobs)
+				   PBSE_ENTLIMRESC, euser, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 
 		} else if (rc == Exceeds_Generic) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rguq_q,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rgus_q,
-					presc_new->rs_defin->rs_name);
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(u:%s;%s,%d) returned Exceeds_Generic]", __func__,
-					PBSE_ENTLIMRESC, euser, rescn, subjobs)
+				   PBSE_ENTLIMRESC, euser, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 		}
 
 		/* 3. check against specific/generic group limit */
 		rc = check_single_entity_res(LIM_GROUP, egroup,
-			pmaxqresc,
-			presc_new, presc_old, subjobs, pjob);
+					     pmaxqresc,
+					     presc_new, presc_old, subjobs, pjob);
 		if (rc == Exceeds_Limit) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsgq_q,
-					egroup,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 egroup,
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsgs_q,
-					egroup,
-					presc_new->rs_defin->rs_name);
+					 egroup,
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(g:%s;%s,%d) returned Exceeds_Limit]", __func__,
-					PBSE_ENTLIMRESC, egroup, rescn, subjobs)
+				   PBSE_ENTLIMRESC, egroup, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 
 		} else if (rc == Exceeds_Generic) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rggq_q,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rggs_q,
-					presc_new->rs_defin->rs_name);
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(g:%s;%s,%d) returned Exceeds_Generic]", __func__,
-					PBSE_ENTLIMRESC, egroup, rescn, subjobs)
+				   PBSE_ENTLIMRESC, egroup, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 		}
 
 		/* 4. check against specific/generic project limit */
 		rc = check_single_entity_res(LIM_PROJECT, project,
-			pmaxqresc,
-			presc_new, presc_old, subjobs, pjob);
+					     pmaxqresc,
+					     presc_new, presc_old, subjobs, pjob);
 		if (rc == Exceeds_Limit) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rspq_q,
-					project,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 project,
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsps_q,
-					project,
-					presc_new->rs_defin->rs_name);
+					 project,
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(p:%s;%s,%d) returned Exceeds_Limit]", __func__,
-					PBSE_ENTLIMRESC, project, rescn, subjobs)
+				   PBSE_ENTLIMRESC, project, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 
 		} else if (rc == Exceeds_Generic) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rgpq_q,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rgps_q,
-					presc_new->rs_defin->rs_name);
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(p:%s;%s,%d) returned Exceeds_Generic]", __func__,
-					PBSE_ENTLIMRESC, project, rescn, subjobs)
+				   PBSE_ENTLIMRESC, project, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 		}
 	}
@@ -3009,17 +2737,17 @@ check_entity_resc_limit_queued(job *pjob, pbs_queue *pque, attribute *altered_re
 int
 check_entity_resc_limit_max(job *pjob, pbs_queue *pque, attribute *altered_resc)
 {
-	char	    *egroup;
-	char	    *project;
-	char	    *euser;
-	int 	    rc;
-	int 	    subjobs;
-	attribute   *pmaxqresc;
-	attribute   *pattr_new;
-	attribute   *pattr_old;
-	resource    *presc_new;
-	resource    *presc_old;
-	char	     ebuff[COMMENT_BUF_SIZE+1];
+	char *egroup;
+	char *project;
+	char *euser;
+	int rc;
+	int subjobs;
+	attribute *pmaxqresc;
+	attribute *pattr_new;
+	attribute *pattr_old;
+	resource *presc_new;
+	resource *presc_old;
+	char ebuff[COMMENT_BUF_SIZE + 1];
 
 	extern char *msg_et_ggq;
 	extern char *msg_et_ggs;
@@ -3047,45 +2775,44 @@ check_entity_resc_limit_max(job *pjob, pbs_queue *pque, attribute *altered_resc)
 	extern char *msg_et_rsus;
 
 	ET_LIM_DBG("entered for %s, alt_res %p", __func__, pque ? pque->qu_qs.qu_name : "server", altered_resc)
-	euser  = pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str;
-	egroup = pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str;
-	project = pjob->ji_wattr[(int)JOB_ATR_project].at_val.at_str;
+	euser = get_jattr_str(pjob, JOB_ATR_euser);
+	egroup = get_jattr_str(pjob, JOB_ATR_egroup);
+	project = get_jattr_str(pjob, JOB_ATR_project);
 	if (pjob->ji_clterrmsg) {
 		free(pjob->ji_clterrmsg);
 		pjob->ji_clterrmsg = NULL;
 	}
 	if (pque)
-		pmaxqresc = &pque->qu_attr[(int)QA_ATR_max_queued_res];
+		pmaxqresc = get_qattr(pque, QA_ATR_max_queued_res);
 	else
-		pmaxqresc = &server.sv_attr[(int)SRV_ATR_max_queued_res];
+		pmaxqresc = get_sattr(SVR_ATR_max_queued_res);
 
-	if ((pmaxqresc->at_flags & ATR_VFLAG_SET) == 0) {
+	if (!is_attr_set(pmaxqresc)) {
 		ET_LIM_DBG("exiting, ret 0 [max_queued_res limit not set for %s]", __func__, pque ? pque->qu_qs.qu_name : "server")
-		return 0;	/* no limits set */
+		return 0; /* no limits set */
 	}
 
 	if (altered_resc) {
 		pattr_new = altered_resc;
-		pattr_old = &pjob->ji_wattr[(int)JOB_ATR_resource];
+		pattr_old = get_jattr(pjob, JOB_ATR_resource);
 	} else {
-		pattr_new = &pjob->ji_wattr[(int)JOB_ATR_resource];
-		pattr_old = NULL;	/* null */
+		pattr_new = get_jattr(pjob, JOB_ATR_resource);
+		pattr_old = NULL; /* null */
 	}
 
 	if ((subjobs = get_queued_subjobs_ct(pjob)) < 0) {
 		ET_LIM_DBG("exiting, ret %d [get_queued_subjobs_ct() returned %d]", __func__,
-				PBSE_INTERNAL, subjobs)
+			   PBSE_INTERNAL, subjobs)
 		return PBSE_INTERNAL;
 	}
 
-	for (presc_new = (resource *)GET_NEXT(pattr_new->at_val.at_list);
-		presc_new != NULL;
-		presc_new = (resource *)GET_NEXT(presc_new->rs_link)) {
+	for (presc_new = (resource *) GET_NEXT(pattr_new->at_val.at_list);
+	     presc_new != NULL;
+	     presc_new = (resource *) GET_NEXT(presc_new->rs_link)) {
 		char *rescn = presc_new->rs_defin->rs_name;
 		/* is there an entity limit set for this resource */
-		if  (!(presc_new->rs_value.at_flags & ATR_VFLAG_SET)
-			|| (presc_new->rs_defin->rs_entlimflg != PBS_ENTLIM_LIMITSET))
-			continue;	/* no limit set */
+		if (!(is_attr_set(&presc_new->rs_value)) || (presc_new->rs_defin->rs_entlimflg != PBS_ENTLIM_LIMITSET))
+			continue; /* no limit set */
 
 		/* If this is from qalter where presc_old is set, see if    */
 		/* corresponding resource is in presc_old, had a pior value */
@@ -3098,138 +2825,138 @@ check_entity_resc_limit_max(job *pjob, pbs_queue *pque, attribute *altered_resc)
 		ET_LIM_DBG("checking for resc %s", __func__, rescn)
 		/* 1. check against overall limit o:PBS_ALL */
 		rc = check_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
-			pmaxqresc,
-			presc_new, presc_old, subjobs, pjob);
+					     pmaxqresc,
+					     presc_new, presc_old, subjobs, pjob);
 		if (rc == Exceeds_Limit) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_raq,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_ras,
-					presc_new->rs_defin->rs_name);
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
-			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(o:"PBS_ALL_ENTITY";%s,%d) returned Exceeds_Limit]", __func__,
-					PBSE_ENTLIMRESC, rescn, subjobs)
+			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(o:" PBS_ALL_ENTITY ";%s,%d) returned Exceeds_Limit]", __func__,
+				   PBSE_ENTLIMRESC, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 		}
 
 		/* 2. check aginst user/generic-user limit */
 		rc = check_single_entity_res(LIM_USER, euser,
-			pmaxqresc,
-			presc_new, presc_old, subjobs, pjob);
+					     pmaxqresc,
+					     presc_new, presc_old, subjobs, pjob);
 		if (rc == Exceeds_Limit) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsuq,
-					euser,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 euser,
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsus,
-					euser, presc_new->rs_defin->rs_name);
+					 euser, presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(u:%s;%s,%d) returned Exceeds_Limit]", __func__,
-					PBSE_ENTLIMRESC, euser, rescn, subjobs)
+				   PBSE_ENTLIMRESC, euser, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 
 		} else if (rc == Exceeds_Generic) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rguq,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rgus,
-					presc_new->rs_defin->rs_name);
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(u:%s;%s,%d) returned Exceeds_Generic]", __func__,
-					PBSE_ENTLIMRESC, euser, rescn, subjobs)
+				   PBSE_ENTLIMRESC, euser, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 		}
 
 		/* 3. check against specific/generic group limit */
 		rc = check_single_entity_res(LIM_GROUP, egroup,
-			pmaxqresc,
-			presc_new, presc_old, subjobs, pjob);
+					     pmaxqresc,
+					     presc_new, presc_old, subjobs, pjob);
 		if (rc == Exceeds_Limit) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsgq,
-					egroup,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 egroup,
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsgs,
-					egroup,
-					presc_new->rs_defin->rs_name);
+					 egroup,
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(g:%s;%s,%d) returned Exceeds_Limit]", __func__,
-					PBSE_ENTLIMRESC, egroup, rescn, subjobs)
+				   PBSE_ENTLIMRESC, egroup, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 
 		} else if (rc == Exceeds_Generic) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rggq,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rggs,
-					presc_new->rs_defin->rs_name);
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(g:%s;%s,%d) returned Exceeds_Generic]", __func__,
-					PBSE_ENTLIMRESC, egroup, rescn, subjobs)
+				   PBSE_ENTLIMRESC, egroup, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 		}
 
 		/* 4. check against specific/generic project limit */
 		rc = check_single_entity_res(LIM_PROJECT, project,
-			pmaxqresc,
-			presc_new, presc_old, subjobs, pjob);
+					     pmaxqresc,
+					     presc_new, presc_old, subjobs, pjob);
 		if (rc == Exceeds_Limit) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rspq,
-					project,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 project,
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rsps,
-					project,
-					presc_new->rs_defin->rs_name);
+					 project,
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(p:%s;%s,%d) returned Exceeds_Limit]", __func__,
-					PBSE_ENTLIMRESC, project, rescn, subjobs)
+				   PBSE_ENTLIMRESC, project, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 
 		} else if (rc == Exceeds_Generic) {
 			if (pque) {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rgpq,
-					presc_new->rs_defin->rs_name,
-					pque->qu_qs.qu_name);
+					 presc_new->rs_defin->rs_name,
+					 pque->qu_qs.qu_name);
 			} else {
 				snprintf(ebuff, COMMENT_BUF_SIZE, msg_et_rgps,
-					presc_new->rs_defin->rs_name);
+					 presc_new->rs_defin->rs_name);
 			}
 			ebuff[COMMENT_BUF_SIZE] = '\0';
 			if ((pjob->ji_clterrmsg = strdup(ebuff)) == NULL)
 				return PBSE_SYSTEM;
 			ET_LIM_DBG("exiting, ret %d [check_single_entity_res(p:%s;%s,%d) returned Exceeds_Generic]", __func__,
-					PBSE_ENTLIMRESC, project, rescn, subjobs)
+				   PBSE_ENTLIMRESC, project, rescn, subjobs)
 			return PBSE_ENTLIMRESC;
 		}
 	}
@@ -3265,16 +2992,16 @@ set_single_entity_ct(enum lim_keytypes kt, char *ename, attribute *patr, job *pj
 	char *kstr;
 	void *ctx;
 	svr_entlim_leaf_t *plf;
-	int		   rc;
+	int rc;
 
 	kstr = entlim_mk_runkey(kt, ename);
 	if (kstr == NULL) {
 		ET_LIM_DBG("exiting, ret %d [kstr is NULL]", __func__, PBSE_SYSTEM)
 		return (PBSE_SYSTEM);
 	}
-	ET_LIM_DBG("kstr %s, %d, %s", __func__, kstr, subjobs, (op==INCR)?"INCR":"DECR")
+	ET_LIM_DBG("kstr %s, %d, %s", __func__, kstr, subjobs, (op == INCR) ? "INCR" : "DECR")
 	ctx = patr->at_val.at_enty.ae_tree;
-	plf = (svr_entlim_leaf_t *)entlim_get(kstr, ctx);
+	plf = (svr_entlim_leaf_t *) entlim_get(kstr, ctx);
 	if (op == INCR) {
 		if (plf == NULL) {
 			/* add leaf for this entity-limit */
@@ -3291,7 +3018,7 @@ set_single_entity_ct(enum lim_keytypes kt, char *ename, attribute *patr, job *pj
 			}
 		}
 		plf->slf_sum.at_val.at_long += subjobs;
-		plf->slf_sum.at_flags |= ATR_VFLAG_SET;
+		mark_attr_set(&plf->slf_sum);
 		ET_LIM_DBG("usage INCR to %ld, by %d", __func__, plf->slf_sum.at_val.at_long, subjobs)
 	} else {
 		if (plf == NULL) {
@@ -3301,14 +3028,14 @@ set_single_entity_ct(enum lim_keytypes kt, char *ename, attribute *patr, job *pj
 			return (PBSE_INTERNAL);
 		}
 		plf->slf_sum.at_val.at_long -= subjobs;
-		plf->slf_sum.at_flags |= ATR_VFLAG_SET;
+		mark_attr_set(&plf->slf_sum);
 		ET_LIM_DBG("usage DECR to %ld, by %d", __func__, plf->slf_sum.at_val.at_long, subjobs)
 
 		if (plf->slf_sum.at_val.at_long < 0L) {
 			ET_LIM_DBG("zeroing usage, was %ld, by %d", __func__, plf->slf_sum.at_val.at_long, subjobs)
 			plf->slf_sum.at_val.at_long = 0L;
-			snprintf(log_buffer, LOG_BUF_SIZE-1, "set_single_entity_ct zeroing negative usage for %s", kstr);
-			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_SERVER , LOG_WARNING, msg_daemonname, log_buffer);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1, "set_single_entity_ct zeroing negative usage for %s", kstr);
+			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_SERVER, LOG_WARNING, msg_daemonname, log_buffer);
 		}
 	}
 	free(kstr);
@@ -3337,28 +3064,28 @@ set_single_entity_ct(enum lim_keytypes kt, char *ename, attribute *patr, job *pj
  */
 static int
 set_single_entity_res(enum lim_keytypes kt, char *ename,
-	attribute *patr, resource  *newval,
-	resource  *oldval, job *pjob, int subjobs, enum batch_op op)
+		      attribute *patr, resource *newval,
+		      resource *oldval, job *pjob, int subjobs, enum batch_op op)
 {
 	char *rescn = newval->rs_defin->rs_name;
 	char *kstr;
-	void               *ctx;
+	void *ctx;
 	svr_entlim_leaf_t *plf;
-	int		   rc;
-	int		   i;
+	int rc;
+	int i;
 	attribute tmpval = newval->rs_value;
 
 	kstr = entlim_mk_reskey(kt, ename, rescn);
 	if (kstr == NULL) {
-		snprintf(log_buffer, LOG_BUF_SIZE-1, "Error in entlim_mk_reskey for rescn %s", rescn);
+		snprintf(log_buffer, LOG_BUF_SIZE - 1, "Error in entlim_mk_reskey for rescn %s", rescn);
 		log_err(-1, __func__, log_buffer);
 		ET_LIM_DBG("exiting, ret %d [kstr is NULL]", __func__, PBSE_SYSTEM)
 		return (PBSE_SYSTEM);
 	}
 	ET_LIM_DBG("kstr %s, %d, %s, res %s, %p", __func__, kstr,
-			subjobs, (op==INCR)?"INCR":"DECR", rescn, oldval)
+		   subjobs, (op == INCR) ? "INCR" : "DECR", rescn, oldval)
 	ctx = patr->at_val.at_enty.ae_tree;
-	plf = (svr_entlim_leaf_t *)entlim_get(kstr, ctx);
+	plf = (svr_entlim_leaf_t *) entlim_get(kstr, ctx);
 
 	if (oldval && plf) {
 		if (!(plf->slf_rescd->rs_comp(&tmpval, &oldval->rs_value))) {
@@ -3371,17 +3098,17 @@ set_single_entity_res(enum lim_keytypes kt, char *ename,
 			svrattrl *new, *old, *diff;
 			char *new_val, *old_val, *diff_val;
 			new = old = diff = NULL;
-			if (newval->rs_value.at_flags & ATR_VFLAG_SET) {
+			if (is_attr_set(&newval->rs_value)) {
 				plf->slf_rescd->rs_encode(&newval->rs_value, NULL, "newval", NULL, ATR_ENCODE_CLIENT, &new);
 				new_val = new->al_value;
 			} else
 				new_val = "(not_set)";
-			if (oldval->rs_value.at_flags & ATR_VFLAG_SET) {
+			if (is_attr_set(&oldval->rs_value)) {
 				plf->slf_rescd->rs_encode(&oldval->rs_value, NULL, "oldval", NULL, ATR_ENCODE_CLIENT, &old);
 				old_val = old->al_value;
 			} else
 				old_val = "(not_set)";
-			if (tmpval.at_flags & ATR_VFLAG_SET) {
+			if (is_attr_set(&tmpval)) {
 				plf->slf_rescd->rs_encode(&tmpval, NULL, "diffval", NULL, ATR_ENCODE_CLIENT, &diff);
 				diff_val = diff->al_value;
 			} else
@@ -3392,7 +3119,6 @@ set_single_entity_res(enum lim_keytypes kt, char *ename,
 			free(diff);
 		}
 	}
-
 
 	if (op == INCR) {
 
@@ -3405,7 +3131,7 @@ set_single_entity_res(enum lim_keytypes kt, char *ename,
 				return (rc);
 			}
 			if (entlim_add(kstr, plf, ctx) == -1) {
-				snprintf(log_buffer, LOG_BUF_SIZE-1, "Error in entlim_add for reskey %s", kstr);
+				snprintf(log_buffer, LOG_BUF_SIZE - 1, "Error in entlim_add for reskey %s", kstr);
 				log_err(-1, __func__, log_buffer);
 				free(kstr);
 				free(plf);
@@ -3416,10 +3142,10 @@ set_single_entity_res(enum lim_keytypes kt, char *ename,
 
 		for (i = 0; i < subjobs; i++) {
 			/* add in requested amount */
-			(void)plf->slf_rescd->rs_set(&plf->slf_sum,
-				&tmpval, INCR);
+			(void) plf->slf_rescd->rs_set(&plf->slf_sum,
+						      &tmpval, INCR);
 		}
-		if (will_log_event(PBSEVENT_DEBUG4) && (plf->slf_sum.at_flags & ATR_VFLAG_SET)) {
+		if (will_log_event(PBSEVENT_DEBUG4) && (is_attr_set(&plf->slf_sum))) {
 			svrattrl *sum;
 			plf->slf_rescd->rs_encode(&plf->slf_sum, NULL, "sumval", NULL, ATR_ENCODE_CLIENT, &sum);
 			ET_LIM_DBG("usage INCR to %s", __func__, sum->al_value)
@@ -3427,12 +3153,12 @@ set_single_entity_res(enum lim_keytypes kt, char *ename,
 		} else
 			ET_LIM_DBG("usage INCR to (not_set)", __func__)
 
-	} else {	/* DECR */
+	} else { /* DECR */
 
 		/* decrement resource by newval, adding oldval if there */
 		if (plf == NULL) {
 			/* Do not decrement what isn't there */
-			snprintf(log_buffer, LOG_BUF_SIZE-1, "decrementing resource for reskey %s: isn't found in attribute tree", kstr);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1, "decrementing resource for reskey %s: isn't found in attribute tree", kstr);
 			log_err(-1, __func__, log_buffer);
 			free(kstr);
 			ET_LIM_DBG("exiting, ret %d [plf is NULL]", __func__, PBSE_INTERNAL)
@@ -3440,10 +3166,10 @@ set_single_entity_res(enum lim_keytypes kt, char *ename,
 		}
 
 		for (i = 0; i < subjobs; i++) {
-			(void)plf->slf_rescd->rs_set(&plf->slf_sum, &tmpval, DECR);
+			(void) plf->slf_rescd->rs_set(&plf->slf_sum, &tmpval, DECR);
 		}
 
-		if (will_log_event(PBSEVENT_DEBUG4) && (plf->slf_sum.at_flags & ATR_VFLAG_SET)) {
+		if (will_log_event(PBSEVENT_DEBUG4) && (is_attr_set(&plf->slf_sum))) {
 			svrattrl *sum;
 			plf->slf_rescd->rs_encode(&plf->slf_sum, NULL, "sumval", NULL, ATR_ENCODE_CLIENT, &sum);
 			ET_LIM_DBG("usage DECR to %s", __func__, sum->al_value)
@@ -3456,8 +3182,8 @@ set_single_entity_res(enum lim_keytypes kt, char *ename,
 		if (plf->slf_rescd->rs_comp(&plf->slf_sum, &tmpval) < 0) {
 			ET_LIM_DBG("zeroing res usage", __func__)
 			plf->slf_sum = tmpval;
-			snprintf(log_buffer, LOG_BUF_SIZE-1, "set_single_entity_res zeroing negative usage for %s-%s", plf->slf_rescd->rs_name, kstr);
-			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_SERVER , LOG_WARNING, msg_daemonname, log_buffer);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1, "set_single_entity_res zeroing negative usage for %s-%s", plf->slf_rescd->rs_name, kstr);
+			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_SERVER, LOG_WARNING, msg_daemonname, log_buffer);
 		}
 	}
 
@@ -3487,25 +3213,25 @@ set_single_entity_res(enum lim_keytypes kt, char *ename,
 int
 set_entity_ct_sum_queued(job *pjob, pbs_queue *pque, enum batch_op op)
 {
-	char	    *egroup;
-	char	    *project;
-	char	    *euser;
-	attribute   *pqueued_jobs_threshold;
+	char *egroup;
+	char *project;
+	char *euser;
+	attribute *pqueued_jobs_threshold;
 	enum batch_op rev_op;
-	int 	    rc;
-	int 	    subjobs;
+	int rc;
+	int subjobs;
 
-	/* if the job is in states JOB_STATE_MOVED or JOB_STATE_FINISHED, */
+	/* if the job is in states JOB_STATE_LTR_MOVED or JOB_STATE_LTR_FINISHED, */
 	/* then just return,  the job's resources were removed from the   */
 	/* entity sums when it went into the MOVED/FINISHED state	  */
 	/* also return if the entity limits for this job were 		  */
 	/* decremented before.						  */
 
-	if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_FINISHED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_EXPIRED) ||
-		((pjob->ji_qs.ji_state == JOB_STATE_RUNNING) && (op == INCR))) {
-		ET_LIM_DBG("exiting, ret 0 [job in %c state]", __func__, statechars[pjob->ji_qs.ji_state])
+	if ((check_job_state(pjob, JOB_STATE_LTR_MOVED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_FINISHED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_EXPIRED)) ||
+	    ((check_job_state(pjob, JOB_STATE_LTR_RUNNING)) && (op == INCR))) {
+		ET_LIM_DBG("exiting, ret 0 [job in %c state]", __func__, get_job_state(pjob))
 		return 0;
 	}
 
@@ -3516,30 +3242,30 @@ set_entity_ct_sum_queued(job *pjob, pbs_queue *pque, enum batch_op op)
 		rev_op = INCR;
 
 	if (pque)
-		pqueued_jobs_threshold = &pque->qu_attr[(int)QA_ATR_queued_jobs_threshold];
+		pqueued_jobs_threshold = get_qattr(pque, QA_ATR_queued_jobs_threshold);
 	else
-		pqueued_jobs_threshold = &server.sv_attr[(int)SRV_ATR_queued_jobs_threshold];
+		pqueued_jobs_threshold = get_sattr(SVR_ATR_queued_jobs_threshold);
 
-	if ((pqueued_jobs_threshold->at_flags & ATR_VFLAG_SET) == 0) {
+	if (!is_attr_set(pqueued_jobs_threshold)) {
 		ET_LIM_DBG("exiting, ret 0 [queued_jobs_threshold limit not set for %s]", __func__, pque ? pque->qu_qs.qu_name : "server")
-		return PBSE_NONE;	/* no limits set */
+		return PBSE_NONE; /* no limits set */
 	}
 
-	euser  = pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str;
-	egroup = pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str;
-	project = pjob->ji_wattr[(int)JOB_ATR_project].at_val.at_str;
+	euser = get_jattr_str(pjob, JOB_ATR_euser);
+	egroup = get_jattr_str(pjob, JOB_ATR_egroup);
+	project = get_jattr_str(pjob, JOB_ATR_project);
 
 	if ((subjobs = get_queued_subjobs_ct(pjob)) < 0) {
 		ET_LIM_DBG("exiting, ret %d [get_queued_subjobs_ct() returned %d]", __func__,
-				PBSE_INTERNAL, subjobs)
+			   PBSE_INTERNAL, subjobs)
 		return PBSE_INTERNAL;
 	}
 
 	/* 1. set Overall limit, [o:PBS_ALL] */
 	rc = set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pqueued_jobs_threshold, pjob, subjobs, op);
 	if (rc != PBSE_NONE) {
-		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(o:"PBS_ALL_ENTITY",%d,%s) failed]", __func__,
-				rc, subjobs, (op==INCR)?"INCR":"DECR")
+		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(o:" PBS_ALL_ENTITY ",%d,%s) failed]", __func__,
+			   rc, subjobs, (op == INCR) ? "INCR" : "DECR")
 		return rc;
 	}
 
@@ -3547,10 +3273,10 @@ set_entity_ct_sum_queued(job *pjob, pbs_queue *pque, enum batch_op op)
 	rc = set_single_entity_ct(LIM_USER, euser, pqueued_jobs_threshold, pjob, subjobs, op);
 	if (rc != PBSE_NONE) {
 		/* undo what was done above */
-		(void)set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pqueued_jobs_threshold, pjob,
-			subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pqueued_jobs_threshold, pjob,
+					    subjobs, rev_op);
 		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(u:%s,%d,%s) failed]", __func__,
-				rc, euser, subjobs, (op==INCR)?"INCR":"DECR")
+			   rc, euser, subjobs, (op == INCR) ? "INCR" : "DECR")
 		return rc;
 	}
 
@@ -3558,11 +3284,11 @@ set_entity_ct_sum_queued(job *pjob, pbs_queue *pque, enum batch_op op)
 	rc = set_single_entity_ct(LIM_GROUP, egroup, pqueued_jobs_threshold, pjob, subjobs, op);
 	if (rc != PBSE_NONE) {
 		/* undo what was done above */
-		(void)set_single_entity_ct(LIM_USER, euser, pqueued_jobs_threshold, pjob, subjobs, rev_op);
-		(void)set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pqueued_jobs_threshold, pjob,
-			subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_USER, euser, pqueued_jobs_threshold, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pqueued_jobs_threshold, pjob,
+					    subjobs, rev_op);
 		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(g:%s,%d,%s) failed]", __func__,
-				rc, egroup, subjobs, (op==INCR)?"INCR":"DECR")
+			   rc, egroup, subjobs, (op == INCR) ? "INCR" : "DECR")
 		return rc;
 	}
 
@@ -3570,11 +3296,11 @@ set_entity_ct_sum_queued(job *pjob, pbs_queue *pque, enum batch_op op)
 	rc = set_single_entity_ct(LIM_PROJECT, project, pqueued_jobs_threshold, pjob, subjobs, op);
 	if (rc != PBSE_NONE) {
 		/* undo what was done above */
-		(void)set_single_entity_ct(LIM_GROUP, egroup, pqueued_jobs_threshold, pjob, subjobs, rev_op);
-		(void)set_single_entity_ct(LIM_USER, euser, pqueued_jobs_threshold, pjob, subjobs, rev_op);
-		(void)set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pqueued_jobs_threshold, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_GROUP, egroup, pqueued_jobs_threshold, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_USER, euser, pqueued_jobs_threshold, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pqueued_jobs_threshold, pjob, subjobs, rev_op);
 		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(p:%s,%d,%s) failed]", __func__,
-				rc, project, subjobs, (op==INCR)?"INCR":"DECR")
+			   rc, project, subjobs, (op == INCR) ? "INCR" : "DECR")
 		return rc;
 	}
 
@@ -3602,22 +3328,22 @@ set_entity_ct_sum_queued(job *pjob, pbs_queue *pque, enum batch_op op)
 int
 set_entity_ct_sum_max(job *pjob, pbs_queue *pque, enum batch_op op)
 {
-	char	    *egroup;
-	char	    *project;
-	char	    *euser;
-	attribute   *pmax_queued;
+	char *egroup;
+	char *project;
+	char *euser;
+	attribute *pmax_queued;
 	enum batch_op rev_op;
-	int 	    rc;
-	int 	    subjobs;
+	int rc;
+	int subjobs;
 
-	/* if the job is in states JOB_STATE_MOVED or JOB_STATE_FINISHED, */
+	/* if the job is in states JOB_STATE_LTR_MOVED or JOB_STATE_LTR_FINISHED, */
 	/* then just return,  the job's resources were removed from the   */
 	/* entity sums when it went into the MOVED/FINISHED state	  */
 
-	if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_EXPIRED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_FINISHED)) {
-		ET_LIM_DBG("exiting, ret 0 [job in %c state]", __func__, statechars[pjob->ji_qs.ji_state])
+	if ((check_job_state(pjob, JOB_STATE_LTR_MOVED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_EXPIRED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_FINISHED))) {
+		ET_LIM_DBG("exiting, ret 0 [job in %c state]", __func__, get_job_state(pjob))
 		return 0;
 	}
 
@@ -3628,30 +3354,30 @@ set_entity_ct_sum_max(job *pjob, pbs_queue *pque, enum batch_op op)
 		rev_op = INCR;
 
 	if (pque)
-		pmax_queued = &pque->qu_attr[(int)QA_ATR_max_queued];
+		pmax_queued = get_qattr(pque, QA_ATR_max_queued);
 	else
-		pmax_queued = &server.sv_attr[(int)SRV_ATR_max_queued];
+		pmax_queued = get_sattr(SVR_ATR_max_queued);
 
-	if ((pmax_queued->at_flags & ATR_VFLAG_SET) == 0) {
+	if (!is_attr_set(pmax_queued)) {
 		ET_LIM_DBG("exiting, ret 0 [max_queued limit not set for %s]", __func__, pque ? pque->qu_qs.qu_name : "server")
 		return PBSE_NONE;
 	}
 
-	euser  = pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str;
-	egroup = pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str;
-	project = pjob->ji_wattr[(int)JOB_ATR_project].at_val.at_str;
+	euser = get_jattr_str(pjob, JOB_ATR_euser);
+	egroup = get_jattr_str(pjob, JOB_ATR_egroup);
+	project = get_jattr_str(pjob, JOB_ATR_project);
 
 	if ((subjobs = get_queued_subjobs_ct(pjob)) < 0) {
 		ET_LIM_DBG("exiting, ret %d [get_queued_subjobs_ct() returned %d]", __func__,
-				PBSE_INTERNAL, subjobs)
+			   PBSE_INTERNAL, subjobs)
 		return PBSE_INTERNAL;
 	}
 
 	/* 1. set Overall limit, [o:PBS_ALL] */
 	rc = set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pmax_queued, pjob, subjobs, op);
 	if (rc != PBSE_NONE) {
-		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(o:"PBS_ALL_ENTITY",%d,%s) failed]", __func__,
-				rc, subjobs, (op==INCR)?"INCR":"DECR")
+		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(o:" PBS_ALL_ENTITY ",%d,%s) failed]", __func__,
+			   rc, subjobs, (op == INCR) ? "INCR" : "DECR")
 		return rc;
 	}
 
@@ -3659,9 +3385,9 @@ set_entity_ct_sum_max(job *pjob, pbs_queue *pque, enum batch_op op)
 	rc = set_single_entity_ct(LIM_USER, euser, pmax_queued, pjob, subjobs, op);
 	if (rc != PBSE_NONE) {
 		/* undo what was done above */
-		(void)set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pmax_queued, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pmax_queued, pjob, subjobs, rev_op);
 		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(u:%s,%d,%s) failed]", __func__,
-				rc, euser, subjobs, (op==INCR)?"INCR":"DECR")
+			   rc, euser, subjobs, (op == INCR) ? "INCR" : "DECR")
 		return rc;
 	}
 
@@ -3669,10 +3395,10 @@ set_entity_ct_sum_max(job *pjob, pbs_queue *pque, enum batch_op op)
 	rc = set_single_entity_ct(LIM_GROUP, egroup, pmax_queued, pjob, subjobs, op);
 	if (rc != PBSE_NONE) {
 		/* undo what was done above */
-		(void)set_single_entity_ct(LIM_USER, euser, pmax_queued, pjob, subjobs, rev_op);
-		(void)set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pmax_queued, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_USER, euser, pmax_queued, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pmax_queued, pjob, subjobs, rev_op);
 		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(g:%s,%d,%s) failed]", __func__,
-				rc, egroup, subjobs, (op==INCR)?"INCR":"DECR")
+			   rc, egroup, subjobs, (op == INCR) ? "INCR" : "DECR")
 		return rc;
 	}
 
@@ -3680,17 +3406,16 @@ set_entity_ct_sum_max(job *pjob, pbs_queue *pque, enum batch_op op)
 	rc = set_single_entity_ct(LIM_PROJECT, project, pmax_queued, pjob, subjobs, op);
 	if (rc != PBSE_NONE) {
 		/* undo what was done above */
-		(void)set_single_entity_ct(LIM_GROUP, egroup, pmax_queued, pjob, subjobs, rev_op);
-		(void)set_single_entity_ct(LIM_USER, euser, pmax_queued, pjob, subjobs, rev_op);
-		(void)set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pmax_queued, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_GROUP, egroup, pmax_queued, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_USER, euser, pmax_queued, pjob, subjobs, rev_op);
+		(void) set_single_entity_ct(LIM_OVERALL, PBS_ALL_ENTITY, pmax_queued, pjob, subjobs, rev_op);
 		ET_LIM_DBG("exiting, ret %d [set_single_entity_ct(p:%s,%d,%s) failed]", __func__,
-				rc, project, subjobs, (op==INCR)?"INCR":"DECR")
+			   rc, project, subjobs, (op == INCR) ? "INCR" : "DECR")
 		return rc;
 	}
 	ET_LIM_DBG("exiting, ret 0 [all ok]", __func__)
-	return 0;	/* within all count limits */
+	return 0; /* within all count limits */
 }
-
 
 /**
  * @brief
@@ -3711,26 +3436,26 @@ set_entity_ct_sum_max(job *pjob, pbs_queue *pque, enum batch_op op)
  * @retval      -1          -   error in input parameters
  */
 
-static
-int revert_entity_resources(attribute *pmaxqresc, attribute *pattr_old,
-	resource *presc_new, resource *presc_old, resource *presc_first,
-	job *pjob, int subjobs, enum batch_op op)
+static int
+revert_entity_resources(attribute *pmaxqresc, attribute *pattr_old,
+			resource *presc_new, resource *presc_old, resource *presc_first,
+			job *pjob, int subjobs, enum batch_op op)
 {
 
-	int res_flag=1;
-	char *euser  = pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str;
-	char *egroup = pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str;
-	char *project = pjob->ji_wattr[(int)JOB_ATR_project].at_val.at_str;
+	int res_flag = 1;
+	char *euser = get_jattr_str(pjob, JOB_ATR_euser);
+	char *egroup = get_jattr_str(pjob, JOB_ATR_egroup);
+	char *project = get_jattr_str(pjob, JOB_ATR_project);
 
-	if ( pmaxqresc && presc_new && presc_first && euser && egroup && project ) {
+	if (pmaxqresc && presc_new && presc_first && euser && egroup && project) {
 
-		for (presc_new = (resource *)GET_PRIOR(presc_new->rs_link);
-			( presc_new != NULL ) && res_flag;
-			presc_new = (resource *)GET_PRIOR(presc_new->rs_link)) {
+		for (presc_new = (resource *) GET_PRIOR(presc_new->rs_link);
+		     (presc_new != NULL) && res_flag;
+		     presc_new = (resource *) GET_PRIOR(presc_new->rs_link)) {
 
 			if (presc_new == presc_first)
-				res_flag=0;
-			if (!(presc_new->rs_value.at_flags & ATR_VFLAG_SET) || ((presc_new->rs_defin->rs_entlimflg & PBS_ENTLIM_LIMITSET)==0))
+				res_flag = 0;
+			if (!(is_attr_set(&presc_new->rs_value)) || ((presc_new->rs_defin->rs_entlimflg & PBS_ENTLIM_LIMITSET) == 0))
 				continue;
 
 			/* If this is from qalter where presc_old is set, see if    */
@@ -3741,16 +3466,15 @@ int revert_entity_resources(attribute *pmaxqresc, attribute *pattr_old,
 			else
 				presc_old = NULL;
 
-			(void)set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY, pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
-			(void)set_single_entity_res(LIM_USER, euser, pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
-			(void)set_single_entity_res(LIM_GROUP, egroup, pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
-			(void)set_single_entity_res(LIM_PROJECT, project, pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+			(void) set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY, pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+			(void) set_single_entity_res(LIM_USER, euser, pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+			(void) set_single_entity_res(LIM_GROUP, egroup, pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+			(void) set_single_entity_res(LIM_PROJECT, project, pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
 		}
 
-		return(0);
+		return (0);
 	} else
-		return(-1);
-
+		return (-1);
 }
 
 /**
@@ -3775,34 +3499,34 @@ int revert_entity_resources(attribute *pmaxqresc, attribute *pattr_old,
  */
 int
 set_entity_resc_sum_queued(job *pjob, pbs_queue *pque, attribute *altered_resc,
-	enum batch_op op)
+			   enum batch_op op)
 {
-	char	    *egroup=NULL;
-	char	    *project=NULL;
-	char	    *euser=NULL;
-	int 	    rc = PBSE_NONE;
-	int 	    rc_final;
-	int 	    subjobs;
-	attribute   *pmaxqresc=NULL;
-	attribute   *pattr_new=NULL;
-	attribute   *pattr_old=NULL;
-	resource    *presc_new=NULL;
-	resource    *presc_old=NULL;
-	resource    *presc_first=NULL;
+	char *egroup = NULL;
+	char *project = NULL;
+	char *euser = NULL;
+	int rc = PBSE_NONE;
+	int rc_final;
+	int subjobs;
+	attribute *pmaxqresc = NULL;
+	attribute *pattr_new = NULL;
+	attribute *pattr_old = NULL;
+	resource *presc_new = NULL;
+	resource *presc_old = NULL;
+	resource *presc_first = NULL;
 	enum batch_op rev_op;
 
 	ET_LIM_DBG("entered [alt_res %p]", __func__, altered_resc)
-	/* if the job is in states JOB_STATE_MOVED or JOB_STATE_FINISHED, */
+	/* if the job is in states JOB_STATE_LTR_MOVED or JOB_STATE_LTR_FINISHED, */
 	/* then just return,  the job's resources were removed from the   */
 	/* entity sums when it went into the MOVED/FINISHED state	  */
 	/* also return if the entity limits for this job were 		  */
 	/* decremented before.						  */
 
-	if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_FINISHED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_EXPIRED) ||
-		((pjob->ji_qs.ji_state == JOB_STATE_RUNNING) && (op == INCR))) {
-		ET_LIM_DBG("exiting, ret 0 [job in %c state]", __func__, statechars[pjob->ji_qs.ji_state])
+	if ((check_job_state(pjob, JOB_STATE_LTR_MOVED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_FINISHED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_EXPIRED)) ||
+	    ((check_job_state(pjob, JOB_STATE_LTR_RUNNING)) && (op == INCR))) {
+		ET_LIM_DBG("exiting, ret 0 [job in %c state]", __func__, get_job_state(pjob))
 		return 0;
 	}
 
@@ -3813,26 +3537,26 @@ set_entity_resc_sum_queued(job *pjob, pbs_queue *pque, attribute *altered_resc,
 		rev_op = INCR;
 
 	if (pque)
-		pmaxqresc = &pque->qu_attr[(int)QA_ATR_queued_jobs_threshold_res];
+		pmaxqresc = get_qattr(pque, QA_ATR_queued_jobs_threshold_res);
 	else
-		pmaxqresc = &server.sv_attr[(int)SRV_ATR_queued_jobs_threshold_res];
+		pmaxqresc = get_sattr(SVR_ATR_queued_jobs_threshold_res);
 
-	if ((pmaxqresc->at_flags & ATR_VFLAG_SET) == 0) {
+	if (!is_attr_set(pmaxqresc)) {
 		ET_LIM_DBG("exiting, ret 0 [queued_jobs_threshold_res limit not set for %s]", __func__, pque ? pque->qu_qs.qu_name : "server")
-		return 0;	/* no limits set */
+		return 0; /* no limits set */
 	}
 
 	if (altered_resc) {
 		pattr_new = altered_resc;
-		pattr_old = &pjob->ji_wattr[(int)JOB_ATR_resource];
+		pattr_old = get_jattr(pjob, JOB_ATR_resource);
 	} else {
-		pattr_new = &pjob->ji_wattr[(int)JOB_ATR_resource];
-		pattr_old = NULL;	/* null */
+		pattr_new = get_jattr(pjob, JOB_ATR_resource);
+		pattr_old = NULL; /* null */
 	}
 
-	euser  = pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str;
-	egroup = pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str;
-	project = pjob->ji_wattr[(int)JOB_ATR_project].at_val.at_str;
+	euser = get_jattr_str(pjob, JOB_ATR_euser);
+	egroup = get_jattr_str(pjob, JOB_ATR_egroup);
+	project = get_jattr_str(pjob, JOB_ATR_project);
 
 	if ((subjobs = get_queued_subjobs_ct(pjob)) < 0)
 		rc = PBSE_INTERNAL;
@@ -3852,19 +3576,18 @@ set_entity_resc_sum_queued(job *pjob, pbs_queue *pque, attribute *altered_resc,
 
 	if (rc == PBSE_INTERNAL) {
 		ET_LIM_DBG("exiting, ret %d [something not right, subjobs %d, %p, %p, %p]", __func__,
-				PBSE_INTERNAL, subjobs, euser, egroup, project)
+			   PBSE_INTERNAL, subjobs, euser, egroup, project)
 		return PBSE_INTERNAL;
 	}
 
 	rc_final = 0;
 
-	for (presc_new = (resource *)GET_NEXT(pattr_new->at_val.at_list), presc_first=presc_new;
-		presc_new != NULL;
-		presc_new = (resource *)GET_NEXT(presc_new->rs_link)) {
+	for (presc_new = (resource *) GET_NEXT(pattr_new->at_val.at_list), presc_first = presc_new;
+	     presc_new != NULL;
+	     presc_new = (resource *) GET_NEXT(presc_new->rs_link)) {
 
 		char *rescn;
-		if (!(presc_new->rs_value.at_flags & ATR_VFLAG_SET)
-			|| ((presc_new->rs_defin->rs_entlimflg & PBS_ENTLIM_LIMITSET)==0))
+		if (!(is_attr_set(&presc_new->rs_value)) || ((presc_new->rs_defin->rs_entlimflg & PBS_ENTLIM_LIMITSET) == 0))
 			continue;
 
 		/* If this is from qalter where presc_old is set, see if    */
@@ -3888,13 +3611,13 @@ set_entity_resc_sum_queued(job *pjob, pbs_queue *pque, attribute *altered_resc,
 		ET_LIM_DBG("setting usage for res %s", __func__, rescn)
 		/* 1. set overall limit o:PBS_ALL */
 		rc = set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
-			pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+					   pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
 		if (rc) {
-			ET_LIM_DBG("set_single_entity_res(o:"PBS_ALL_ENTITY";%s,%d,%s) failed with rc %d", __func__,
-					rescn, subjobs, (op==INCR)?"INCR":"DECR", rc)
-			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"Error in LIM_OVERALL for resource %s", rescn);
-			log_err(rc ,__func__, log_buffer);
+			ET_LIM_DBG("set_single_entity_res(o:" PBS_ALL_ENTITY ";%s,%d,%s) failed with rc %d", __func__,
+				   rescn, subjobs, (op == INCR) ? "INCR" : "DECR", rc)
+			snprintf(log_buffer, LOG_BUF_SIZE - 1,
+				 "Error in LIM_OVERALL for resource %s", rescn);
+			log_err(rc, __func__, log_buffer);
 			if (op == INCR) {
 				if (presc_new != presc_first)
 					if (revert_entity_resources(pmaxqresc, pattr_old, presc_new, presc_old, presc_first, pjob, subjobs, rev_op) != 0)
@@ -3903,21 +3626,22 @@ set_entity_resc_sum_queued(job *pjob, pbs_queue *pque, attribute *altered_resc,
 			} else {
 				if (!rc_final)
 					rc_final = rc;
-			}	continue;
+			}
+			continue;
 		}
 
 		/* 2. sets user limit */
 		rc = set_single_entity_res(LIM_USER, euser,
-			pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+					   pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
 		if (rc) {
 			ET_LIM_DBG("set_single_entity_res(u:%s;%s,%d,%s) failed with rc %d", __func__,
-					euser, rescn, subjobs, (op==INCR)?"INCR":"DECR", rc)
-			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"Error in LIM_USER for euser %s for resource %s", euser, rescn);
+				   euser, rescn, subjobs, (op == INCR) ? "INCR" : "DECR", rc)
+			snprintf(log_buffer, LOG_BUF_SIZE - 1,
+				 "Error in LIM_USER for euser %s for resource %s", euser, rescn);
 			log_err(rc, __func__, log_buffer);
 			/* reverse change made above */
-			(void)set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY, pmaxqresc,
-				presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY, pmaxqresc,
+						     presc_new, presc_old, pjob, subjobs, rev_op);
 			if (op == INCR) {
 				if (presc_new != presc_first)
 					if (revert_entity_resources(pmaxqresc, pattr_old, presc_new, presc_old, presc_first, pjob, subjobs, rev_op) != 0)
@@ -3932,20 +3656,20 @@ set_entity_resc_sum_queued(job *pjob, pbs_queue *pque, attribute *altered_resc,
 
 		/* 3. set specific group limit */
 		rc = set_single_entity_res(LIM_GROUP, egroup,
-			pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+					   pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
 		if (rc) {
 			ET_LIM_DBG("set_single_entity_res(g:%s;%s,%d,%s) failed with rc %d", __func__,
-					egroup, rescn, subjobs, (op==INCR)?"INCR":"DECR", rc)
+				   egroup, rescn, subjobs, (op == INCR) ? "INCR" : "DECR", rc)
 
-			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"Error in LIM_GROUP for egroup %s for resource %s", egroup, rescn);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1,
+				 "Error in LIM_GROUP for egroup %s for resource %s", egroup, rescn);
 			log_err(rc, __func__, log_buffer);
 
 			/* reverse changes made above */
-			(void)set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
-			(void)set_single_entity_res(LIM_USER, euser,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_USER, euser,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
 			if (op == INCR) {
 				if (presc_new != presc_first)
 					if (revert_entity_resources(pmaxqresc, pattr_old, presc_new, presc_old, presc_first, pjob, subjobs, rev_op) != 0)
@@ -3958,24 +3682,23 @@ set_entity_resc_sum_queued(job *pjob, pbs_queue *pque, attribute *altered_resc,
 			}
 		}
 
-
 		/* 4. set specific project limit */
 		rc = set_single_entity_res(LIM_PROJECT, project,
-			pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+					   pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
 		if (rc) {
 			ET_LIM_DBG("set_single_entity_res(p:%s;%s,%d,%s) failed with rc %d", __func__,
-					project, rescn, subjobs, (op==INCR)?"INCR":"DECR", rc)
-			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"Error in LIM_USER for project %s for resource %s", project, rescn);
+				   project, rescn, subjobs, (op == INCR) ? "INCR" : "DECR", rc)
+			snprintf(log_buffer, LOG_BUF_SIZE - 1,
+				 "Error in LIM_USER for project %s for resource %s", project, rescn);
 			log_err(rc, __func__, log_buffer);
 
 			/* reverse changes made above */
-			(void)set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
-			(void)set_single_entity_res(LIM_USER, euser,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
-			(void)set_single_entity_res(LIM_GROUP, egroup,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_USER, euser,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_GROUP, egroup,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
 			if (op == INCR) {
 				if (presc_new != presc_first)
 					if (revert_entity_resources(pmaxqresc, pattr_old, presc_new, presc_old, presc_first, pjob, subjobs, rev_op) != 0)
@@ -4015,31 +3738,31 @@ set_entity_resc_sum_queued(job *pjob, pbs_queue *pque, attribute *altered_resc,
  */
 int
 set_entity_resc_sum_max(job *pjob, pbs_queue *pque, attribute *altered_resc,
-	enum batch_op op)
+			enum batch_op op)
 {
-	char	    *egroup=NULL;
-	char	    *project=NULL;
-	char	    *euser=NULL;
-	int 	    rc = PBSE_NONE;
-	int 	    rc_final;
-	int 	    subjobs;
-	attribute   *pmaxqresc=NULL;
-	attribute   *pattr_new=NULL;
-	attribute   *pattr_old=NULL;
-	resource    *presc_new=NULL;
-	resource    *presc_old=NULL;
-	resource    *presc_first=NULL;
+	char *egroup = NULL;
+	char *project = NULL;
+	char *euser = NULL;
+	int rc = PBSE_NONE;
+	int rc_final;
+	int subjobs;
+	attribute *pmaxqresc = NULL;
+	attribute *pattr_new = NULL;
+	attribute *pattr_old = NULL;
+	resource *presc_new = NULL;
+	resource *presc_old = NULL;
+	resource *presc_first = NULL;
 	enum batch_op rev_op;
 
 	ET_LIM_DBG("entered [alt_res %p]", __func__, altered_resc)
-	/* if the job is in states JOB_STATE_MOVED or JOB_STATE_FINISHED, */
+	/* if the job is in states JOB_STATE_LTR_MOVED or JOB_STATE_LTR_FINISHED, */
 	/* then just return,  the job's resources were removed from the   */
 	/* entity sums when it went into the MOVED/FINISHED state	  */
 
-	if ((pjob->ji_qs.ji_state == JOB_STATE_MOVED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_EXPIRED) ||
-		(pjob->ji_qs.ji_state == JOB_STATE_FINISHED)) {
-		ET_LIM_DBG("exiting, ret 0 [job in %c state]", __func__, statechars[pjob->ji_qs.ji_state])
+	if ((check_job_state(pjob, JOB_STATE_LTR_MOVED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_EXPIRED)) ||
+	    (check_job_state(pjob, JOB_STATE_LTR_FINISHED))) {
+		ET_LIM_DBG("exiting, ret 0 [job in %c state]", __func__, get_job_state(pjob))
 		return 0;
 	}
 
@@ -4050,26 +3773,26 @@ set_entity_resc_sum_max(job *pjob, pbs_queue *pque, attribute *altered_resc,
 		rev_op = INCR;
 
 	if (pque)
-		pmaxqresc = &pque->qu_attr[(int)QA_ATR_max_queued_res];
+		pmaxqresc = get_qattr(pque, QA_ATR_max_queued_res);
 	else
-		pmaxqresc = &server.sv_attr[(int)SRV_ATR_max_queued_res];
+		pmaxqresc = get_sattr(SVR_ATR_max_queued_res);
 
-	if ((pmaxqresc->at_flags & ATR_VFLAG_SET) == 0) {
+	if (!is_attr_set(pmaxqresc)) {
 		ET_LIM_DBG("exiting, ret 0 [max_queued_res limit not set for %s]", __func__, pque ? pque->qu_qs.qu_name : "server")
-		return 0;	/* no limits set */
+		return 0; /* no limits set */
 	}
 
 	if (altered_resc) {
 		pattr_new = altered_resc;
-		pattr_old = &pjob->ji_wattr[(int)JOB_ATR_resource];
+		pattr_old = get_jattr(pjob, JOB_ATR_resource);
 	} else {
-		pattr_new = &pjob->ji_wattr[(int)JOB_ATR_resource];
-		pattr_old = NULL;	/* null */
+		pattr_new = get_jattr(pjob, JOB_ATR_resource);
+		pattr_old = NULL; /* null */
 	}
 
-	euser  = pjob->ji_wattr[(int)JOB_ATR_euser].at_val.at_str;
-	egroup = pjob->ji_wattr[(int)JOB_ATR_egroup].at_val.at_str;
-	project = pjob->ji_wattr[(int)JOB_ATR_project].at_val.at_str;
+	euser = get_jattr_str(pjob, JOB_ATR_euser);
+	egroup = get_jattr_str(pjob, JOB_ATR_egroup);
+	project = get_jattr_str(pjob, JOB_ATR_project);
 
 	if ((subjobs = get_queued_subjobs_ct(pjob)) < 0) {
 		rc = PBSE_INTERNAL;
@@ -4090,20 +3813,18 @@ set_entity_resc_sum_max(job *pjob, pbs_queue *pque, attribute *altered_resc,
 
 	if (rc == PBSE_INTERNAL) {
 		ET_LIM_DBG("exiting, ret %d [something not right, subjobs %d, %p, %p, %p]", __func__,
-				PBSE_INTERNAL, subjobs, euser, egroup, project)
+			   PBSE_INTERNAL, subjobs, euser, egroup, project)
 		return PBSE_INTERNAL;
 	}
 
 	rc_final = 0;
 
-	for (presc_new = (resource *)GET_NEXT(pattr_new->at_val.at_list), presc_first=presc_new;
-		presc_new != NULL;
-		presc_new = (resource *)GET_NEXT(presc_new->rs_link)) {
+	for (presc_new = (resource *) GET_NEXT(pattr_new->at_val.at_list), presc_first = presc_new;
+	     presc_new != NULL;
+	     presc_new = (resource *) GET_NEXT(presc_new->rs_link)) {
 		char *rescn;
-		if (!(presc_new->rs_value.at_flags & ATR_VFLAG_SET)
-			|| ((presc_new->rs_defin->rs_entlimflg & PBS_ENTLIM_LIMITSET)==0))
+		if (!(is_attr_set(&presc_new->rs_value)) || ((presc_new->rs_defin->rs_entlimflg & PBS_ENTLIM_LIMITSET) == 0))
 			continue;
-
 
 		/* If this is from qalter where presc_old is set, see if    */
 		/* corresponding resource is in presc_old, had a pior value */
@@ -4126,14 +3847,14 @@ set_entity_resc_sum_max(job *pjob, pbs_queue *pque, attribute *altered_resc,
 		ET_LIM_DBG("setting usage for res %s", __func__, rescn)
 		/* 1. set overall limit o:PBS_ALL */
 		rc = set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
-			pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+					   pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
 		if (rc) {
-			ET_LIM_DBG("set_single_entity_res(o:"PBS_ALL_ENTITY";%s,%d,%s) failed with rc %d", __func__,
-					rescn, subjobs, (op==INCR)?"INCR":"DECR", rc)
+			ET_LIM_DBG("set_single_entity_res(o:" PBS_ALL_ENTITY ";%s,%d,%s) failed with rc %d", __func__,
+				   rescn, subjobs, (op == INCR) ? "INCR" : "DECR", rc)
 
-			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"Error in  LIM_OVERALL for resource %s", rescn);
-			log_err(rc ,__func__, log_buffer);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1,
+				 "Error in  LIM_OVERALL for resource %s", rescn);
+			log_err(rc, __func__, log_buffer);
 			if (op == INCR) {
 				if (presc_new != presc_first)
 					if (revert_entity_resources(pmaxqresc, pattr_old, presc_new, presc_old, presc_first, pjob, subjobs, rev_op) != 0)
@@ -4148,16 +3869,16 @@ set_entity_resc_sum_max(job *pjob, pbs_queue *pque, attribute *altered_resc,
 
 		/* 2. sets user limit */
 		rc = set_single_entity_res(LIM_USER, euser,
-			pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+					   pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
 		if (rc) {
 			ET_LIM_DBG("set_single_entity_res(u:%s;%s,%d,%s) failed with rc %d", __func__,
-					euser, rescn, subjobs, (op==INCR)?"INCR":"DECR", rc)
+				   euser, rescn, subjobs, (op == INCR) ? "INCR" : "DECR", rc)
 			/* reverse change made above */
-			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"Error in  LIM_USER for euser %s for resource %s", euser, rescn);
-			log_err(rc ,__func__, log_buffer);
-			(void)set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1,
+				 "Error in  LIM_USER for euser %s for resource %s", euser, rescn);
+			log_err(rc, __func__, log_buffer);
+			(void) set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
 			if (op == INCR) {
 				if (presc_new != presc_first)
 					if (revert_entity_resources(pmaxqresc, pattr_old, presc_new, presc_old, presc_first, pjob, subjobs, rev_op) != 0)
@@ -4172,18 +3893,18 @@ set_entity_resc_sum_max(job *pjob, pbs_queue *pque, attribute *altered_resc,
 
 		/* 3. set specific group limit */
 		rc = set_single_entity_res(LIM_GROUP, egroup,
-			pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+					   pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
 		if (rc) {
 			ET_LIM_DBG("set_single_entity_res(g:%s;%s,%d,%s) failed with rc %d", __func__,
-					egroup, rescn, subjobs, (op==INCR)?"INCR":"DECR", rc)
-			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"Error in  LIM_GROUP for egroup %s for resource %s", egroup, rescn);
-			log_err(rc ,__func__, log_buffer);
+				   egroup, rescn, subjobs, (op == INCR) ? "INCR" : "DECR", rc)
+			snprintf(log_buffer, LOG_BUF_SIZE - 1,
+				 "Error in  LIM_GROUP for egroup %s for resource %s", egroup, rescn);
+			log_err(rc, __func__, log_buffer);
 			/* reverse changes made above */
-			(void)set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
-			(void)set_single_entity_res(LIM_USER, euser,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_USER, euser,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
 			if (op == INCR) {
 				if (presc_new != presc_first)
 					if ((revert_entity_resources(pmaxqresc, pattr_old, presc_new, presc_old, presc_first, pjob, subjobs, rev_op)) != 0)
@@ -4198,20 +3919,20 @@ set_entity_resc_sum_max(job *pjob, pbs_queue *pque, attribute *altered_resc,
 
 		/* 4. set specific project limit */
 		rc = set_single_entity_res(LIM_PROJECT, project,
-			pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
+					   pmaxqresc, presc_new, presc_old, pjob, subjobs, op);
 		if (rc) {
 			ET_LIM_DBG("set_single_entity_res(p:%s;%s,%d,%s) failed with rc %d", __func__,
-					project, rescn, subjobs, (op==INCR)?"INCR":"DECR", rc)
-			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"Error in LIM_PROJECT for project %s for resource %s", project, rescn);
-			log_err(rc ,__func__, log_buffer);
+				   project, rescn, subjobs, (op == INCR) ? "INCR" : "DECR", rc)
+			snprintf(log_buffer, LOG_BUF_SIZE - 1,
+				 "Error in LIM_PROJECT for project %s for resource %s", project, rescn);
+			log_err(rc, __func__, log_buffer);
 			/* reverse changes made above */
-			(void)set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
-			(void)set_single_entity_res(LIM_USER, euser,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
-			(void)set_single_entity_res(LIM_GROUP, egroup,
-				pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_OVERALL, PBS_ALL_ENTITY,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_USER, euser,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
+			(void) set_single_entity_res(LIM_GROUP, egroup,
+						     pmaxqresc, presc_new, presc_old, pjob, subjobs, rev_op);
 			if (op == INCR) {
 				if (presc_new != presc_first)
 					if (revert_entity_resources(pmaxqresc, pattr_old, presc_new, presc_old, presc_first, pjob, subjobs, rev_op) != 0)
@@ -4252,45 +3973,44 @@ set_entity_resc_sum_max(job *pjob, pbs_queue *pque, attribute *altered_resc,
  */
 int
 account_entity_limit_usages(job *pjob, pbs_queue *pque, attribute *altered_resc,
-	enum batch_op op, int op_flag)
+			    enum batch_op op, int op_flag)
 {
-	int rc,ret_error = PBSE_NONE;
+	int rc, ret_error = PBSE_NONE;
 
 	/* not doing NULL checks of parameters as this function is currently invoked from sane locations */
 
 	ET_LIM_DBG("entered, %s on %s %s, op_flag %x, alt_res_ptr %p", __func__,
-				(op==INCR)?"INCR":"DECR", pque?"queue":"server", pque?pque->qu_qs.qu_name:server_name, op_flag, altered_resc)
-
+		   (op == INCR) ? "INCR" : "DECR", pque ? "queue" : "server", pque ? pque->qu_qs.qu_name : server_name, op_flag, altered_resc)
 
 	if ((op_flag & ETLIM_ACC_CT_MAX) == ETLIM_ACC_CT_MAX)
 		if ((rc = set_entity_ct_sum_max(pjob, pque, op)) != 0) {
 			ret_error = rc;
-			snprintf(log_buffer, LOG_BUF_SIZE-1, "set_entity_ct_sum_max %s on %s %s failed with %d",
-					(op == INCR) ? "INCR" : "DECR", pque?"queue":"server", pque?pque->qu_qs.qu_name:server_name, rc);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1, "set_entity_ct_sum_max %s on %s %s failed with %d",
+				 (op == INCR) ? "INCR" : "DECR", pque ? "queue" : "server", pque ? pque->qu_qs.qu_name : server_name, rc);
 			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE, pjob->ji_qs.ji_jobid, log_buffer);
 		}
 
-	if((op_flag & ETLIM_ACC_CT_QUEUED) == ETLIM_ACC_CT_QUEUED)
+	if ((op_flag & ETLIM_ACC_CT_QUEUED) == ETLIM_ACC_CT_QUEUED)
 		if ((rc = set_entity_ct_sum_queued(pjob, pque, op)) != 0) {
 			ret_error = rc;
-			snprintf(log_buffer, LOG_BUF_SIZE-1, "set_entity_ct_sum_queued %s on %s %s failed with %d",
-					(op == INCR) ? "INCR" : "DECR", pque?"queue":"server",pque?pque->qu_qs.qu_name:server_name, rc);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1, "set_entity_ct_sum_queued %s on %s %s failed with %d",
+				 (op == INCR) ? "INCR" : "DECR", pque ? "queue" : "server", pque ? pque->qu_qs.qu_name : server_name, rc);
 			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE, pjob->ji_qs.ji_jobid, log_buffer);
 		}
 
-	if((op_flag & ETLIM_ACC_RES_MAX) == ETLIM_ACC_RES_MAX)
+	if ((op_flag & ETLIM_ACC_RES_MAX) == ETLIM_ACC_RES_MAX)
 		if ((rc = set_entity_resc_sum_max(pjob, pque, altered_resc, op)) != 0) {
 			ret_error = rc;
-			snprintf(log_buffer, LOG_BUF_SIZE-1, "set_entity_resc_sum_max %s on %s %s failed with %d, (altered_resc %p)",
-					(op == INCR) ? "INCR" : "DECR", pque?"queue":"server",pque?pque->qu_qs.qu_name:server_name, rc, altered_resc);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1, "set_entity_resc_sum_max %s on %s %s failed with %d, (altered_resc %p)",
+				 (op == INCR) ? "INCR" : "DECR", pque ? "queue" : "server", pque ? pque->qu_qs.qu_name : server_name, rc, altered_resc);
 			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE, pjob->ji_qs.ji_jobid, log_buffer);
 		}
 
-	if((op_flag & ETLIM_ACC_RES_QUEUED) == ETLIM_ACC_RES_QUEUED)
+	if ((op_flag & ETLIM_ACC_RES_QUEUED) == ETLIM_ACC_RES_QUEUED)
 		if ((rc = set_entity_resc_sum_queued(pjob, pque, altered_resc, op)) != 0) {
 			ret_error = rc;
-			snprintf(log_buffer, LOG_BUF_SIZE-1, "set_entity_resc_sum_queued %s on %s %s failed with %d, (altered_resc %p)",
-					(op == INCR) ? "INCR" : "DECR", pque?"queue":"server",pque?pque->qu_qs.qu_name:server_name, rc, altered_resc);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1, "set_entity_resc_sum_queued %s on %s %s failed with %d, (altered_resc %p)",
+				 (op == INCR) ? "INCR" : "DECR", pque ? "queue" : "server", pque ? pque->qu_qs.qu_name : server_name, rc, altered_resc);
 			log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_JOB, LOG_NOTICE, pjob->ji_qs.ji_jobid, log_buffer);
 		}
 
@@ -4326,7 +4046,7 @@ account_entity_limit_usages(job *pjob, pbs_queue *pque, attribute *altered_resc,
 
 static int
 add_prov_record(prov_pid pid,
-	struct prov_vnode_info * prov_vnode_info)
+		struct prov_vnode_info *prov_vnode_info)
 {
 	int i;
 
@@ -4338,7 +4058,7 @@ add_prov_record(prov_pid pid,
 	}
 	if (i == server.sv_provtracksize) {
 		DBPRT(("%s: Could not add records: current records = %d\n",
-			__func__, server.sv_cur_prov_records))
+		       __func__, server.sv_cur_prov_records))
 		return -1;
 	}
 	server.sv_prov_track[i].pvtk_mtime = time_now;
@@ -4356,7 +4076,7 @@ add_prov_record(prov_pid pid,
 	server.sv_cur_prov_records++;
 	server.sv_provtrackmodifed = 1;
 	DBPRT(("%s: Added a record: current records = %d\n",
-		__func__, server.sv_cur_prov_records))
+	       __func__, server.sv_cur_prov_records))
 	return 0;
 }
 
@@ -4382,19 +4102,19 @@ add_prov_record(prov_pid pid,
  */
 
 static void
-remove_prov_record(char * vnode)
+remove_prov_record(char *vnode)
 {
-	int 		i;
+	int i;
 
 	for (i = 0; i < server.sv_provtracksize; i++) {
 		if (server.sv_prov_track[i].pvtk_mtime != 0 &&
-			(strcmp(vnode, server.sv_prov_track[i].pvtk_vnode)==0)) {
+		    (strcmp(vnode, server.sv_prov_track[i].pvtk_vnode) == 0)) {
 			if (server.sv_prov_track[i].pvtk_aoe_req)
 				free(server.sv_prov_track[i].pvtk_aoe_req);
 			if (server.sv_prov_track[i].pvtk_vnode)
 				free(server.sv_prov_track[i].pvtk_vnode);
 			memset(&server.sv_prov_track[i], 0,
-				sizeof(struct prov_tracking));
+			       sizeof(struct prov_tracking));
 			server.sv_prov_track[i].pvtk_mtime = 0;
 			server.sv_provtrackmodifed = 1;
 			server.sv_cur_prov_records--;
@@ -4425,22 +4145,18 @@ remove_prov_record(char * vnode)
 void
 prov_track_save()
 {
-	FILE 	*fd;
-	int 	i;
+	FILE *fd;
+	int i;
 
 	/* set task for next round trip */
 	if (server.sv_provtrackmodifed == 0)
-		return;		/* nothing to do this time */
+		return; /* nothing to do this time */
 
 	fd = fopen(path_prov_track, "w");
 	if (fd == NULL) {
 		DBPRT(("%s: unable to open tracking file\n", __func__))
 		return;
 	}
-#ifdef WIN32
-	secure_file(path_prov_track, "Administrators",
-		READS_MASK|WRITES_MASK|STANDARD_RIGHTS_REQUIRED);
-#endif
 
 	/* we write only mtime , vnode name and AOE name to file */
 	for (i = 0; i < server.sv_provtracksize; i++) {
@@ -4461,7 +4177,7 @@ prov_track_save()
 			fprintf(fd, "|");
 	}
 
-	(void)fclose(fd);
+	(void) fclose(fd);
 	server.sv_provtrackmodifed = 0;
 }
 
@@ -4489,14 +4205,15 @@ prov_track_save()
  *
  */
 
-struct prov_tracking * get_prov_record_by_vnode(char * vnode)
+struct prov_tracking *
+get_prov_record_by_vnode(char *vnode)
 {
-	int 	i;
+	int i;
 
 	for (i = 0; i < server.sv_provtracksize; i++) {
 		if ((server.sv_prov_track[i].pvtk_mtime != 0) &&
-			strcmp(vnode,
-			server.sv_prov_track[i].pvtk_vnode) == 0) {
+		    strcmp(vnode,
+			   server.sv_prov_track[i].pvtk_vnode) == 0) {
 			return &(server.sv_prov_track[i]);
 		}
 	}
@@ -4529,7 +4246,8 @@ struct prov_tracking * get_prov_record_by_vnode(char * vnode)
  *
  */
 
-static struct prov_tracking * get_prov_record_by_pid(prov_pid pid)
+static struct prov_tracking *
+get_prov_record_by_pid(prov_pid pid)
 {
 	int i;
 
@@ -4601,24 +4319,20 @@ free_pvnfo(struct prov_vnode_info *pvnfo)
  */
 
 int
-check_req_aoe_available(struct pbsnode * pnode, char * aoe_req)
+check_req_aoe_available(struct pbsnode *pnode, char *aoe_req)
 {
-	attribute		*pala;
-	resource_def		*prd;
-	resource		*prc;
-	struct array_strings 	*pas;
-	int			i;
+	resource_def *prd;
+	resource *prc;
+	struct array_strings *pas;
+	int i;
 
 	if (!pnode || !aoe_req)
 		return -1;
 
-	/* get the resources_available.aoe arst */
-	pala = &pnode->nd_attr[(int)ND_ATR_ResourceAvail];
-
-	prd = find_resc_def(svr_resc_def, "aoe", svr_resc_size);
+	prd = &svr_resc_def[RESC_AOE];
 	if (prd == NULL)
 		return -1;
-	prc = find_resc_entry(pala, prd);
+	prc = find_resc_entry(get_nattr(pnode, ND_ATR_ResourceAvail), prd);
 	if (prc) {
 		pas = prc->rs_value.at_val.at_arst;
 
@@ -4656,12 +4370,8 @@ check_req_aoe_available(struct pbsnode * pnode, char * aoe_req)
 void
 disable_svr_prov()
 {
-	if (server.sv_attr[(int)SRV_ATR_ProvisionEnable].at_flags &
-		ATR_VFLAG_SET) {
-		server.sv_attr[(int)SRV_ATR_ProvisionEnable].at_val.at_long = 0;
-		server.sv_attr[(int)SRV_ATR_ProvisionEnable].at_flags
-		= ATR_VFLAG_MODCACHE | ATR_VFLAG_SET;
-	}
+	if (is_sattr_set(SVR_ATR_ProvisionEnable))
+		set_sattr_l_slim(SVR_ATR_ProvisionEnable, 0, SET);
 }
 
 /**
@@ -4694,13 +4404,13 @@ int
 parse_prov_vnode(char *prov_vnode, exec_vnode_listtype *prov_vnodes)
 {
 	/* Variables used in parsing the "exec_vnode" string */
-	char		*psubspec;
-	char 		*slast;
-	char		*sbuf = NULL;
-	int		hpn;
-	int		i =0, k;
-	int		num_of_prov_vnodes = 1;
-	char		*p = NULL;
+	char *psubspec;
+	char *slast;
+	char *sbuf = NULL;
+	int hpn;
+	int i = 0, k;
+	int num_of_prov_vnodes = 1;
+	char *p = NULL;
 
 	if (prov_vnode == NULL) {
 		DBPRT(("%s: invalid params\n", __func__))
@@ -4718,7 +4428,7 @@ parse_prov_vnode(char *prov_vnode, exec_vnode_listtype *prov_vnodes)
 		return -1;
 
 	/* Allocate memory to hold vnodenames */
-	*prov_vnodes = calloc(num_of_prov_vnodes, PBS_MAXHOSTNAME+1);
+	*prov_vnodes = calloc(num_of_prov_vnodes, PBS_MAXHOSTNAME + 1);
 	if (*prov_vnodes == NULL) {
 		free(sbuf);
 		return -1;
@@ -4729,7 +4439,7 @@ parse_prov_vnode(char *prov_vnode, exec_vnode_listtype *prov_vnodes)
 		/* Read vnodename */
 		k = 0;
 		for (p = psubspec; *p && *p != ':'; p++, k++) {
-			(*prov_vnodes)[i][k] =  *p;
+			(*prov_vnodes)[i][k] = *p;
 		}
 		(*prov_vnodes)[i][k] = '\0';
 		DBPRT(("%s: %s\n", __func__, (*prov_vnodes)[i]))
@@ -4773,19 +4483,17 @@ parse_prov_vnode(char *prov_vnode, exec_vnode_listtype *prov_vnodes)
 static int
 node_need_prov(struct pbsnode *pnode, char *aoe_name)
 {
-	attribute       *pattr;
-	resource        *presc;
-	resource_def    *prdef;
-	char		*aoe;	/* hold current_aoe of pnode */
-	int		i;
-	struct array_strings	*pas = NULL;
+	resource *presc;
+	resource_def *prdef;
+	char *aoe; /* hold current_aoe of pnode */
+	int i;
+	struct array_strings *pas = NULL;
 
 	if (pnode == NULL || aoe_name == NULL)
 		return -1;
 
-	prdef = find_resc_def(svr_resc_def, "aoe", svr_resc_size);
-	pattr = &pnode->nd_attr[(int)ND_ATR_ResourceAvail];
-	presc = find_resc_entry(pattr, prdef);
+	prdef = &svr_resc_def[RESC_AOE];
+	presc = find_resc_entry(get_nattr(pnode, ND_ATR_ResourceAvail), prdef);
 
 	/* if resources_available.aoe not set */
 	if (presc == NULL)
@@ -4796,9 +4504,9 @@ node_need_prov(struct pbsnode *pnode, char *aoe_name)
 
 		pas = presc->rs_value.at_val.at_arst;
 		for (i = 0; i < pas->as_usedptr; i++) {
-			if (strcmp(pas->as_string[i], aoe_name) == 0) {  /* aoe is available */
+			if (strcmp(pas->as_string[i], aoe_name) == 0) { /* aoe is available */
 				/* if aoe is already instantiated */
-				aoe = pnode->nd_attr[(int)ND_ATR_current_aoe].at_val.at_str;
+				aoe = get_nattr_str(pnode, ND_ATR_current_aoe);
 				if (aoe != NULL) {
 					if (strcmp(aoe_name, aoe) == 0)
 						return 0;
@@ -4844,25 +4552,25 @@ int
 find_prov_vnode_list(job *pjob, exec_vnode_listtype *prov_vnodes, char **aoe_name)
 {
 	/* Variables used in parsing the "exec_vnode" string */
-	char		*psubspec;
-	char 		*slast;
-	char		*sbuf = NULL;
-	int		hpn;
-	int		i =0, k, j;
-	int		num_of_exec_vnodes = 1;
-	char		*p = NULL;
-	char		*aoe = NULL;
-	char		*vname;
-	int		nelem;
+	char *psubspec;
+	char *slast;
+	char *sbuf = NULL;
+	int hpn;
+	int i = 0, k, j;
+	int num_of_exec_vnodes = 1;
+	char *p = NULL;
+	char *aoe = NULL;
+	char *vname;
+	int nelem;
 	struct key_value_pair *pkvp;
-	int		no_add=0;
-	struct pbsnode	*pnode;
-	int		ret; /* return code of node_need_provision() */
-	char		*pbuf = NULL;
-	char		*execvnod = NULL;
+	int no_add = 0;
+	struct pbsnode *pnode;
+	int ret; /* return code of node_need_provision() */
+	char *pbuf = NULL;
+	char *execvnod = NULL;
 
-	if (pjob->ji_wattr[(int) JOB_ATR_exec_vnode].at_flags & ATR_VFLAG_SET)
-		execvnod = pjob->ji_wattr[(int) JOB_ATR_exec_vnode].at_val.at_str;
+	if (is_jattr_set(pjob, JOB_ATR_exec_vnode))
+		execvnod = get_jattr_str(pjob, JOB_ATR_exec_vnode);
 
 	if (execvnod == NULL) {
 		DBPRT(("%s: invalid params\n", __func__))
@@ -4874,7 +4582,7 @@ find_prov_vnode_list(job *pjob, exec_vnode_listtype *prov_vnodes, char **aoe_nam
 		if (*p == '+')
 			num_of_exec_vnodes++;
 	}
-	/* Allocate tempory memory to hold execvnod attribute */
+	/* Allocate temporary memory to hold execvnod attribute */
 	sbuf = strdup(execvnod);
 	if (sbuf == NULL)
 		return -1;
@@ -4931,15 +4639,23 @@ find_prov_vnode_list(job *pjob, exec_vnode_listtype *prov_vnodes, char **aoe_nam
 					DBPRT(("%s: %s\n", __func__, (*prov_vnodes)[i]))
 					++i;
 					if (aoe_name != NULL) {
-						aoe = malloc(strlen(((pkvp + k)->kv_val)) + 1);
-						if (aoe == NULL) {
-							free(sbuf);
-							free(pbuf);
-							return -1;
+						if (*aoe_name) {
+							if (strcmp(*aoe_name, ((pkvp + k)->kv_val)) != 0) {
+								/* Aoe name can not be different across chunks, it's an error */
+								free(sbuf);
+								free(pbuf);
+								free(*aoe_name);
+								return -1;
+							}
+						} else {
+							aoe = strdup((pkvp + k)->kv_val);
+							if (aoe == NULL) {
+								free(sbuf);
+								free(pbuf);
+								return -1;
+							}
+							(*aoe_name) = aoe;
 						}
-						strcpy(aoe, ((pkvp + k)->kv_val));
-						aoe[strlen((pkvp + k)->kv_val)] = '\0';
-						(*aoe_name) = aoe;
 						DBPRT(("%s: %s\n", __func__, (*aoe_name)))
 					}
 					break;
@@ -4964,9 +4680,7 @@ find_prov_vnode_list(job *pjob, exec_vnode_listtype *prov_vnodes, char **aoe_nam
 		strcat(pbuf, ":aoe=");
 		strcat(pbuf, (*aoe_name));
 	}
-	(void) job_attr_def[(int) JOB_ATR_prov_vnode].at_decode(
-		&pjob->ji_wattr[(int) JOB_ATR_prov_vnode],
-		NULL, NULL, pbuf);
+	set_jattr_str_slim(pjob, JOB_ATR_prov_vnode, pbuf, NULL);
 
 	DBPRT(("%s: prov_vnode: %s\n", __func__, pbuf))
 
@@ -5000,13 +4714,14 @@ find_prov_vnode_list(job *pjob, exec_vnode_listtype *prov_vnodes, char **aoe_nam
  *
  */
 
-static struct prov_vnode_info * find_prov_vnode(struct pbsnode * pnode)
+static struct prov_vnode_info *
+find_prov_vnode(struct pbsnode *pnode)
 {
-	struct prov_vnode_info * prov_vnode_info = NULL;
+	struct prov_vnode_info *prov_vnode_info = NULL;
 
 	prov_vnode_info = GET_NEXT(prov_allvnodes);
 	while (prov_vnode_info) {
-		if (strcmp(prov_vnode_info->pvnfo_vnode, pnode->nd_name)==0) {
+		if (strcmp(prov_vnode_info->pvnfo_vnode, pnode->nd_name) == 0) {
 			return prov_vnode_info;
 		}
 		prov_vnode_info = GET_NEXT(prov_vnode_info->al_link);
@@ -5037,13 +4752,15 @@ static struct prov_vnode_info * find_prov_vnode(struct pbsnode * pnode)
  */
 
 void
-free_prov_vnode(struct pbsnode * pnode)
+free_prov_vnode(struct pbsnode *pnode)
 {
-	struct prov_vnode_info * prov_vnode_info = NULL;
+	struct prov_vnode_info *prov_vnode_info = NULL;
 
 	if (pnode->nd_state & INUSE_WAIT_PROV) {
-		if ((prov_vnode_info = find_prov_vnode(pnode)))
+		if ((prov_vnode_info = find_prov_vnode(pnode))) {
 			delete_link(&prov_vnode_info->al_link);
+			free_pvnfo(prov_vnode_info);
+		}
 
 		set_vnode_state(pnode, ~INUSE_WAIT_PROV, Nd_State_And);
 	}
@@ -5087,15 +4804,14 @@ free_prov_vnode(struct pbsnode * pnode)
 static int
 is_runnable(job *ptr, struct prov_vnode_info *pvnfo)
 {
-	struct			pbsnode	*np = NULL;
-	int			i;
-	int			eflag = 0;
-	exec_vnode_listtype 	prov_vnode_list=NULL;
-	int			num_of_prov_vnodes = 1;
-	job			*pjob;
-	char			*aoe_req=NULL;
-	char			*current_aoe;
-
+	struct pbsnode *np = NULL;
+	int i;
+	int eflag = 0;
+	exec_vnode_listtype prov_vnode_list = NULL;
+	int num_of_prov_vnodes = 1;
+	job *pjob;
+	char *aoe_req = NULL;
+	char *current_aoe;
 
 	if (!ptr) {
 		DBPRT(("%s: ptr is NULL\n", __func__))
@@ -5107,9 +4823,7 @@ is_runnable(job *ptr, struct prov_vnode_info *pvnfo)
 
 	aoe_req = pvnfo->pvnfo_aoe_req;
 
-	num_of_prov_vnodes = parse_prov_vnode(
-		pjob->ji_wattr[(int)JOB_ATR_prov_vnode].at_val.at_str,
-		&prov_vnode_list);
+	num_of_prov_vnodes = parse_prov_vnode(get_jattr_str(pjob, JOB_ATR_prov_vnode), &prov_vnode_list);
 
 	if (num_of_prov_vnodes == -1) {
 		if (prov_vnode_list)
@@ -5121,9 +4835,9 @@ is_runnable(job *ptr, struct prov_vnode_info *pvnfo)
 	/* failed to provision. Since, first vnode will return later, this is */
 	/* a catch to stop processing further since job would have already */
 	/* been held or re queued */
-	if (pjob->ji_qs.ji_substate != JOB_SUBSTATE_PROVISION) {
+	if (!check_job_substate(pjob, JOB_SUBSTATE_PROVISION)) {
 		DBPRT(("%s: stray provisioning for job %s\n", __func__,
-			pjob->ji_qs.ji_jobid))
+		       pjob->ji_qs.ji_jobid))
 		eflag = -4;
 		goto label1;
 	}
@@ -5133,7 +4847,7 @@ is_runnable(job *ptr, struct prov_vnode_info *pvnfo)
 		np = find_nodebyname(prov_vnode_list[i]);
 		if (np == NULL) {
 			DBPRT(("%s: node %s is null\n",
-				__func__, prov_vnode_list[i]))
+			       __func__, prov_vnode_list[i]))
 			eflag = -2;
 			/* let eflag get overwritten in next iterations
 			 by other conditions */
@@ -5141,15 +4855,15 @@ is_runnable(job *ptr, struct prov_vnode_info *pvnfo)
 		}
 
 		/* check if vnode offline, since it could have failed prov */
-		if (np->nd_state & (INUSE_OFFLINE|INUSE_OFFLINE_BY_MOM)) {
+		if (np->nd_state & (INUSE_OFFLINE | INUSE_OFFLINE_BY_MOM)) {
 
 			DBPRT(("%s: vnode %s is offline (failed prov)\n",
-				__func__, np->nd_name))
+			       __func__, np->nd_name))
 			eflag = -2;
 			break;
 
 		} else if ((np->nd_state & INUSE_PROV) ||
-			(np->nd_state & INUSE_WAIT_PROV)) {
+			   (np->nd_state & INUSE_WAIT_PROV)) {
 			/* Check any vnode is provisioning */
 			eflag = -1;
 			DBPRT(("%s: Some nodes still provisioning\n", __func__))
@@ -5157,17 +4871,14 @@ is_runnable(job *ptr, struct prov_vnode_info *pvnfo)
 		} else {
 			/* check if node has the correct aoe or not */
 			current_aoe = NULL;
-			if (np->nd_attr[(int)ND_ATR_current_aoe].at_flags
-				& ATR_VFLAG_SET)
-				current_aoe =
-					np->nd_attr[(int)ND_ATR_current_aoe].
-				at_val.at_str;
+			if (is_nattr_set(np, ND_ATR_current_aoe))
+				current_aoe = get_nattr_str(np, ND_ATR_current_aoe);
 
 			if ((current_aoe == NULL) ||
-				strcmp(current_aoe,  aoe_req) != 0) {
+			    strcmp(current_aoe, aoe_req) != 0) {
 				eflag = -3;
 				DBPRT(("%s: req_aoe mismatch on %s\n",
-					__func__, prov_vnode_list[i]))
+				       __func__, prov_vnode_list[i]))
 				break;
 			}
 		}
@@ -5212,14 +4923,14 @@ label1:
  */
 
 void
-fail_vnode_job(struct prov_vnode_info * prov_vnode_info, int hold_or_que)
+fail_vnode_job(struct prov_vnode_info *prov_vnode_info, int hold_or_que)
 {
-	job 			*pjob;
-	int			cnt;	/* no. of prov vnodes */
-	exec_vnode_listtype 	prov_vnode_list = NULL;
-	int			i;
-	struct pbsnode 		*np;
-	struct prov_tracking	*ptracking = NULL;
+	job *pjob;
+	int cnt; /* no. of prov vnodes */
+	exec_vnode_listtype prov_vnode_list = NULL;
+	int i;
+	struct pbsnode *np;
+	struct prov_tracking *ptracking = NULL;
 
 	if (!prov_vnode_info) {
 		DBPRT(("%s: prov_vnode_info is NULL\n", __func__))
@@ -5248,14 +4959,14 @@ fail_vnode_job(struct prov_vnode_info * prov_vnode_info, int hold_or_que)
 			"Provisioning for job %s failed, job held",
 			pjob->ji_qs.ji_jobid);
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_INFO,
-				pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 
 	} else if (hold_or_que == 1) {
 		sprintf(log_buffer,
 			"Provisioning for job %s failed, job queued",
 			pjob->ji_qs.ji_jobid);
 		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB, LOG_INFO,
-				pjob->ji_qs.ji_jobid, log_buffer);
+			  pjob->ji_qs.ji_jobid, log_buffer);
 	}
 	/* remove from table other vnodes that might provision.*/
 	/* vnodes that start provisioning are not within control. */
@@ -5264,20 +4975,14 @@ fail_vnode_job(struct prov_vnode_info * prov_vnode_info, int hold_or_que)
 
 	/* release resource, put system hold and move to held state */
 	if (hold_or_que == 0) {
-		pjob->ji_modified = 1;
 		rel_resc(pjob);
 		clear_exec_on_run_fail(pjob);
-		pjob->ji_wattr[(int)JOB_ATR_hold].at_val.at_long |= HOLD_s;
-		pjob->ji_wattr[(int)JOB_ATR_hold].at_flags |=
-			ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
-		job_attr_def[(int)JOB_ATR_Comment].at_decode(
-			&pjob->ji_wattr[(int)JOB_ATR_Comment],
-			NULL, NULL,
-			"job held, provisioning failed to start");
-		svr_setjobstate(pjob, JOB_STATE_HELD, JOB_SUBSTATE_HELD);
+		set_jattr_b_slim(pjob, JOB_ATR_hold, HOLD_s, INCR);
+		set_jattr_str_slim(pjob, JOB_ATR_Comment, "job held, provisioning failed to start", NULL);
+		svr_setjobstate(pjob, JOB_STATE_LTR_HELD, JOB_SUBSTATE_HELD);
 	} else if (hold_or_que == 1) {
 		/* don't purge job, instead requeue */
-		(void)force_reque(pjob);
+		(void) force_reque(pjob);
 	}
 
 	/*
@@ -5291,9 +4996,7 @@ fail_vnode_job(struct prov_vnode_info * prov_vnode_info, int hold_or_que)
 	 * from them, so future calls to fail_vnode_job from pending
 	 * work tasks would return without performing any action
 	 */
-	cnt = parse_prov_vnode(
-		pjob->ji_wattr[(int)JOB_ATR_prov_vnode].at_val.at_str,
-		&prov_vnode_list);
+	cnt = parse_prov_vnode(get_jattr_str(pjob, JOB_ATR_prov_vnode), &prov_vnode_list);
 	for (i = 0; i < cnt; i++) {
 		if ((np = find_nodebyname(prov_vnode_list[i]))) {
 			if ((ptracking = get_prov_record_by_vnode(np->nd_name))) {
@@ -5307,10 +5010,8 @@ fail_vnode_job(struct prov_vnode_info * prov_vnode_info, int hold_or_que)
 		free(prov_vnode_list);
 
 	/* remove the prov_node attribute from the job here */
-	if (pjob->ji_wattr[(int)JOB_ATR_prov_vnode].at_flags & ATR_VFLAG_SET) {
-		(void)job_attr_def[(int)JOB_ATR_prov_vnode].at_free(
-			&pjob->ji_wattr[(int)JOB_ATR_prov_vnode]);
-	}
+	if (is_jattr_set(pjob, JOB_ATR_prov_vnode))
+		free_jattr(pjob, JOB_ATR_prov_vnode);
 }
 
 /**
@@ -5338,7 +5039,7 @@ fail_vnode_job(struct prov_vnode_info * prov_vnode_info, int hold_or_que)
  */
 
 static void
-mark_prov_vnode_offline(pbsnode *pnode, char * comment)
+mark_prov_vnode_offline(pbsnode *pnode, char *comment)
 {
 	if (!pnode) {
 		DBPRT(("%s: pnode is NULL\n", __func__))
@@ -5346,35 +5047,23 @@ mark_prov_vnode_offline(pbsnode *pnode, char * comment)
 	}
 
 	/* unset the current aoe settings, as this may not be right now */
-	(void)node_attr_def[(int)ND_ATR_current_aoe].at_free(
-		&pnode->nd_attr[(int)ND_ATR_current_aoe]);
+	free_nattr(pnode, ND_ATR_current_aoe);
 
 	DBPRT(("%s: node=%s set to offline, resetting current_aoe\n",
-		__func__, pnode->nd_name))
+	       __func__, pnode->nd_name))
 
 	/* set node to down state */
 	set_vnode_state(pnode, INUSE_OFFLINE, Nd_State_Or);
 	set_vnode_state(pnode, ~INUSE_PROV, Nd_State_And);
 
-
-
 	/* write the node state and current_aoe */
-	pnode->nd_modified |= (NODE_UPDATE_CURRENT_AOE | NODE_UPDATE_STATE);
-	write_single_node_state(pnode);
-	pnode->nd_modified &= ~(NODE_UPDATE_CURRENT_AOE | NODE_UPDATE_STATE);
+	node_save_db(pnode);
 
 	if (comment != NULL) {
 		/* log msg about marking node as offline */
-		snprintf(log_buffer, sizeof(log_buffer), "Vnode %s: %s",
-			pnode->nd_name, comment);
-		log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE,
-			LOG_NOTICE, msg_daemonname, log_buffer);
-
-		node_attr_def[(int)ND_ATR_Comment].at_decode(
-			&pnode->nd_attr[(int)ND_ATR_Comment],
-			ATTR_comment, NULL, comment);
+		log_eventf(PBSEVENT_DEBUG, PBS_EVENTCLASS_NODE, LOG_NOTICE, msg_daemonname, "Vnode %s: %s", pnode->nd_name, comment);
+		set_nattr_str_slim(pnode, ND_ATR_Comment, comment, NULL);
 	}
-
 }
 
 /**
@@ -5405,8 +5094,8 @@ mark_prov_vnode_offline(pbsnode *pnode, char * comment)
 static void
 fail_vnode(struct prov_vnode_info *prov_vnode_info, int hold_or_que)
 {
-	struct pbsnode		*pnode;
-	char	  		comment[MAXNLINE];
+	struct pbsnode *pnode;
+	char comment[MAXNLINE];
 
 	if (!prov_vnode_info) {
 		DBPRT(("%s: prov_vnode_info is NULL\n", __func__))
@@ -5451,14 +5140,14 @@ fail_vnode(struct prov_vnode_info *prov_vnode_info, int hold_or_que)
 void
 offline_all_provisioning_vnodes()
 {
-	int 		i;
-	int 		count=0;
-	struct pbsnode 	*pnode;
-	char	  	comment[MAXNLINE];
-	char 	    	*vnode;
+	int i;
+	int count = 0;
+	struct pbsnode *pnode;
+	char comment[MAXNLINE];
+	char *vnode;
 
 	strcpy(comment,
-		"Vnode offlined since server went down during provisioning");
+	       "Vnode offlined since server went down during provisioning");
 
 	for (i = 0; i < server.sv_provtracksize; i++) {
 		if (server.sv_prov_track[i].pvtk_mtime != 0) {
@@ -5480,7 +5169,7 @@ offline_all_provisioning_vnodes()
 		if (server.sv_prov_track[i].pvtk_aoe_req)
 			free(server.sv_prov_track[i].pvtk_aoe_req);
 		memset(&(server.sv_prov_track[i]), 0,
-			sizeof(struct prov_tracking));
+		       sizeof(struct prov_tracking));
 		server.sv_prov_track[i].pvtk_mtime = 0; /* mark slot empty */
 	}
 
@@ -5488,7 +5177,7 @@ offline_all_provisioning_vnodes()
 	server.sv_provtrackmodifed = 1;
 
 	DBPRT(("%s: Marked %d nodes offline (from prov recovery)\n",
-		__func__, count))
+	       __func__, count))
 
 	/* save the provisioning table to disk */
 	prov_track_save();
@@ -5522,11 +5211,11 @@ offline_all_provisioning_vnodes()
  */
 
 static void
-check_and_run_jobs(struct prov_vnode_info * prov_vnode_info)
+check_and_run_jobs(struct prov_vnode_info *prov_vnode_info)
 {
-	job			*pjob;
-	int			rc;
-	struct 			work_task task;
+	job *pjob;
+	int rc;
+	struct work_task task;
 
 	if (!prov_vnode_info) {
 		DBPRT(("%s: prov_vnode_info is NULL\n", __func__))
@@ -5542,7 +5231,7 @@ check_and_run_jobs(struct prov_vnode_info * prov_vnode_info)
 		return;
 
 	DBPRT(("%s: Entered, node=%s, jobid=%s\n", __func__,
-		prov_vnode_info->pvnfo_vnode, prov_vnode_info->pvnfo_jobid))
+	       prov_vnode_info->pvnfo_vnode, prov_vnode_info->pvnfo_jobid))
 
 	pjob = (job *) find_job(prov_vnode_info->pvnfo_jobid);
 	if (pjob == NULL)
@@ -5550,9 +5239,8 @@ check_and_run_jobs(struct prov_vnode_info * prov_vnode_info)
 
 	rc = is_runnable(pjob, prov_vnode_info);
 
-
 	if (rc == 0) {
-		task.wt_parm1 = (void *)pjob;
+		task.wt_parm1 = (void *) pjob;
 		prov_startjob(&task);
 
 	} else if (rc == -2 || rc == -3) {
@@ -5561,19 +5249,18 @@ check_and_run_jobs(struct prov_vnode_info * prov_vnode_info)
 		 * but some nodes offline or curr_aoe bad
 		 */
 		DBPRT(("%s: Jobid: %s isjob_eligible returned %d\n", __func__,
-			pjob->ji_qs.ji_jobid, rc))
+		       pjob->ji_qs.ji_jobid, rc))
 		if (rc == -3)
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_INFO,
-				pjob->ji_qs.ji_jobid, "provisioning error: AOE mis-match");
+				  pjob->ji_qs.ji_jobid, "provisioning error: AOE mis-match");
 		else
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB, LOG_INFO,
-				pjob->ji_qs.ji_jobid, "provisioning error: vnode offline");
+				  pjob->ji_qs.ji_jobid, "provisioning error: vnode offline");
 
 		if (rc == -3)
 			fail_vnode_job(prov_vnode_info, 0);
 		else
 			fail_vnode_job(prov_vnode_info, 1);
-
 	}
 }
 
@@ -5608,23 +5295,18 @@ check_and_run_jobs(struct prov_vnode_info * prov_vnode_info)
  */
 
 void
-is_vnode_prov_done(char * vnode)
+is_vnode_prov_done(char *vnode)
 {
-	struct	pbsnode		*pnode = NULL;
-	struct prov_vnode_info	*prov_vnode_info;
-	struct  work_task 	*ptask_timeout;
-	struct prov_tracking	*ptracking;
+	struct pbsnode *pnode = NULL;
+	struct prov_vnode_info *prov_vnode_info;
+	struct work_task *ptask_timeout;
+	struct prov_tracking *ptracking;
 
 	ptracking = get_prov_record_by_vnode(vnode);
 	if (ptracking == NULL)
 		/* prov tracking record not created */
 		return;
-#ifdef WIN32
-	if (ptracking->pvtk_pid != INVALID_HANDLE_VALUE)
-#else
-	if (ptracking->pvtk_pid > -1)
-#endif
-	{
+	if (ptracking->pvtk_pid > -1) {
 		DBPRT(("%s: Provisioning script not yet done\n", __func__))
 		return;
 	}
@@ -5632,7 +5314,7 @@ is_vnode_prov_done(char * vnode)
 	prov_vnode_info = ptracking->prov_vnode_info;
 
 	pnode = (struct pbsnode *) find_nodebyname(prov_vnode_info->pvnfo_vnode);
-	assert(pnode!=NULL);
+	assert(pnode != NULL);
 
 	ptask_timeout = prov_vnode_info->ptask_timed;
 
@@ -5640,38 +5322,36 @@ is_vnode_prov_done(char * vnode)
 
 	/* check if this node is up or not */
 	if ((pnode->nd_state & VNODE_UNAVAILABLE) ||
-		(pnode->nd_state & INUSE_INIT)) {
+	    (pnode->nd_state & INUSE_INIT)) {
 		/* node is is still not up
 		 return, since this will be called again
 		 when the vnode gets up (from set_vnode_state)
 		 */
 		DBPRT(("%s: node:%s not yet up\n",
-			__func__, prov_vnode_info->pvnfo_vnode))
+		       __func__, prov_vnode_info->pvnfo_vnode))
 		return;
 	}
 
 	DBPRT(("%s: node:%s is up - cancelling timeout task\n",
-		__func__, prov_vnode_info->pvnfo_vnode))
+	       __func__, prov_vnode_info->pvnfo_vnode))
 	/* delete the timeout task */
 	delete_task(ptask_timeout);
 
 	/* unset the provisioning flag on this node */
 	if (pnode->nd_state & INUSE_PROV) {
 		DBPRT(("%s: node:%s is up - removing prov\n",
-			__func__, prov_vnode_info->pvnfo_vnode))
+		       __func__, prov_vnode_info->pvnfo_vnode))
 		set_vnode_state(pnode, ~INUSE_PROV, Nd_State_And);
 	}
 
 	/* save the state of this node to the nodes file */
-	pnode->nd_modified |= NODE_UPDATE_STATE;
-	write_single_node_state(pnode);
-	pnode->nd_modified &= ~NODE_UPDATE_STATE;
+	node_save_db(pnode);
 
 	/* log msg about prov of node success */
 	sprintf(log_buffer, "Provisioning of Vnode %s successful",
 		prov_vnode_info->pvnfo_vnode);
 	log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_NODE,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+		  LOG_NOTICE, msg_daemonname, log_buffer);
 
 	check_and_run_jobs(prov_vnode_info);
 
@@ -5691,6 +5371,76 @@ is_vnode_prov_done(char * vnode)
 
 /**
  * @brief
+ *		Determines if any of the provisionable vnodes assigned to the job
+ *		has a pending mom hook-related file copy action.
+ *
+ * @param[in]   pjob	-	pointer to job struct
+ *
+ * @return	int
+ * @retval	1	: job has a pending hook-related copy action on at least
+ *			  of its provisioning vnodes.
+ * @retval	0	: either no pending hook-related action detected, or an
+ *			  an error has occurred.
+ *
+ * @par Side Effects:
+ *      Unknown
+ *
+ * @par MT-safe: No
+ *
+ */
+
+static int
+prov_vnode_pending_hook_copy(job *pjob)
+{
+	struct pbsnode *np = NULL;
+	int i;
+	exec_vnode_listtype prov_vnode_list = NULL;
+	int num_of_prov_vnodes = 1;
+	int rcode = 0;
+
+	if (pjob == NULL) {
+		DBPRT(("%s: job is NULL\n", __func__))
+		return 0;
+	}
+
+	DBPRT(("%s: Entered jobid=%s\n", __func__, pjob->ji_qs.ji_jobid))
+
+	num_of_prov_vnodes = parse_prov_vnode(get_jattr_str(pjob, JOB_ATR_prov_vnode), &prov_vnode_list);
+
+	if (num_of_prov_vnodes == -1) {
+		if (prov_vnode_list)
+			free(prov_vnode_list);
+		return 0;
+	}
+
+	for (i = 0; i < num_of_prov_vnodes; i++) {
+		int j;
+
+		np = find_nodebyname(prov_vnode_list[i]);
+		if (np == NULL) {
+			DBPRT(("%s: node %s is null\n",
+			       __func__, prov_vnode_list[i]))
+			goto prov_vnode_label;
+		}
+		/* hook has not been sent */
+		for (j = 0; j < np->nd_nummoms; j++) {
+			if ((np->nd_moms[j] != NULL) && (sync_mom_hookfiles_count(np->nd_moms[j]) > 0)) {
+				log_eventf(PBSEVENT_DEBUG3, PBS_EVENTCLASS_NODE, LOG_WARNING, pjob->ji_qs.ji_jobid, "prov vnode %s's parent mom %s:%d has a pending copy hook or delete hook request", np->nd_name, np->nd_moms[j]->mi_host, np->nd_moms[j]->mi_port);
+				rcode = 1;
+				break;
+			}
+		}
+	}
+prov_vnode_label:
+
+	if (num_of_prov_vnodes > 0)
+		free(prov_vnode_list);
+
+	return rcode;
+}
+
+/**
+ * @brief
  * 	This function ensures that the hooks are synced with the
  * 	provisioned node before starting the job on it.
  *
@@ -5704,12 +5454,19 @@ is_vnode_prov_done(char * vnode)
 static void
 prov_startjob(struct work_task *ptask)
 {
-	job			*pjob;
-	int			rc;
+	job *pjob;
+	int rc;
 
 	assert(ptask->wt_parm1 != NULL);
 	pjob = (job *) ptask->wt_parm1;
-	if (do_sync_mom_hookfiles || sync_mom_hookfiles_proc_running) {
+	if (pjob == NULL) {
+		DBPRT(("%s: pjob is NULL\n", __func__))
+		return;
+	}
+	/* task being serviced here */
+	pjob->ji_prov_startjob_task = NULL;
+	if ((do_sync_mom_hookfiles || sync_mom_hookfiles_replies_pending) &&
+	    (prov_vnode_pending_hook_copy(pjob))) {
 
 		/**
 		 * If mom hook files sync is in process then create
@@ -5717,52 +5474,48 @@ prov_startjob(struct work_task *ptask)
 		 * and start the job once it is done
 		 */
 
-                DBPRT(("%s: setting the time task as sync mom"
-			"hookfiles is not completed\n"
-			, __func__))
+		DBPRT(("%s: setting the time task as sync mom"
+		       "hookfiles is not completed\n",
+		       __func__))
 
-                /* set a work task to run after 5 sec from now */
-                if (!set_task(WORK_Timed, time_now + 5,
-                        prov_startjob, pjob)){
-                        log_err(errno, __func__,
-				"Unable to set task for prov_startjob; requeuing the job");
-			(void)force_reque(pjob);
-                }
+		/* set a work task to run after 5 sec from now */
+		pjob->ji_prov_startjob_task = set_task(WORK_Timed, time_now + 5,
+						       prov_startjob, pjob);
+		if (pjob->ji_prov_startjob_task == NULL) {
+			log_err(errno, __func__, "Unable to set task for prov_startjob; requeuing the job");
+			(void) force_reque(pjob);
+		}
 		return;
-        }
+	}
 
 	/*  accounting log about prov for job over */
 	set_job_ProvAcctRcd(pjob, time_now,
-		PROVISIONING_SUCCESS);
+			    PROVISIONING_SUCCESS);
 
 	/* log msg about prov for job over */
 	sprintf(log_buffer,
 		"Provisioning for Job %s succeeded, running job",
 		pjob->ji_qs.ji_jobid);
 	log_event(PBSEVENT_DEBUG, PBS_EVENTCLASS_JOB,
-		LOG_INFO, pjob->ji_qs.ji_jobid,
-		log_buffer);
+		  LOG_INFO, pjob->ji_qs.ji_jobid,
+		  log_buffer);
 
 	DBPRT(("%s: Jobid: %s about to run after prov success\n",
-		__func__,  pjob->ji_qs.ji_jobid))
+	       __func__, pjob->ji_qs.ji_jobid))
 
 	/* now prov_vnode is stale, remove it */
-	if (pjob->ji_wattr[(int)JOB_ATR_prov_vnode].at_flags &
-		ATR_VFLAG_SET) {
-		job_attr_def[(int)JOB_ATR_prov_vnode].at_free(
-			&pjob->ji_wattr[(int)JOB_ATR_prov_vnode]);
-	}
+	if (is_jattr_set(pjob, JOB_ATR_prov_vnode))
+		free_jattr(pjob, JOB_ATR_prov_vnode);
 
 	DBPRT(("%s: calling [svr_startjob] from prov_startjob\n", __func__))
 	/* Move the job to MOM */
-	pjob->ji_modified = 1;
-	if ((rc = svr_startjob(pjob, 0))!=0) {
+	if ((rc = svr_startjob(pjob, 0)) != 0) {
 		DBPRT(("%s: Jobid: %s - startjob failed - rc:%d\n",
-			__func__, pjob->ji_qs.ji_jobid, rc))
+		       __func__, pjob->ji_qs.ji_jobid, rc))
 		free_nodes(pjob);
 	}
 	DBPRT(("%s: Jobid: %s, startjob returned: %d\n",
-		__func__, pjob->ji_qs.ji_jobid, rc))
+	       __func__, pjob->ji_qs.ji_jobid, rc))
 }
 
 /**
@@ -5807,40 +5560,31 @@ prov_startjob(struct work_task *ptask)
 static void
 prov_request_deferred(struct work_task *wtask)
 {
-	struct work_task 	*timeout_task;
-	int			stat;
-	struct	pbsnode		*pnode = NULL;
-	struct  prov_vnode_info *prov_vnode_info;
-	prov_pid		this_pid;
-	int			exit_status = -1;
-	struct prov_tracking	*prov_tracking;
+	struct work_task *timeout_task;
+	int stat;
+	struct pbsnode *pnode = NULL;
+	struct prov_vnode_info *prov_vnode_info;
+	prov_pid this_pid;
+	int exit_status = -1;
+	struct prov_tracking *prov_tracking;
 
 	assert(wtask->wt_parm1 != NULL);
 
 	prov_vnode_info = (struct prov_vnode_info *) wtask->wt_parm1;
 	pnode = (struct pbsnode *) find_nodebyname(prov_vnode_info->pvnfo_vnode);
-#ifdef	WIN32
-	this_pid = (HANDLE) wtask->wt_event;
-#else
 	this_pid = (pid_t) wtask->wt_event;
-	DBPRT(("%s: pid = %ld\n", __func__, (long)this_pid))
-#endif	/* WIN32 */
+	DBPRT(("%s: pid = %ld\n", __func__, (long) this_pid))
 	timeout_task = (struct work_task *) prov_vnode_info->ptask_timed;
-
 
 	/* Now, figure out exitvalue of the child process */
 	stat = wtask->wt_aux;
 
 	/* update the fact that the process is gone in the prov table */
 	prov_tracking = get_prov_record_by_pid(this_pid);
-#ifdef WIN32
-	prov_tracking->pvtk_pid = INVALID_HANDLE_VALUE; /* indicating the process has exited */
-#else
 	prov_tracking->pvtk_pid = -1; /* indicating the process has exited */
-#endif
 
 	if (WIFEXITED(stat))
-		exit_status=WEXITSTATUS(stat);
+		exit_status = WEXITSTATUS(stat);
 
 	DBPRT(("%s: stat=%d, exit_status=%d\n", __func__, stat, exit_status))
 
@@ -5854,27 +5598,20 @@ prov_request_deferred(struct work_task *wtask)
 		}
 
 		/* Update Current aoe */
-		(void)node_attr_def[(int)ND_ATR_current_aoe].at_decode(
-			&pnode->nd_attr[(int)ND_ATR_current_aoe],
-			ATTR_NODE_current_aoe,
-			NULL,
-			prov_vnode_info->pvnfo_aoe_req);
+		set_nattr_str_slim(pnode, ND_ATR_current_aoe, prov_vnode_info->pvnfo_aoe_req, NULL);
 
 		DBPRT(("%s: node:%s current_aoe set: %s\n",
-			__func__, pnode->nd_name, prov_vnode_info->pvnfo_aoe_req))
-
+		       __func__, pnode->nd_name, prov_vnode_info->pvnfo_aoe_req))
 
 		/* write the node current_aoe */
-		pnode->nd_modified |= NODE_UPDATE_CURRENT_AOE;
-		write_single_node_state(pnode);
-		pnode->nd_modified &= ~NODE_UPDATE_CURRENT_AOE;
+		node_save_db(pnode);
 
 		/* if exit_status says app_prov returned success, reset down
 		 * that we set. after setting the state, is_vnode_prov_done()
 		 * is called which would delete the timed work task.
 		 */
 		if (exit_status == APP_PROV_SUCCESS &&
-			(pnode->nd_state & INUSE_DOWN))
+		    (pnode->nd_state & INUSE_DOWN))
 			set_vnode_state(pnode, ~INUSE_DOWN, Nd_State_And);
 
 		is_vnode_prov_done(pnode->nd_name);
@@ -5888,7 +5625,7 @@ prov_request_deferred(struct work_task *wtask)
 		prov_vnode_info->pvnfo_vnode, prov_vnode_info->pvnfo_aoe_req,
 		prov_vnode_info->pvnfo_jobid, exit_status);
 	log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_SERVER,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+		  LOG_NOTICE, msg_daemonname, log_buffer);
 
 	/* kill the timed task since we dont need it any more */
 	delete_task(timeout_task);
@@ -5948,10 +5685,10 @@ prov_request_deferred(struct work_task *wtask)
 static void
 prov_request_timed(struct work_task *wtask)
 {
-	struct work_task 	*ptask_defer;
-	struct prov_vnode_info	*prov_vnode_info;
-	prov_pid		this_pid;
-	struct prov_tracking	*ptracking;
+	struct work_task *ptask_defer;
+	struct prov_vnode_info *prov_vnode_info;
+	prov_pid this_pid;
+	struct prov_tracking *ptracking;
 
 	assert(wtask->wt_parm1 != NULL);
 
@@ -5963,34 +5700,24 @@ prov_request_timed(struct work_task *wtask)
 		prov_vnode_info->pvnfo_vnode, prov_vnode_info->pvnfo_aoe_req,
 		prov_vnode_info->pvnfo_jobid);
 	log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_SERVER, LOG_NOTICE,
-		msg_daemonname, log_buffer);
+		  msg_daemonname, log_buffer);
 
 	DBPRT(("%s: Entered node:%s Timed timeout work task\n",
-		__func__, prov_vnode_info->pvnfo_vnode))
+	       __func__, prov_vnode_info->pvnfo_vnode))
 
 	ptracking = get_prov_record_by_vnode(prov_vnode_info->pvnfo_vnode);
-#ifdef WIN32
-	if (ptracking->pvtk_pid != INVALID_HANDLE_VALUE)
-#else
-	if (ptracking->pvtk_pid > -1)
-#endif
-	{
+	if (ptracking->pvtk_pid > -1) {
 		/* pid is part of the deferred task event */
 		this_pid = ptracking->pvtk_pid;
 		DBPRT(("%s: pid = %d\n", __func__, this_pid))
 
 		/* Kill all process belonging to this process group */
-#ifdef	WIN32
-		if (processtree_op_by_handle(this_pid, TERMINATE, 0xdeadbeef) == -1)
-#else
-		if (kill(((-1)*this_pid), SIGKILL) == -1)
-#endif	/* WIN32 */
-		{
+		if (kill(((-1) * this_pid), SIGKILL) == -1) {
 			DBPRT(("%s: couldn't kill prov process pgid = %d\n",
-				__func__, this_pid))
+			       __func__, this_pid))
 		}
 		DBPRT(("%s: killed provisioning process tree for pgid = %d\n",
-			__func__, this_pid))
+		       __func__, this_pid))
 
 		/*
 		 * script was running, it means that prov_request_deferred did
@@ -6015,14 +5742,13 @@ prov_request_timed(struct work_task *wtask)
 	set_task(WORK_Immed, 0, do_provisioning, NULL);
 }
 
-
 /**
  * @brief
  *		Sets provision_enable and provision_timeout on server every time
  *		provision hook is modified.
  *
  * @par Functionality:
- *      This function sets server level attributes, SRV_ATR_ProvisionEnable and
+ *      This function sets server level attributes, SVR_ATR_ProvisionEnable and
  *		SVR_ATR_provision_timeout from the provisioning hook. It checks whether
  *		server attributes should be set or not.
  *
@@ -6044,7 +5770,7 @@ void
 set_srv_prov_attributes(void)
 {
 #ifdef PYTHON
-	hook 		*phook;
+	hook *phook;
 
 	DBPRT(("Entered %s\n", __func__))
 
@@ -6056,20 +5782,13 @@ set_srv_prov_attributes(void)
 	}
 
 	provision_timeout = phook->alarm;
-	server.sv_attr[(int)SVR_ATR_provision_timeout].at_val.at_long =
-		provision_timeout;
-	server.sv_attr[(int)SVR_ATR_provision_timeout].at_flags |=
-		ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
-
-	server.sv_attr[(int)SRV_ATR_ProvisionEnable].at_val.at_long=1;
-	server.sv_attr[(int)SRV_ATR_ProvisionEnable].at_flags |=
-		ATR_VFLAG_SET | ATR_VFLAG_MODCACHE;
+	set_sattr_l_slim(SVR_ATR_provision_timeout, provision_timeout, SET);
+	set_sattr_l_slim(SVR_ATR_ProvisionEnable, 1, SET);
 #else
 	disable_svr_prov();
 	DBPRT(("%s: Python not enabled\n", __func__))
 #endif
 }
-
 
 /**
  * @brief
@@ -6100,16 +5819,16 @@ set_srv_prov_attributes(void)
  */
 
 int
-execute_python_prov_script(hook  *phook,
-	struct prov_vnode_info * prov_vnode_info)
+execute_python_prov_script(hook *phook,
+			   struct prov_vnode_info *prov_vnode_info)
 {
-	int 			rc = 255;
-	int			exit_code=255;
+	int rc = 255;
+	int exit_code = 255;
 #ifdef PYTHON
-	unsigned int		hook_event;
-	char 			*emsg = NULL;
-	hook_input_param_t	req_ptr;
-	char			perf_label[MAXBUFLEN];
+	unsigned int hook_event;
+	char *emsg = NULL;
+	hook_input_param_t req_ptr;
+	char perf_label[MAXBUFLEN];
 
 	if (!phook || !prov_vnode_info)
 		return rc;
@@ -6120,25 +5839,25 @@ execute_python_prov_script(hook  *phook,
 		return rc;
 
 	snprintf(perf_label, sizeof(perf_label), "hook_%s_%s_%d", HOOKSTR_PROVISION, phook->hook_name, getpid());
-	req_ptr.rq_prov = (struct prov_vnode_info *)prov_vnode_info;
+	req_ptr.rq_prov = (struct prov_vnode_info *) prov_vnode_info;
 	rc = pbs_python_event_set(hook_event, "root",
-		"server", &req_ptr, perf_label);
+				  "server", &req_ptr, perf_label);
 	if (rc == -1) { /* internal server code failure */
 		log_event(PBSEVENT_DEBUG2,
-			PBS_EVENTCLASS_HOOK, LOG_ERR, __func__,
-			"Failed to set event; request accepted by default");
+			  PBS_EVENTCLASS_HOOK, LOG_ERR, __func__,
+			  "Failed to set event; request accepted by default");
 		return (-1);
 	}
 
 	/* hook_name changes for each hook */
 	/* This sets Python event object's hook_name value */
 	rc = pbs_python_event_set_attrval(PY_EVENT_HOOK_NAME,
-		phook->hook_name);
+					  phook->hook_name);
 
 	if (rc == -1) {
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
-			LOG_ERR, phook->hook_name,
-			"Failed to set event 'hook_name'.");
+			  LOG_ERR, phook->hook_name,
+			  "Failed to set event 'hook_name'.");
 		return (-1);
 	}
 
@@ -6146,17 +5865,17 @@ execute_python_prov_script(hook  *phook,
 	/* hook_type changes for each hook.	     */
 	/* This sets Python event object's hook_type value */
 	rc = pbs_python_event_set_attrval(PY_EVENT_HOOK_TYPE,
-		hook_type_as_string(phook->type));
+					  hook_type_as_string(phook->type));
 
 	if (rc == -1) {
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
-			LOG_ERR, phook->hook_name,
-			"Failed to set event 'hook_type'.");
+			  LOG_ERR, phook->hook_name,
+			  "Failed to set event 'hook_type'.");
 		return (-1);
 	}
 
 	log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_HOOK,
-		LOG_INFO, phook->hook_name, "started");
+		  LOG_INFO, phook->hook_name, "started");
 
 	pbs_python_set_mode(PY_MODE); /* hook script mode */
 
@@ -6165,70 +5884,68 @@ execute_python_prov_script(hook  *phook,
 	/* NOTE: path_hooks_workdir is periodically cleaned up */
 	if (chdir(path_hooks_workdir) != 0) {
 		log_event(PBSEVENT_DEBUG2,
-			PBS_EVENTCLASS_HOOK, LOG_WARNING, phook->hook_name,
-			"unable to go to hooks tmp directory");
+			  PBS_EVENTCLASS_HOOK, LOG_WARNING, phook->hook_name,
+			  "unable to go to hooks tmp directory");
 	}
 
 	/* let rc pass through */
 	hook_perf_stat_start(perf_label, HOOK_PERF_RUN_CODE, 0);
 	rc = pbs_python_run_code_in_namespace(&svr_interp_data,
-		phook->script,
-		&exit_code);
+					      phook->script,
+					      &exit_code);
 	hook_perf_stat_stop(perf_label, HOOK_PERF_RUN_CODE, 0);
 
 	/* go back to server's private directory */
 	if (chdir(path_priv) != 0) {
 		log_event(PBSEVENT_DEBUG2,
-			PBS_EVENTCLASS_HOOK, LOG_WARNING, phook->hook_name,
-			"unable to go back server private directory");
+			  PBS_EVENTCLASS_HOOK, LOG_WARNING, phook->hook_name,
+			  "unable to go back server private directory");
 	}
 
-	pbs_python_set_mode(C_MODE);  /* PBS C mode - flexible */
+	pbs_python_set_mode(C_MODE); /* PBS C mode - flexible */
 	log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_HOOK,
-		LOG_INFO, phook->hook_name, "finished");
+		  LOG_INFO, phook->hook_name, "finished");
 
 	switch (rc) {
 		case 0:
 			/* reject if at least one hook script rejects */
 			if (pbs_python_event_get_accept_flag() == FALSE) { /* a reject occurred */
-				snprintf(log_buffer, LOG_BUF_SIZE-1,
-					"%s request rejected by '%s'",
-					hook_event_as_string(hook_event),
-					phook->hook_name);
+				snprintf(log_buffer, LOG_BUF_SIZE - 1,
+					 "%s request rejected by '%s'",
+					 hook_event_as_string(hook_event),
+					 phook->hook_name);
 				log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_HOOK,
-					LOG_ERR, phook->hook_name, log_buffer);
-				if ((emsg=pbs_python_event_get_reject_msg()) != NULL) {
-					snprintf(log_buffer, LOG_BUF_SIZE-1, "%s", emsg);
+					  LOG_ERR, phook->hook_name, log_buffer);
+				if ((emsg = pbs_python_event_get_reject_msg()) != NULL) {
+					snprintf(log_buffer, LOG_BUF_SIZE - 1, "%s", emsg);
 					/* log also the custom reject message */
 					log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_HOOK,
-						LOG_ERR, phook->hook_name, log_buffer);
+						  LOG_ERR, phook->hook_name, log_buffer);
 				}
-
 			}
 			return (exit_code);
 
-		case -1:	/* internal error */
+		case -1: /* internal error */
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
-				LOG_ERR, phook->hook_name,
-				"Internal server error encountered. Skipping hook.");
+				  LOG_ERR, phook->hook_name,
+				  "Internal server error encountered. Skipping hook.");
 			return (rc); /* should not happen */
 
-		case -2:	/* unhandled exception */
+		case -2: /* unhandled exception */
 			pbs_python_event_reject(NULL);
 			pbs_python_event_param_mod_disallow();
 
-			snprintf(log_buffer, LOG_BUF_SIZE-1,
-				"%s hook '%s' encountered an exception, "
-				"request rejected",
-				hook_event_as_string(hook_event), phook->hook_name);
+			snprintf(log_buffer, LOG_BUF_SIZE - 1,
+				 "%s hook '%s' encountered an exception, "
+				 "request rejected",
+				 hook_event_as_string(hook_event), phook->hook_name);
 			log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_HOOK,
-				LOG_ERR, phook->hook_name, log_buffer);
+				  LOG_ERR, phook->hook_name, log_buffer);
 			return (rc);
 	}
 #endif
 	return rc;
 }
-
 
 /**
  * @brief
@@ -6259,36 +5976,24 @@ execute_python_prov_script(hook  *phook,
  */
 
 static int
-start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
+start_vnode_provisioning(struct prov_vnode_info *prov_vnode_info)
 {
-	prov_pid		pid;
-	struct	work_task	*ptask_defer;
-	struct	work_task	*ptask_timed;
-	struct pbsnode		*pnode;
-	job 			*pjob;
-	int 			rc = -1;
-#ifndef	WIN32
-	struct 			sigaction act;
-#endif
-	hook 			*phook;
-
-#ifdef 	WIN32
-	char    cmdline[LOG_BUF_SIZE];
-	STARTUPINFO             si = { 0 };
-	PROCESS_INFORMATION     pi = { 0 };
-	int	flags = CREATE_DEFAULT_ERROR_MODE|
-		CREATE_NEW_CONSOLE|CREATE_NEW_PROCESS_GROUP;
-	SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES),
-		NULL, TRUE};
-#endif	/* WIN32 */
+	prov_pid pid;
+	struct work_task *ptask_defer;
+	struct work_task *ptask_timed;
+	struct pbsnode *pnode;
+	job *pjob;
+	int rc = -1;
+	struct sigaction act;
+	hook *phook;
 
 	DBPRT(("%s: Provisioning vnode: %s with aoe: %s\n", __func__,
-		prov_vnode_info->pvnfo_vnode, prov_vnode_info->pvnfo_aoe_req))
+	       prov_vnode_info->pvnfo_vnode, prov_vnode_info->pvnfo_aoe_req))
 
 	pnode = find_nodebyname(prov_vnode_info->pvnfo_vnode);
 	if (!pnode) {
 		DBPRT(("%s: Could not find vnode %s\n", __func__,
-			prov_vnode_info->pvnfo_vnode))
+		       prov_vnode_info->pvnfo_vnode))
 		return (PBSE_SYSTEM);
 	}
 
@@ -6296,60 +6001,40 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 	if (!phook) {
 		DBPRT(("%s: Provisioning hook not found\n", __func__))
 		log_event(PBSEVENT_SYSTEM, PBS_EVENTCLASS_SERVER, LOG_INFO,
-			msg_daemonname, "Provisioning hook not found");
+			  msg_daemonname, "Provisioning hook not found");
 		return rc;
 	}
 
-	if ((rc=pbs_python_check_and_compile_script(&svr_interp_data,
-		phook->script)) != 0) {
+	if ((rc = pbs_python_check_and_compile_script(&svr_interp_data,
+						      phook->script)) != 0) {
 		DBPRT(("%s: Recompilation failed\n", __func__))
 		log_event(PBSEVENT_ERROR, PBS_EVENTCLASS_SERVER, LOG_INFO,
-			msg_daemonname, "Provisioning script recompilation failed");
+			  msg_daemonname, "Provisioning script recompilation failed");
 		return rc;
 	}
-
-#ifdef WIN32
-
-	/* In Windows, do not need to unprotect the process created as */
-	/* it will not inherit the protection value from the parent    */
-	sprintf(cmdline, "%s/sbin/pbs_start_provision %s %s %s %s %s %s",
-		pbs_conf.pbs_exec_path, prov_vnode_info->pvnfo_vnode,
-		prov_vnode_info->pvnfo_aoe_req, msg_daemonname,
-		phook->hook_name, path_priv, pbs_conf.pbs_home_path);
-
-	rc = CreateProcess(NULL, cmdline, NULL, NULL, TRUE, flags,
-		NULL, NULL, &si, &pi);
-
-	if (rc == 0)
-		return (PBSE_SYSTEM);
-
-	pid = pi.hProcess; /*pi.dwProcessId;*/
-	addpid(pid);  /* refer reap_child() */
-#else
 
 	/* Create child process to run TOP-LEVEL provisioning script */
 	pid = fork();
 	if (pid == -1) { /* fork failed */
 		DBPRT(("%s: fork() failed\n", __func__))
 		return (PBSE_SYSTEM);
-	}
-	else if (pid == 0) {	/* child process */
+	} else if (pid == 0) { /* child process */
 		alarm(0);
-		/* standard rpp closure and net close */
+		/* standard tpp closure and net close */
 		net_close(-1);
-		rpp_terminate();
+		tpp_terminate();
 
 		/* Reset signal actions for most to SIG_DFL */
 		sigemptyset(&act.sa_mask);
-		act.sa_flags   = 0;
+		act.sa_flags = 0;
 		act.sa_handler = SIG_DFL;
-		(void)sigaction(SIGCHLD, &act, NULL);
-		(void)sigaction(SIGHUP, &act, NULL);
-		(void)sigaction(SIGINT, &act, NULL);
-		(void)sigaction(SIGTERM, &act, NULL);
+		(void) sigaction(SIGCHLD, &act, NULL);
+		(void) sigaction(SIGHUP, &act, NULL);
+		(void) sigaction(SIGINT, &act, NULL);
+		(void) sigaction(SIGTERM, &act, NULL);
 
 		/* Reset signal mask */
-		(void)sigprocmask(SIG_SETMASK, &act.sa_mask, NULL);
+		(void) sigprocmask(SIG_SETMASK, &act.sa_mask, NULL);
 
 		/*
 		 * set process as session leader
@@ -6358,7 +6043,9 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 			exit(13);
 
 		/* Redirect standard files to /dev/null */
-		freopen("/dev/null", "r", stdin);
+		if (freopen("/dev/null", "r", stdin) == NULL) 
+			log_errf(-1, __func__, "freopen of null device failed. ERR : %s",strerror(errno));
+
 
 		/* Unprotect child from being killed by system */
 		daemon_protect(0, PBS_DAEMON_PROTECT_OFF);
@@ -6369,7 +6056,6 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 		/* if python did sys.exit we wont be here */
 		exit(rc);
 	}
-#endif	/* WIN32 */
 
 	/* parent process */
 	/* set node state to provisioning */
@@ -6378,14 +6064,10 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 	 * This is now done earlier
 	 */
 	/* unset the current_aoe for the node here provisioning */
-	(void)node_attr_def[(int)ND_ATR_current_aoe].at_free(
-		&(pnode->nd_attr[(int)ND_ATR_current_aoe]));
-
+	free_nattr(pnode, ND_ATR_current_aoe);
 
 	/* write the node current_aoe */
-	pnode->nd_modified |= NODE_UPDATE_CURRENT_AOE;
-	write_single_node_state(pnode);
-	pnode->nd_modified &= ~NODE_UPDATE_CURRENT_AOE;
+	node_save_db(pnode);
 
 	/*
 	 * Parent process creates two work tasks
@@ -6398,20 +6080,15 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 	 * wt_parm1 is passed the address of the prov_vnode_info
 	 * structure allocated earlier
 	 */
-#ifdef WIN32
-	ptask_defer = set_task(WORK_Deferred_Child, (long)pid,
-		prov_request_deferred, (void *)prov_vnode_info);
-#else
 	ptask_defer = set_task(WORK_Deferred_Child, pid,
-		prov_request_deferred,
-		(void *)prov_vnode_info);
-#endif	/* WIN32 */
+			       prov_request_deferred,
+			       (void *) prov_vnode_info);
 	if (!ptask_defer)
 		return (PBSE_INTERNAL);
 
 	ptask_timed = set_task(WORK_Timed, time_now + provision_timeout,
-		prov_request_timed,
-		(void *)prov_vnode_info);
+			       prov_request_timed,
+			       (void *) prov_vnode_info);
 	if (!ptask_timed) {
 		/* cancel deferred child work task */
 		delete_task(ptask_defer);
@@ -6437,10 +6114,11 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 	if (pjob) {
 		/* log job prov success message */
 		sprintf(log_buffer, "Provisioning vnode %s with AOE %s "
-			"started successfully", prov_vnode_info->pvnfo_vnode,
+				    "started successfully",
+			prov_vnode_info->pvnfo_vnode,
 			prov_vnode_info->pvnfo_aoe_req);
 		log_event(PBSEVENT_DEBUG2, PBS_EVENTCLASS_JOB,
-			LOG_INFO, pjob->ji_qs.ji_jobid, log_buffer);
+			  LOG_INFO, pjob->ji_qs.ji_jobid, log_buffer);
 	}
 
 	/* remove the INUSE_WAIT_PROV flag as it is prov now */
@@ -6451,7 +6129,6 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 
 	return (PBSE_NONE);
 }
-
 
 /**
  * @brief
@@ -6481,13 +6158,13 @@ start_vnode_provisioning(struct prov_vnode_info * prov_vnode_info)
 int
 check_and_enqueue_provisioning(job *pjob, int *need_prov)
 {
-	exec_vnode_listtype 	prov_vnode_list = NULL;
-	int			num_of_prov_vnodes = -1;
-	int			i;
-	struct prov_vnode_info	*prov_vnode_info;
-	struct pbsnode		*pnode;
-	struct work_task 	*ptask_start_prov;
-	char			*aoe_req=NULL; /* to point to aoe */
+	exec_vnode_listtype prov_vnode_list = NULL;
+	int num_of_prov_vnodes = -1;
+	int i;
+	struct prov_vnode_info *prov_vnode_info;
+	struct pbsnode *pnode;
+	struct work_task *ptask_start_prov;
+	char *aoe_req = NULL; /* to point to aoe */
 
 	DBPRT(("%s: Entered\n", __func__))
 
@@ -6510,23 +6187,23 @@ check_and_enqueue_provisioning(job *pjob, int *need_prov)
 		return (PBSE_IVALREQ);
 	}
 
-	DBPRT(("%s: aoe_req: %s\n", __func__, (aoe_req?aoe_req:"NULL")))
+	DBPRT(("%s: aoe_req: %s\n", __func__, (aoe_req ? aoe_req : "NULL")))
 
 	if (num_of_prov_vnodes == 0) {
 		*need_prov = 0;
 		DBPRT(("%s: Provisioning will not be done, "
-			"since no aoe requested or scheduler did not give provision vnode\n", __func__))
+		       "since no aoe requested or scheduler did not give provision vnode\n",
+		       __func__))
 		if (prov_vnode_list)
 			free(prov_vnode_list);
 		return (PBSE_NONE);
 	}
 
-
 	/* enque the provisioning request */
 	for (i = 0; i < num_of_prov_vnodes; i++) {
 		prov_vnode_info =
 			(struct prov_vnode_info *) calloc(1,
-			sizeof(struct prov_vnode_info));
+							  sizeof(struct prov_vnode_info));
 		if (!prov_vnode_info) {
 			free(prov_vnode_list);
 			if (aoe_req)
@@ -6556,7 +6233,6 @@ check_and_enqueue_provisioning(job *pjob, int *need_prov)
 		if ((prov_vnode_info->pvnfo_aoe_req = strdup(aoe_req)) == NULL) {
 			free(prov_vnode_list);
 			free_pvnfo(prov_vnode_info);
-			free(prov_vnode_info);
 			if (aoe_req)
 				free(aoe_req);
 			return PBSE_SYSTEM;
@@ -6565,7 +6241,7 @@ check_and_enqueue_provisioning(job *pjob, int *need_prov)
 
 		CLEAR_LINK(prov_vnode_info->al_link);
 		append_link(&prov_allvnodes, &prov_vnode_info->al_link,
-			prov_vnode_info);
+			    prov_vnode_info);
 
 		pnode = find_nodebyname(prov_vnode_list[i]);
 
@@ -6578,7 +6254,7 @@ check_and_enqueue_provisioning(job *pjob, int *need_prov)
 	 * work task repeatable every PROV_POLL interval
 	 */
 	ptask_start_prov = set_task(WORK_Immed, 0,
-		do_provisioning, NULL);
+				    do_provisioning, NULL);
 
 	if (ptask_start_prov == NULL) {
 		free(prov_vnode_list);
@@ -6599,7 +6275,6 @@ check_and_enqueue_provisioning(job *pjob, int *need_prov)
 	*need_prov = 1;
 	return (PBSE_NONE);
 }
-
 
 /**
  * @brief
@@ -6628,11 +6303,11 @@ check_and_enqueue_provisioning(job *pjob, int *need_prov)
  */
 
 void
-do_provisioning(struct work_task * wtask)
+do_provisioning(struct work_task *wtask)
 {
 	struct prov_vnode_info *prov_vnode_info;
-	struct pbsnode	       *pnode;
-	int 			rc;
+	struct pbsnode *pnode;
+	int rc;
 
 	prov_vnode_info = GET_NEXT(prov_allvnodes);
 
@@ -6641,7 +6316,7 @@ do_provisioning(struct work_task * wtask)
 	 * should not cross max limit
 	 */
 	while (prov_vnode_info &&
-		(server.sv_cur_prov_records < max_concurrent_prov)) {
+	       (server.sv_cur_prov_records < max_concurrent_prov)) {
 
 		/*
 		 * allocate prov_vnode_info, its kept as long as provisioning
@@ -6657,13 +6332,13 @@ do_provisioning(struct work_task * wtask)
 		pnode = find_nodebyname(prov_vnode_info->pvnfo_vnode);
 		if (pnode == NULL) {
 			DBPRT(("%s: node %s was deleted\n", __func__,
-				prov_vnode_info->pvnfo_vnode))
+			       prov_vnode_info->pvnfo_vnode))
 			free_pvnfo(prov_vnode_info);
 			prov_vnode_info = GET_NEXT(prov_allvnodes);
 			continue;
 		}
 
-		rc=start_vnode_provisioning(prov_vnode_info);
+		rc = start_vnode_provisioning(prov_vnode_info);
 
 		if (rc != 0) {
 			/* we want to fail jobs/resv but not the node */
@@ -6675,8 +6350,8 @@ do_provisioning(struct work_task * wtask)
 			pnode = find_nodebyname(prov_vnode_info->pvnfo_vnode);
 			if (pnode) {
 				DBPRT(("%s: \n", __func__))
-				set_vnode_state(pnode, ~(INUSE_PROV|INUSE_WAIT_PROV),
-					Nd_State_And);
+				set_vnode_state(pnode, ~(INUSE_PROV | INUSE_WAIT_PROV),
+						Nd_State_And);
 			}
 			free_pvnfo(prov_vnode_info);
 		}
@@ -6712,7 +6387,7 @@ del_prov_vnode_entry(job *pjob)
 {
 	struct prov_vnode_info *tmp_record;
 	struct prov_vnode_info *nxt_record;
-	struct pbsnode	*pnode;
+	struct pbsnode *pnode;
 
 	/* since entry is plucked from list, it won't come again */
 	tmp_record = GET_NEXT(prov_allvnodes);
@@ -6725,8 +6400,8 @@ del_prov_vnode_entry(job *pjob)
 			pnode = find_nodebyname(tmp_record->pvnfo_vnode);
 			if (pnode)
 				set_vnode_state(pnode,
-					~(INUSE_PROV|INUSE_WAIT_PROV),
-					Nd_State_And);
+						~(INUSE_PROV | INUSE_WAIT_PROV),
+						Nd_State_And);
 			free_pvnfo(tmp_record);
 		}
 		tmp_record = nxt_record;
@@ -6745,11 +6420,11 @@ del_prov_vnode_entry(job *pjob)
 void
 set_srv_pwr_prov_attribute()
 {
-	char		hook_name[] = PBS_POWER;
-	hook		*phook = NULL;
-	int		val = 0;
-	unsigned int	action = 0;
-	char		str_val[2] = {0};
+	char hook_name[] = PBS_POWER;
+	hook *phook = NULL;
+	int val = 0;
+	unsigned int action = 0;
+	char str_val[2] = {0};
 
 	phook = find_hook(hook_name);
 	if (phook == NULL)
@@ -6759,8 +6434,7 @@ set_srv_pwr_prov_attribute()
 		val = 1;
 
 	snprintf(str_val, sizeof(str_val), "%d", val);
-	set_attr_svr(&(server.sv_attr[(int)SRV_ATR_PowerProvisioning]),
-			&svr_attr_def[(int) SRV_ATR_PowerProvisioning], str_val);
+	set_sattr_str_slim(SVR_ATR_PowerProvisioning, str_val, NULL);
 
 	/*
 	 * The enabled attribute is changed so send the attributes.
@@ -6788,7 +6462,8 @@ set_srv_pwr_prov_attribute()
  * @return	int
  */
 int
-action_backfill_depth(attribute *pattr, void *pobj, int actmode) {
+action_backfill_depth(attribute *pattr, void *pobj, int actmode)
+{
 
 	if (pattr == NULL)
 		return PBSE_NONE;
@@ -6818,15 +6493,15 @@ action_backfill_depth(attribute *pattr, void *pobj, int actmode) {
 int
 action_jobscript_max_size(attribute *pattr, void *pobj, int actmode)
 {
-	struct attribute attrib;
+	attribute attrib;
 	if (pattr == NULL)
 		return PBSE_NONE;
-	set_size(&attr_jobscript_max_size,pattr,SET);
-	svr_attr_def[(int)SVR_ATR_jobscript_max_size].at_decode(&attrib,ATTR_jobscript_max_size,NULL,"2gb");
+	set_attr_generic(&attrib, &svr_attr_def[SVR_ATR_jobscript_max_size], "2gb", NULL, INTERNAL);
 	if (actmode == ATR_ACTION_ALTER || actmode == ATR_ACTION_RECOV) {
-		if (comp_size(pattr,&attrib) > 0)
+		if (comp_size(pattr, &attrib) > 0)
 			return PBSE_BADJOBSCRIPTMAXSIZE;
 	}
+	set_size(&attr_jobscript_max_size, pattr, SET);
 	return PBSE_NONE;
 }
 
@@ -6854,16 +6529,14 @@ action_check_res_to_release(attribute *pattr, void *pobj, int actmode)
 
 	if (actmode == ATR_ACTION_ALTER || actmode == ATR_ACTION_NEW) {
 		for (i = 0; i < pattr->at_val.at_arst->as_usedptr; i++) {
-			if (find_resc_def(svr_resc_def,
-				    pattr->at_val.at_arst->as_string[i],
-				    svr_resc_size) == NULL)
+			if (find_resc_def(svr_resc_def, pattr->at_val.at_arst->as_string[i]) == NULL)
 				return PBSE_UNKRESC;
 		}
 	}
 	return PBSE_NONE;
 }
 
- /**
+/**
   * @brief
   *      Unset jobscript_max_size attribute.
   *
@@ -6879,15 +6552,10 @@ action_check_res_to_release(attribute *pattr, void *pobj, int actmode)
 void
 unset_jobscript_max_size(void)
 {
-	struct attribute attrib;
-	svr_attr_def[(int)SVR_ATR_jobscript_max_size].at_decode(&attrib,ATTR_jobscript_max_size,NULL,DFLT_JOBSCRIPT_MAX_SIZE);
-	set_size(&attr_jobscript_max_size,&attrib,SET);
-
-	snprintf(log_buffer, sizeof(log_buffer),
-		"unsetting jobscript_max_size - reverting back to default val %s",
-		DFLT_JOBSCRIPT_MAX_SIZE);
-	log_event(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER,
-		LOG_NOTICE, msg_daemonname, log_buffer);
+	log_eventf(PBSEVENT_ADMIN, PBS_EVENTCLASS_SERVER, LOG_NOTICE, msg_daemonname,
+		   "unsetting jobscript_max_size - reverting back to default val %s",
+		   DFLT_JOBSCRIPT_MAX_SIZE);
+	set_attr_generic(&attr_jobscript_max_size, &svr_attr_def[SVR_ATR_jobscript_max_size], DFLT_JOBSCRIPT_MAX_SIZE, NULL, INTERNAL);
 }
 
 /**
@@ -6925,10 +6593,9 @@ extern char *path_spool;
 char *
 svr_load_jobscript(job *pj)
 {
-	pbs_db_conn_t *conn = (pbs_db_conn_t *) svr_db_conn;
+	void *conn = (void *) svr_db_conn;
 	pbs_db_jobscr_info_t jobscr;
 	pbs_db_obj_info_t obj;
-	char *script = NULL;
 
 	if (pj->ji_script) {
 		free(pj->ji_script);
@@ -6940,30 +6607,29 @@ svr_load_jobscript(job *pj)
 	} else {
 		strcpy(jobscr.ji_jobid, pj->ji_qs.ji_jobid);
 	}
+	jobscr.script = NULL;
 	obj.pbs_db_obj_type = PBS_DB_JOBSCR;
 	obj.pbs_db_un.pbs_db_jobscr = &jobscr;
 
 	if (pbs_db_load_obj(conn, &obj) != 0) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"Failed to load job script for job %s from PBS datastore",
-			pj->ji_qs.ji_jobid);
+			 "Failed to load job script for job %s from PBS datastore",
+			 pj->ji_qs.ji_jobid);
 		log_err(-1, __func__, log_buffer);
 		return NULL;
 	}
-	script = strdup(jobscr.script);
-	pbs_db_cleanup_resultset(conn);
 
-	if (script == NULL) {
+	if (jobscr.script == NULL) {
 		snprintf(log_buffer, sizeof(log_buffer),
-			"Out of memory loading script for job %s from PBS datastore",
-			pj->ji_qs.ji_jobid);
+			 "Out of memory loading script for job %s from PBS datastore",
+			 pj->ji_qs.ji_jobid);
 		log_err(-1, __func__, log_buffer);
 		return NULL;
 	}
 
-	pj->ji_script = script;
+	pj->ji_script = jobscr.script;
 
-	return script;
+	return jobscr.script;
 }
 
 /*
@@ -6984,36 +6650,17 @@ svr_create_tmp_jobscript(job *pj, char *script_name)
 	int filemode = 0600;
 	int len;
 
-#ifdef WIN32
-	struct stat sb;
-	char str_buf[MAXPATHLEN+1] = {0};
-#endif
-
 	if (pj->ji_script == NULL) {
-		(void)snprintf(log_buffer, sizeof(log_buffer), "Job has no script loaded!! Can't write temp job script");
+		(void) snprintf(log_buffer, sizeof(log_buffer), "Job has no script loaded!! Can't write temp job script");
 		log_event(PBSEVENT_DEBUG3, PBS_EVENTCLASS_JOB, LOG_INFO, pj->ji_qs.ji_jobid, log_buffer);
 		return -1;
 	}
 
-#ifdef WIN32
-	if (stat(pbs_conf.pbs_tmpdir, &sb) == 0) {
-		strcpy(script_name, pbs_conf.pbs_tmpdir);
-		(void)strcat(script_name, "\\");
-	} else if (stat("C:\\WINNT\\TEMP", &sb) == 0) {
-		strcpy(script_name, "C:\\WINNT\\TEMP\\");
-	} else if (stat("C:\\WINDOWS\\TEMP", &sb) == 0) {
-		strcpy(script_name, "C:\\WINDOWS\\TEMP\\");
-	} else {
-		replace(path_spool, "/", "\\", str_buf);
-		strcpy(script_name, str_buf);
-	}
-#else
 	(void) strcpy(script_name, pbs_conf.pbs_tmpdir);
 	(void) strcat(script_name, "/");
-#endif
 
 	if (*pj->ji_qs.ji_fileprefix != '\0')
-		(void)strcat(script_name, pj->ji_qs.ji_fileprefix);
+		(void) strcat(script_name, pj->ji_qs.ji_fileprefix);
 
 	(void) strcat(script_name, pj->ji_qs.ji_jobid);
 	(void) strcat(script_name, JOB_SCRIPT_SUFFIX);
@@ -7023,15 +6670,6 @@ svr_create_tmp_jobscript(job *pj, char *script_name)
 		log_err(errno, __func__, msg_script_open);
 		return -1;
 	}
-
-#ifdef WIN32
-#ifndef PBS_MOM
-	secure_file(script_name, "Administrators", READS_MASK | WRITES_MASK | STANDARD_RIGHTS_REQUIRED);
-#else
-	secure_file2(script_name, "Administrators", READS_MASK | WRITES_MASK | STANDARD_RIGHTS_REQUIRED, "Everyone", READS_MASK | READ_CONTROL);
-#endif
-	setmode(fds, O_BINARY);
-#endif /* WIN32 */
 
 	len = strlen(pj->ji_script);
 	if (write(fds, pj->ji_script, len) != len) {
@@ -7066,19 +6704,17 @@ place_sharing_type(char *place_str, enum vnode_sharing by)
 	if (by == VNS_FORCE_EXCL) {
 		if (place_sharing_check(place_str, PLACE_Excl))
 			ret = VNS_FORCE_EXCL;
-	}
-	else if (by == VNS_FORCE_EXCLHOST) {
+	} else if (by == VNS_FORCE_EXCLHOST) {
 		if (place_sharing_check(place_str, PLACE_ExclHost))
 			ret = VNS_FORCE_EXCLHOST;
-	}
-	else if (by == VNS_IGNORE_EXCL) {
+	} else if (by == VNS_IGNORE_EXCL) {
 		if (place_sharing_check(place_str, PLACE_Shared))
 			ret = VNS_IGNORE_EXCL;
 	}
 
 	return ret;
 }
- /**
+/**
  * @brief
  * 		function for default queue check.
  *
@@ -7102,7 +6738,7 @@ default_queue_chk(attribute *pattr, void *pobj, int actmode)
 	}
 
 	if (actmode == ATR_ACTION_ALTER) {
-		if (pattr->at_flags & ATR_VFLAG_SET) {
+		if (is_attr_set(pattr)) {
 			pq = find_queuebyname(pattr->at_val.at_str);
 			if (pq == NULL) {
 				return (PBSE_UNKQUE);
@@ -7125,7 +6761,7 @@ force_qsub_daemons_update(void)
 	conn_t *cp = NULL;
 	if (svr_allconns.ll_next == NULL)
 		return;
-	for (cp = (conn_t *)GET_NEXT(svr_allconns);cp; cp = GET_NEXT(cp->cn_link)) {
+	for (cp = (conn_t *) GET_NEXT(svr_allconns); cp; cp = GET_NEXT(cp->cn_link)) {
 		if (cp->cn_authen & PBS_NET_CONN_FROM_QSUB_DAEMON)
 			cp->cn_authen |= PBS_NET_CONN_FORCE_QSUB_UPDATE;
 	}
@@ -7167,9 +6803,10 @@ force_qsub_daemons_update_action(attribute *pattr, void *pobj, int actmode)
  * @retval  FAILOVER_SECONDARY		- Secondary Server
  * @retval  FAILOVER_CONFIG_ERROR	- error in pbs.conf configuration
  */
-enum failover_state are_we_primary(void)
+enum failover_state
+are_we_primary(void)
 {
-	char hn1[PBS_MAXHOSTNAME+1];
+	char hn1[PBS_MAXHOSTNAME + 1];
 
 	/* both secondary and primary should be set or neither set */
 	if ((pbs_conf.pbs_secondary == NULL) && (pbs_conf.pbs_primary == NULL))
@@ -7177,107 +6814,23 @@ enum failover_state are_we_primary(void)
 	if ((pbs_conf.pbs_secondary == NULL) || (pbs_conf.pbs_primary == NULL))
 		return FAILOVER_CONFIG_ERROR;
 
-	if (get_fullhostname(pbs_conf.pbs_primary, primary_host, (sizeof(primary_host) - 1))==-1) {
+	if (get_fullhostname(pbs_conf.pbs_primary, primary_host, (sizeof(primary_host) - 1)) == -1) {
 		log_err(-1, "pbsd_main", "Unable to get full host name of primary");
 		return FAILOVER_CONFIG_ERROR;
 	}
 
 	if (strcmp(primary_host, server_host) == 0)
-		return FAILOVER_PRIMARY;   /* we are the listed primary */
+		return FAILOVER_PRIMARY; /* we are the listed primary */
 
-	if (get_fullhostname(pbs_conf.pbs_secondary, hn1, (sizeof(hn1) - 1))==-1) {
+	if (get_fullhostname(pbs_conf.pbs_secondary, hn1, (sizeof(hn1) - 1)) == -1) {
 		log_err(-1, "pbsd_main", "Unable to get full host name of secondary");
 		return FAILOVER_CONFIG_ERROR;
 	}
 	if (strcmp(hn1, server_host) == 0)
-		return FAILOVER_SECONDARY;  /* we are the secondary */
+		return FAILOVER_SECONDARY; /* we are the secondary */
 
-	return FAILOVER_CONFIG_ERROR;	    /* cannot be neither */
+	return FAILOVER_CONFIG_ERROR; /* cannot be neither */
 }
-
-
-/**
- * @brief
- * 		action routine for the sched's "throughput" attribute
- *
- * @param[in]	pattr	-	attribute being set
- * @param[in]	pobj	-	Object on which attribute is being set
- * @param[in]	actmode	-	the mode of setting, recovery or just alter
- *
- * @return	error code
- * @retval	PBSE_NONE	-	Success
- * @retval	!PBSE_NONE	-	Failure
- *
- */
-int
-set_sched_throughput_mode(attribute *pattr, void *pobj, int actmode)
-{
-	if (actmode == ATR_ACTION_ALTER || actmode == ATR_ACTION_RECOV) {
-		if (pbs_conf.pbs_use_tcp == 0) {
-			return PBSE_BADATVAL;
-		}
-	}
-	return PBSE_NONE;
-}
-
-/* action function for opt_backfill_fuzzy -- only allow the correct values */
-int
-action_opt_bf_fuzzy(attribute *pattr, void *pobj, int actmode)
-{
-	char *str = pattr->at_val.at_str;
-
-	if (str == NULL)
-		return PBSE_BADATVAL;
-
-	if (actmode == ATR_ACTION_ALTER || actmode == ATR_ACTION_RECOV) {
-		if (!strcasecmp(str, "off") ||
-		    !strcasecmp(str, "low")  ||
-		    !strcasecmp(str, "medium") || !strcasecmp(str, "med") ||
-		    !strcasecmp(str, "high"))
-			return PBSE_NONE;
-		else
-			return PBSE_BADATVAL;
-	}
-
-	return PBSE_NONE;
-}
-
-/**
- * @brief
- * 		sets the given value for an attribute of any object from server
- *
- * @param[in]	pattr	-	pointer to attribute being set
- * @param[in]	pobj	-	pointer to attribute definition
- * @param[in]	value	-	value to be set
- *
- * @return	void
- *
- * @par MT-Safe: No
- * @par Side Effects: None
- *
- */
-void
-set_attr_svr(attribute *pattr, attribute_def *pdef, char *value)
-{
-	attribute tempat;
-	int rc;
-
-	if (pattr == NULL || pdef == NULL) {
-		snprintf(log_buffer, sizeof(log_buffer), "Invalid pointer to attribute or its definition");
-		log_err(-1, __func__, log_buffer);
-		return;
-	}
-	clear_attr(&tempat, pdef);
-	if ((rc = pdef->at_decode(&tempat, pdef->at_name, NULL, value)) != 0) {
-		snprintf(log_buffer,  sizeof(log_buffer), "decode of %s failed", pdef->at_name);
-		log_err(rc, __func__, log_buffer);
-	} else if ((rc = pdef->at_set(pattr, &tempat, SET)) != 0) {
-		snprintf(log_buffer, sizeof(log_buffer), "set of %s failed", pdef->at_name);
-		log_err(rc, __func__, log_buffer);
-	}
-	pdef->at_free(&tempat);
-}
-
 
 /**
  * @brief
@@ -7291,14 +6844,15 @@ set_attr_svr(attribute *pattr, attribute_def *pdef, char *value)
  * @par Side Effects: None
  *
  */
-#ifndef WIN32
-void memory_debug_log(struct work_task *ptask) {
+void
+memory_debug_log(struct work_task *ptask)
+{
 
 	if (ptask)
-		(void)set_task(WORK_Timed, time_now+600, memory_debug_log, NULL);
+		(void) set_task(WORK_Timed, time_now + 600, memory_debug_log, NULL);
 	if (!will_log_event(PBSEVENT_DEBUG4))
 		return;
-	snprintf(log_buffer, LOG_BUF_SIZE, "MEM_DEBUG: sbrk: %zu", (size_t)sbrk(0));
+	snprintf(log_buffer, LOG_BUF_SIZE, "MEM_DEBUG: sbrk: %zu", (size_t) sbrk(0));
 	log_event(PBSEVENT_DEBUG4, PBS_EVENTCLASS_SERVER, LOG_DEBUG, msg_daemonname, log_buffer);
 #ifdef HAVE_MALLOC_INFO
 	char *buf;
@@ -7309,4 +6863,117 @@ void memory_debug_log(struct work_task *ptask) {
 	}
 #endif /* malloc_info */
 }
-#endif /* WIN32 */
+
+/**
+ * @brief
+ *		Get list of deferred requests for a particular scheduler.
+ * 		If the list does not exist yet and the 'create' is TRUE,
+ * 		then create the list.
+ *
+ * @param[in]	psched	-	scheduler structure to identify list of deferred requests.
+ * @param[in]	create	-	boolean - if true, create non-existing list
+ *
+ * @return	List of deferred requests for the particular scheduler
+ * @retval	NULL	: list not found or not created
+ * @retval	pbs_list_head*	: list of scheduler deferred requests.
+ */
+pbs_list_head *
+fetch_sched_deferred_request(pbs_sched *psched, bool create)
+{
+	struct sched_deferred_request *psdefr;
+
+	for (psdefr = (struct sched_deferred_request *) GET_NEXT(svr_deferred_req);
+	     psdefr;
+	     psdefr = (struct sched_deferred_request *) GET_NEXT(psdefr->sdr_link)) {
+		if (psdefr->sdr_psched == psched)
+			break;
+	}
+
+	if (psdefr) {
+		return &psdefr->sdr_deferred_req;
+	}
+
+	if (create == FALSE) {
+		return NULL;
+	}
+
+	psdefr = (struct sched_deferred_request *) malloc(sizeof(struct sched_deferred_request));
+	if (psdefr == NULL) {
+		log_err(-1, __func__, "Failed to allocate memory.");
+		return NULL;
+	}
+	CLEAR_LINK(psdefr->sdr_link);
+	CLEAR_HEAD(psdefr->sdr_deferred_req);
+	psdefr->sdr_psched = psched;
+	append_link(&svr_deferred_req, &psdefr->sdr_link, psdefr);
+
+	return &psdefr->sdr_deferred_req;
+}
+
+/**
+ * @brief
+ *		Remove list of deferred requests for a particular scheduler
+ *		if the list is empty.
+ *
+ * @param[in]	psched	-	scheduler structure to identify list of deferred requests.
+ *
+ */
+void
+clear_sched_deferred_request(pbs_sched *psched)
+{
+	struct sched_deferred_request *psdefr;
+
+	for (psdefr = (struct sched_deferred_request *) GET_NEXT(svr_deferred_req);
+	     psdefr;
+	     psdefr = (struct sched_deferred_request *) GET_NEXT(psdefr->sdr_link)) {
+		if (psdefr->sdr_psched == psched)
+			break;
+	}
+
+	if (psdefr && GET_NEXT(psdefr->sdr_deferred_req) == NULL) {
+		/* no more requests in psdefr->sdr_deferred_req
+		 * lets remove the scheduler related list
+		 */
+		delete_link(&psdefr->sdr_link);
+		free(psdefr);
+	}
+}
+
+/**
+ * @brief
+ * 		action_clear_topjob_estimates - action routine for the server's
+ * 		"clear_topjob_estimates_enable" attribute.
+ *
+ * @param[in]	pattr	-	pointer to attribute structure
+ * @param[in]	pobj	-	not used
+ * @param[in]	actmode	-	action mode
+ *
+ * @return	int
+ * @retval	zero	: success
+ * @retval	nonzero	: failure
+ */
+int
+action_clear_topjob_estimates(attribute *pattr, void *pobj, int actmode)
+{
+	if (actmode == ATR_ACTION_NEW ||
+	    actmode == ATR_ACTION_ALTER) {
+
+		if (is_attr_set(pattr) && pattr->at_val.at_long) {
+			job *pjob = (job *) GET_NEXT(svr_alljobs);
+			for (; pjob; pjob = (job *) GET_NEXT(pjob->ji_alljobs)) {
+				if (check_job_substate(pjob, JOB_SUBSTATE_FINISHED)) {
+					continue;
+				}
+
+				if (get_jattr_long(pjob, JOB_ATR_topjob)) {
+					continue;
+				}
+
+				if (is_jattr_set(pjob, JOB_ATR_estimated)) {
+					clear_jattr(pjob, JOB_ATR_estimated);
+				}
+			}
+		}
+	}
+	return PBSE_NONE;
+}

@@ -1,45 +1,44 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
-#ifndef	_SERVER_INFO_H
-#define	_SERVER_INFO_H
-#ifdef	__cplusplus
-extern "C" {
-#endif
+
+#ifndef _SERVER_INFO_H
+#define _SERVER_INFO_H
 
 #include <pbs_ifl.h>
 #include "state_count.h"
@@ -47,26 +46,22 @@ extern "C" {
 #include "constant.h"
 
 /* Modes passed to update_total_counts_on_run() */
-#define SERVER 1
-#define QUEUE  2
-#define ALL    3
+enum counts_on_run {
+	SERVER,
+	QUEUE,
+	ALL
+};
 /*
  *      query_server - creates a structure of arrays consisting of a server
  *                      and all the queues and jobs that reside in that server
  */
-server_info *query_server(status *policy, int pbs_sd);
-
-/*
- *	query_sched_obj - query the server's scheduler object and convert
- *			  attributes to scheduler's internal data structures
- */
-int query_sched_obj(status *policy, struct batch_status *sched, server_info *sinfo);
+server_info *query_server(status *pol, int pbs_sd);
 
 /*
  *	query_server_info - collect information out of a statserver call
  *			    into a server_info structure
  */
-server_info *query_server_info(status *policy, struct batch_status *server);
+server_info *query_server_info(status *pol, struct batch_status *server);
 
 /*
  * 	query_server_dyn_res - execute all configured server_dyn_res scripts
@@ -80,12 +75,13 @@ int query_server_dyn_res(server_info *sinfo);
  */
 
 schd_resource *find_alloc_resource(schd_resource *resplist, resdef *def);
-schd_resource *find_alloc_resource_by_str(schd_resource *resplist, char *name);
-
+schd_resource *find_alloc_resource_by_str(schd_resource *resplist, const char *name);
+schd_resource *find_alloc_resource_by_str(schd_resource *resplist, const std::string &name);
 
 /*  finds a resource in a resource list by string resource name */
 
 schd_resource *find_resource_by_str(schd_resource *reslist, const char *name);
+schd_resource *find_resource_by_str(schd_resource *reslist, const std::string &name);
 
 /*
  *	find resource by resource definition
@@ -93,24 +89,14 @@ schd_resource *find_resource_by_str(schd_resource *reslist, const char *name);
 schd_resource *find_resource(schd_resource *reslist, resdef *def);
 
 /*
- *	free_server_info - free the space used by a server_info structure
- */
-void free_server_info(server_info *sinfo);
-
-/*
  *      free_resource - free a resource struct
  */
-void free_resource(schd_resource *res);
+void free_resource(schd_resource *resp);
 
 /*
  *      free_resource_list - free a resource list
  */
-void free_resource_list(schd_resource *res_list);
-
-/*
- *      new_server_info - allocate and initalize a new server_info struct
- */
-server_info *new_server_info(int limallocflag);
+void free_resource_list(schd_resource *reslist);
 
 /*
  *      new_resource - allocate and initialize new resoruce struct
@@ -120,7 +106,7 @@ schd_resource *new_resource(void);
 /*
  * Create new resource with given data
  */
-schd_resource *create_resource(char *name, char *value, enum resource_fields field);
+schd_resource *create_resource(const char *name, const char *value, enum resource_fields field);
 
 /*
  *	free_server - free a list of server_info structs
@@ -132,7 +118,7 @@ void free_server(server_info *sinfo);
  */
 void
 update_server_on_run(status *policy, server_info *sinfo, queue_info *qinfo,
-	resource_resv *resresv, char *job_state);
+		     resource_resv *resresv, char *job_state);
 
 /*
  *
@@ -146,46 +132,48 @@ int create_server_arrays(server_info *sinfo);
 /*
  *	copy_server_arrays - copy server's jobs and all_resresv arrays
  */
-int copy_server_arrays(server_info *nsinfo, server_info *osinfo);
-
+int copy_server_arrays(server_info *nsinfo, const server_info *osinfo);
 
 /*
  *      check_exit_job - function used by job_filter to filter out
  *                       jobs not in the exiting state
  */
-int check_exit_job(resource_resv *job, void *arg);
-
-/*
- *      check_run_resv - function used by resv_filter to filter out
- *                       non-running reservations
- */
-int check_run_resv(resource_resv *resv, void *arg);
+int check_exit_job(resource_resv *job, const void *arg);
 
 /*
  *
  *	check_susp_job - function used by job_filter to filter out jobs
  *			   which are suspended
  */
-int check_susp_job(resource_resv *job, void *arg);
+int check_susp_job(resource_resv *job, const void *arg);
 
 /*
  *
- *	check_job_not_in_reservation - function used by job_filter to filter out
+ *	check_job_running - function used by job_filter to filter out
+ *			   jobs that are running
+ */
+int check_job_running(resource_resv *job, const void *arg);
+
+/*
+ *
+ *	check_running_job_in_reservation - function used by job_filter to filter out
  *			   jobs that are in a reservation
  */
-int check_job_not_in_reservation(resource_resv *job, void *arg);
+int check_running_job_in_reservation(resource_resv *job, const void *arg);
+
+/*
+ *
+ *	check_running_job_not_in_reservation - function used by job_filter to filter out
+ *			   jobs that are not in a reservation
+ */
+int check_running_job_not_in_reservation(resource_resv *job, const void *arg);
 
 /*
  *
  *      check_resv_running_on_node - function used by resv_filter to filter out
  *				running reservations
  */
-int check_resv_running_on_node(resource_resv *resv, void *arg);
-
-/*
- *      dup_server - duplicate a server_info struct
- */
-server_info *dup_server_info(server_info *osinfo);
+int check_resv_running_on_node(resource_resv *resv, const void *arg);
 
 /*
  *      dup_resource_list - dup a resource list
@@ -194,7 +182,7 @@ schd_resource *dup_resource_list(schd_resource *res);
 
 /* dup a resource list selectively only duping specific resources */
 
-schd_resource *dup_selective_resource_list(schd_resource *res, resdef **deflist, unsigned flags);
+schd_resource *dup_selective_resource_list(schd_resource *res, std::unordered_set<resdef *> &deflist, unsigned flags);
 
 /*
  *	dup_ind_resource_list - dup a resource list - if a resource is indirect
@@ -218,7 +206,6 @@ int check_resv_job(resource_resv *job, void *unused);
  */
 void free_resource_list(schd_resource *reslist);
 
-
 /*
  *      free_resource - frees the memory used by a resource structure
  */
@@ -230,7 +217,7 @@ void free_resource(schd_resource *resp);
  */
 void
 update_server_on_end(status *policy, server_info *sinfo, queue_info *qinfo,
-	resource_resv *resresv, char *job_state);
+		     resource_resv *resresv, const char *job_state);
 
 /*
  *      check_unassoc_node - finds nodes which are not associated with queues
@@ -244,35 +231,25 @@ int is_unassoc_node(node_info *ninfo, void *arg);
 counts *new_counts(void);
 
 /*
- *      free_counts - free a counts structure
- */
-void free_counts(counts *cts);
-
-/*
  *      free_counts_list - free a list of counts structures
  */
-void free_counts_list(counts *ctslist);
+void free_counts_list(counts_umap &ctslist);
 
 /*
- *      dup_counts - duplicate a counts structure
+ *	dup_counts_umap - duplicate counts_umap
  */
-counts *dup_counts(counts *octs);
-
-/*
- *      dup_counts_list - duplicate a counts list
- */
-counts *dup_counts_list(counts *ctslist);
+counts_umap dup_counts_umap(const counts_umap &omap);
 
 /*
  *      find_counts - find a counts structure by name
  */
-counts *find_counts(counts *ctslist, char *name);
+counts *find_counts(counts_umap &ctslist, const std::string &name);
 
 /*
  *      find_alloc_counts - find a counts structure by name or allocate a new
  *                          counts, name it, and add it to the end of the list
  */
-counts *find_alloc_counts(counts *ctslist, char *name);
+counts *find_alloc_counts(counts_umap &ctslist, const std::string &name);
 
 /*
  *      update_counts_on_run - update a counts struct on the running of a job
@@ -290,24 +267,28 @@ void update_counts_on_end(counts *cts, resource_req *resreq);
  *			max, we free the old, and dup the new and attach it
  *			in.
  *
- *	  \param cmax    - current max
+ *	  \param cmax    - current max that will be updated.
  *	  \param new     - new counts lists.  If anything in this list is
  *			   greater than the cur_max, it needs to be dup'd.
  *
- *	  returns the new max or NULL on error
+ *	  returns void
  */
-counts *counts_max(counts *cmax, counts *new);
+void counts_max(counts_umap &cmax, counts_umap &ncounts);
+void counts_max(counts_umap &cmax, counts *ncounts);
 
 /*
  *      check_run_job - function used by resource_resv_filter to filter out
  *                      non-running jobs.
  */
-int check_run_job(resource_resv *job, void *arg);
+int check_run_job(resource_resv *job, const void *arg);
 
 /*
  *      update_universe_on_end - update a pbs universe when a job/resv ends
  */
-void update_universe_on_end(status *policy, resource_resv *resresv, char *job_state, unsigned int flags);
+void update_universe_on_end(status *policy, resource_resv *resresv, const char *job_state, unsigned int flags);
+
+bool update_universe_on_run(status *policy, int pbs_sd, resource_resv *rr, std::vector<nspec *> &orig_ns, unsigned int flags);
+bool update_universe_on_run(status *policy, int pbs_sd, resource_resv *rr, unsigned int flags);
 
 /*
  *
@@ -328,14 +309,14 @@ void update_universe_on_end(status *policy, resource_resv *resresv, char *job_st
  *	returns 1 on success 0 on failure/error
  *
  */
-int set_resource(schd_resource *res, char *val, enum resource_fields field);
+int set_resource(schd_resource *res, const char *val, enum resource_fields field);
 
 /*
- *	update_preemption_on_run - update preemption status when a
- *   					resource resv is run
+ *	update_preemption_priority - update preemption status when a
+ *   					resource resv runs/ends
  *	returns nothing
  */
-void update_preemption_on_run(server_info *sinfo, resource_resv *resresv);
+void update_preemption_priority(server_info *sinfo, resource_resv *resresv);
 
 /*
  *	add_resource_list - add one resource list to another
@@ -345,13 +326,14 @@ void update_preemption_on_run(server_info *sinfo, resource_resv *resresv);
  */
 int add_resource_list(status *policy, schd_resource *r1, schd_resource *r2, unsigned int flags);
 
+int modify_resource_list(schd_resource *res_list, resource_req *req_list, int type);
+
 /*
  *	add_resource_value - add a resource value to another
  *				i.e. val1 += val2
  */
-void
-add_resource_value(sch_resource_t *val1, sch_resource_t *val2,
-	sch_resource_t default_val);
+void add_resource_value(sch_resource_t *val1, sch_resource_t *val2,
+			sch_resource_t default_val);
 
 /*
  *  add_resource_string_arr - add values from a string array to
@@ -391,47 +373,22 @@ int resolve_indirect_resources(node_info **nodes);
 char *read_formula(void);
 
 /*
- * 	new_status - status constructor
- */
-#ifdef NAS /* localmod 005 */
-status *new_status(void);
-#else
-status *new_status();
-#endif /* localmod 005 */
-
-/*
- *	dup_status - status copy constructor
- */
-status *dup_status(status *ost);
-
-/*
- * free_status - status destructor
- */
-void free_status(status *st);
-
-/*
  * create_total_counts -  Creates total counts list for server & queue
  */
 void
-create_total_counts(server_info *sinfo, queue_info * qinfo,
-	resource_resv *resresv, int mode);
+create_total_counts(server_info *sinfo, queue_info *qinfo,
+		    resource_resv *resresv, int mode);
 
 /*
  * Updates total counts list for server & queue on run and on
  * preemption.
  */
 void
-update_total_counts(server_info *si, queue_info* qi,
-	resource_resv *rr, int mode);
+update_total_counts(server_info *si, queue_info *qi,
+		    resource_resv *rr, int mode);
 void
-update_total_counts_on_end(server_info *si, queue_info* qi,
-	resource_resv *rr, int mode);
-
-/*
- * Refreshes total counts list for server & queue by deleting the
- * old structures and duplicating new one from running counts
- */
-void refresh_total_counts(server_info *sinfo);
+update_total_counts_on_end(server_info *si, queue_info *qi,
+			   resource_resv *rr, int mode);
 
 /**
  * @brief - get a unique rank to uniquely identify an object
@@ -445,13 +402,13 @@ int get_sched_rank();
  *                      their priority so that we can round robin
  *                      across those.
  */
-int add_queue_to_list(queue_info **** qlhead, queue_info * qinfo);
+int add_queue_to_list(queue_info ****qlhead, queue_info *qinfo);
 
 /*
  * append_to_queue_list - function that will reallocate and append
  *                        "add" to the list provided.
  */
-struct queue_info** append_to_queue_list(queue_info ***list, queue_info *add);
+struct queue_info **append_to_queue_list(queue_info ***list, queue_info *add);
 
 /*
  * find_queue_list_by_priority - function finds out the array of queues
@@ -459,12 +416,12 @@ struct queue_info** append_to_queue_list(queue_info ***list, queue_info *add);
  *                               function. It returns the base address of matching
  *                               array.
  */
-struct queue_info *** find_queue_list_by_priority(queue_info ***list_head, int priority);
+struct queue_info ***find_queue_list_by_priority(queue_info ***list_head, int priority);
 
 /*
  * free_queue_list - to free two dimensional queue_list array
  */
-void free_queue_list(queue_info *** queue_list);
+void free_queue_list(queue_info ***queue_list);
 
 void add_req_list_to_assn(schd_resource *, resource_req *);
 
@@ -475,9 +432,8 @@ int compare_resource_avail(schd_resource *r1, schd_resource *r2);
 
 node_info **dup_unordered_nodes(node_info **old_unordered_nodes, node_info **nnodes);
 
+status *dup_status(status *ost);
 
+struct batch_status *send_statserver(int virtual_fd, struct attrl *attrib, char *extend);
 
-#ifdef	__cplusplus
-}
-#endif
-#endif	/* _SERVER_INFO_H */
+#endif /* _SERVER_INFO_H */

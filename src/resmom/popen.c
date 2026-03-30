@@ -1,39 +1,40 @@
 /*
- * Copyright (C) 1994-2019 Altair Engineering, Inc.
+ * Copyright (C) 1994-2021 Altair Engineering, Inc.
  * For more information, contact Altair at www.altair.com.
  *
- * This file is part of the PBS Professional ("PBS Pro") software.
+ * This file is part of both the OpenPBS software ("OpenPBS")
+ * and the PBS Professional ("PBS Pro") software.
  *
  * Open Source License Information:
  *
- * PBS Pro is free software. You can redistribute it and/or modify it under the
- * terms of the GNU Affero General Public License as published by the Free
- * Software Foundation, either version 3 of the License, or (at your option) any
- * later version.
+ * OpenPBS is free software. You can redistribute it and/or modify it under
+ * the terms of the GNU Affero General Public License as published by the
+ * Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version.
  *
- * PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE.
- * See the GNU Affero General Public License for more details.
+ * OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Commercial License Information:
  *
- * For a copy of the commercial license terms and conditions,
- * go to: (http://www.pbspro.com/UserArea/agreement.html)
- * or contact the Altair Legal Department.
+ * PBS Pro is commercially licensed software that shares a common core with
+ * the OpenPBS software.  For a copy of the commercial license terms and
+ * conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+ * Altair Legal Department.
  *
- * Altair’s dual-license business model allows companies, individuals, and
- * organizations to create proprietary derivative works of PBS Pro and
+ * Altair's dual-license business model allows companies, individuals, and
+ * organizations to create proprietary derivative works of OpenPBS and
  * distribute them - whether embedded or bundled with other software -
  * under a commercial license agreement.
  *
- * Use of Altair’s trademarks, including but not limited to "PBS™",
- * "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
- * trademark licensing policies.
- *
+ * Use of Altair's trademarks, including but not limited to "PBS™",
+ * "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+ * subject to Altair's trademark licensing policies.
  */
 
 /*
@@ -85,6 +86,7 @@
 
 #include <sys/param.h>
 #include <sys/wait.h>
+#include "log.h"
 
 extern pid_t fork_me(int sock);
 extern int kill_session(pid_t pid, int sig, int dir);
@@ -95,7 +97,7 @@ static struct pid {
 	struct pid *next;
 	FILE *fp;
 	pid_t pid;
-} *pidlist;
+} * pidlist;
 
 /**
  * @brief
@@ -113,11 +115,11 @@ static struct pid {
 FILE *
 pbs_popen(const char *command, const char *type)
 {
-	struct pid	*cur;
-	FILE		*iop;
-	int		pdes[2], pid, twoway;
-	char		*argv[4];
-	struct pid	*p;
+	struct pid *cur;
+	FILE *iop;
+	int pdes[2], pid, twoway;
+	char *argv[4];
+	struct pid *p;
 
 	/*
 	 * Lite2 introduced two-way popen() pipes using socketpair().
@@ -126,7 +128,7 @@ pbs_popen(const char *command, const char *type)
 	if (strchr(type, '+')) {
 		twoway = 1;
 		type = "r+";
-	} else  {
+	} else {
 		twoway = 0;
 		if ((*type != 'r' && *type != 'w') || type[1])
 			return NULL;
@@ -135,24 +137,25 @@ pbs_popen(const char *command, const char *type)
 		return NULL;
 
 	if ((cur = malloc(sizeof(struct pid))) == NULL) {
-		(void)close(pdes[0]);
-		(void)close(pdes[1]);
+		log_err(errno, __func__, "Could not allocate memory for new file descriptor");
+		(void) close(pdes[0]);
+		(void) close(pdes[1]);
 		return NULL;
 	}
 
 	argv[0] = "sh";
 	argv[1] = "-c";
-	argv[2] = (char *)command;
+	argv[2] = (char *) command;
 	argv[3] = NULL;
 
 	switch (pid = fork_me(-1)) {
-		case -1:			/* Error. */
-			(void)close(pdes[0]);
-			(void)close(pdes[1]);
+		case -1: /* Error. */
+			(void) close(pdes[0]);
+			(void) close(pdes[1]);
 			free(cur);
 			return NULL;
 			/* NOTREACHED */
-		case 0:				/* Child. */
+		case 0: /* Child. */
 			/* create a new session */
 			if (setsid() == -1)
 				_exit(127);
@@ -166,23 +169,23 @@ pbs_popen(const char *command, const char *type)
 				 * the compiler is free to corrupt all the local
 				 * variables.
 				 */
-				(void)close(pdes[0]);
+				(void) close(pdes[0]);
 				if (pdes[1] != STDOUT_FILENO) {
-					(void)dup2(pdes[1], STDOUT_FILENO);
-					(void)close(pdes[1]);
+					(void) dup2(pdes[1], STDOUT_FILENO);
+					(void) close(pdes[1]);
 					if (twoway)
-						(void)dup2(STDOUT_FILENO, STDIN_FILENO);
+						(void) dup2(STDOUT_FILENO, STDIN_FILENO);
 				} else if (twoway && (pdes[1] != STDIN_FILENO))
-					(void)dup2(pdes[1], STDIN_FILENO);
+					(void) dup2(pdes[1], STDIN_FILENO);
 			} else {
 				if (pdes[0] != STDIN_FILENO) {
-					(void)dup2(pdes[0], STDIN_FILENO);
-					(void)close(pdes[0]);
+					(void) dup2(pdes[0], STDIN_FILENO);
+					(void) close(pdes[0]);
 				}
-				(void)close(pdes[1]);
+				(void) close(pdes[1]);
 			}
 			for (p = pidlist; p; p = p->next) {
-				(void)close(fileno(p->fp));
+				(void) close(fileno(p->fp));
 			}
 			execve("/bin/sh", argv, environ);
 			_exit(127);
@@ -192,15 +195,15 @@ pbs_popen(const char *command, const char *type)
 	/* Parent; assume fdopen can't fail. */
 	if (*type == 'r') {
 		iop = fdopen(pdes[0], type);
-		(void)close(pdes[1]);
+		(void) close(pdes[1]);
 	} else {
 		iop = fdopen(pdes[1], type);
-		(void)close(pdes[0]);
+		(void) close(pdes[0]);
 	}
 
 	/* Link into list of file descriptors. */
 	cur->fp = iop;
-	cur->pid =  pid;
+	cur->pid = pid;
 	cur->next = pidlist;
 	pidlist = cur;
 
@@ -223,7 +226,7 @@ int
 pbs_pkill(FILE *iop, int sig)
 {
 	register struct pid *cur;
-	int	ret;
+	int ret;
 
 	/* Find the appropriate file pointer. */
 	for (cur = pidlist; cur; cur = cur->next) {
@@ -254,9 +257,9 @@ pbs_pkill(FILE *iop, int sig)
 int
 pbs_pclose(FILE *iop)
 {
-	register struct pid	*cur, *last;
-	int			pstat;
-	pid_t			pid;
+	register struct pid *cur, *last;
+	int pstat;
+	pid_t pid;
 
 	/* Find the appropriate file pointer. */
 	for (last = NULL, cur = pidlist; cur; last = cur, cur = cur->next) {
@@ -266,8 +269,8 @@ pbs_pclose(FILE *iop)
 	if (cur == NULL)
 		return (-1);
 
-	(void)fclose(iop);
-	(void)kill_session(cur->pid, SIGKILL, 0);
+	(void) fclose(iop);
+	(void) kill_session(cur->pid, SIGKILL, 0);
 
 	do {
 		pid = waitpid(cur->pid, &pstat, 0);

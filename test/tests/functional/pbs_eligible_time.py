@@ -1,39 +1,42 @@
 # coding: utf-8
 
-# Copyright (C) 1994-2019 Altair Engineering, Inc.
+# Copyright (C) 1994-2021 Altair Engineering, Inc.
 # For more information, contact Altair at www.altair.com.
 #
-# This file is part of the PBS Professional ("PBS Pro") software.
+# This file is part of both the OpenPBS software ("OpenPBS")
+# and the PBS Professional ("PBS Pro") software.
 #
 # Open Source License Information:
 #
-# PBS Pro is free software. You can redistribute it and/or modify it under the
-# terms of the GNU Affero General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# OpenPBS is free software. You can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# PBS Pro is distributed in the hope that it will be useful, but WITHOUT ANY
-# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.
-# See the GNU Affero General Public License for more details.
+# OpenPBS is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+# License for more details.
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # Commercial License Information:
 #
-# For a copy of the commercial license terms and conditions,
-# go to: (http://www.pbspro.com/UserArea/agreement.html)
-# or contact the Altair Legal Department.
+# PBS Pro is commercially licensed software that shares a common core with
+# the OpenPBS software.  For a copy of the commercial license terms and
+# conditions, go to: (http://www.pbspro.com/agreement.html) or contact the
+# Altair Legal Department.
 #
-# Altair’s dual-license business model allows companies, individuals, and
-# organizations to create proprietary derivative works of PBS Pro and
+# Altair's dual-license business model allows companies, individuals, and
+# organizations to create proprietary derivative works of OpenPBS and
 # distribute them - whether embedded or bundled with other software -
 # under a commercial license agreement.
 #
-# Use of Altair’s trademarks, including but not limited to "PBS™",
-# "PBS Professional®", and "PBS Pro™" and Altair’s logos is subject to Altair's
-# trademark licensing policies.
+# Use of Altair's trademarks, including but not limited to "PBS™",
+# "OpenPBS®", "PBS Professional®", and "PBS Pro™" and Altair's logos is
+# subject to Altair's trademark licensing policies.
+
 
 from tests.functional import *
 from ptl.utils.pbs_logutils import PBSLogUtils
@@ -48,6 +51,26 @@ class TestEligibleTime(TestFunctional):
         TestFunctional.setUp(self)
         a = {'eligible_time_enable': 'True'}
         self.server.manager(MGR_CMD_SET, SERVER, a)
+        self.accrue = {'ineligible': 1, 'eligible': 2, 'run': 3, 'exit': 4}
+
+    def test_eligible_time_updated(self):
+        """
+        Test that eligible time gets updated when a job is eligible
+        """
+        a = {'resources_available.ncpus': 1}
+        self.server.manager(MGR_CMD_SET, NODE, a, id=self.mom.shortname)
+
+        self.server.manager(MGR_CMD_SET, SERVER,
+                            {"eligible_time_enable": "True"})
+
+        jid1 = self.server.submit(Job())
+        self.server.expect(JOB, {ATTR_state: 'R'}, id=jid1)
+
+        jid2 = self.server.submit(Job())
+        a = {ATTR_state: 'Q', "accrue_type": "2"}
+        self.server.expect(JOB, a, id=jid2)
+
+        self.server.expect(JOB, {"eligible_time": "00:00:00"}, op=NE, id=jid2)
 
     def test_qsub_a(self):
         """
@@ -102,20 +125,21 @@ class TestEligibleTime(TestFunctional):
         self.server.expect(JOB, {ATTR_state: 'R'}, id=sjid2, extend='t')
         self.server.expect(JOB, {ATTR_state: 'Q'}, id=sjid3, extend='t')
 
-        # accrue_type = 2 is eligible_time
-        self.server.expect(JOB, {'accrue_type': 2}, id=jid)
+        self.server.expect(JOB, {'accrue_type': self.accrue['eligible']},
+                           id=jid)
 
         self.logger.info("subjobs 1 and 2 finished; subjob 3 must run now")
         self.server.expect(JOB, {ATTR_state: 'R'}, id=sjid3,
                            extend='t', offset=20)
-        self.server.expect(JOB, {'accrue_type': 1}, id=jid)
+        self.server.expect(JOB, {'accrue_type': self.accrue['ineligible']},
+                           id=jid)
 
         # Capture the time stamp when subjob 3 starts run. Accrue type changes
         # to ineligible time. eligible_time calculation is completed.
         msg2 = J1.create_subjob_id(jid, 3) + ";Job Run at request of Scheduler"
         m2 = self.server.log_match(msg2)
         t2 = logutils.convert_date_time(m2[1].split(';')[0])
-        eligible_time = t2 - t1
+        eligible_time = int(t2) - int(t1)
 
         m1 = jid + ";Accrue type has changed to ineligible_time, "
         m1 += "previous accrue type was eligible_time"
@@ -123,7 +147,7 @@ class TestEligibleTime(TestFunctional):
         m2 = m1 + " for %d secs, " % eligible_time
         # Format timedelta object as it does not print a preceding 0 for
         # hours in HH:MM:SS
-        m2 += "total eligible_time={:0>8}".format(
+        m2 += "total eligible_time={!s:0>8}".format(
               datetime.timedelta(seconds=eligible_time))
         try:
             self.server.log_match(m2)
@@ -137,7 +161,7 @@ class TestEligibleTime(TestFunctional):
             # calculated by PBS.
             # If the eligible_time value was off by > 5 seconds, test fails.
             match = self.server.log_match(m1)
-            e_time = re.search('(\d+) secs', match[1])
+            e_time = re.search(r'(\d+) secs', match[1])
             if e_time:
                 self.logger.info("Checking if log_match failed because "
                                  "the eligible_time value was off by "
@@ -148,3 +172,91 @@ class TestEligibleTime(TestFunctional):
                     raise PtlLogMatchError(rc=1, rv=False, msg=e.msg)
             else:
                 raise PtlLogMatchError(rc=1, rv=False, msg=e.msg)
+
+    def test_after_depend(self):
+        """
+        Make sure jobs accrue eligible time (or not) approprately with an
+        after dependency
+        """
+
+        self.server.manager(MGR_CMD_SET, NODE,
+                            {'resources_available.ncpus': 2},
+                            id=self.mom.shortname)
+        J1 = Job(TEST_USER)
+        jid1 = self.server.submit(J1)
+        attribs = {'job_state': 'R', 'accrue_type': self.accrue['run']}
+        self.server.expect(JOB, attribs, id=jid1)
+
+        J2 = Job(TEST_USER, {'Resource_List.select': '1:ncpus=2'})
+        jid2 = self.server.submit(J2)
+        attribs = {'job_state': 'Q', 'accrue_type': self.accrue['eligible']}
+        self.server.expect(JOB, attribs, id=jid2)
+
+        a = {'Resource_List.select': '1:ncpus=1',
+             ATTR_depend: 'afterany:' + jid2}
+        J3 = Job(TEST_USER, a)
+        jid3 = self.server.submit(J3)
+        attribs = {'job_state': 'H', 'accrue_type': self.accrue['ineligible']}
+        self.server.expect(JOB, attribs, id=jid3)
+
+        self.server.manager(MGR_CMD_SET, SERVER,
+                            {'max_run_res.ncpus': '[u:PBS_GENERIC=1]'})
+
+        # Make sure there are enough resources to run the job, so the reason
+        # the job can't run is the limit.  Otherwise, we'd accrue eligible time
+        self.server.manager(MGR_CMD_SET, NODE,
+                            {'resources_available.ncpus': 3},
+                            id=self.mom.shortname)
+
+        self.server.manager(MGR_CMD_SET, SERVER, {'scheduling': 'True'})
+
+        self.server.expect(JOB, {'accrue_type': self.accrue['ineligible']},
+                           id=jid2)
+
+        # force the server to reassess the accrue type
+        self.server.holdjob(jid2, 'u')
+        self.server.rlsjob(jid2, 'u')
+
+        self.server.expect(JOB, {'accrue_type': self.accrue['ineligible']},
+                           id=jid2)
+
+    def test_default_accrue_type(self):
+        """
+        Test that the default accrue_type for jobs is "eligible time"
+        """
+
+        self.server.manager(MGR_CMD_SET, NODE,
+                            {'resources_available.ncpus': 1},
+                            id=self.mom.shortname)
+        self.server.manager(MGR_CMD_SET, SCHED, {"scheduling": "false"})
+
+        jid1 = self.server.submit(Job())
+
+        # Check that the job's accrue_type is set to eligible time
+        a = {"accrue_type": self.accrue['eligible']}
+        self.server.expect(JOB, a, id=jid1)
+
+    def test_delayed_ineligible(self):
+        """
+        Test that jobs are still correctly marked ineligible by sched
+        even if server thinks that they are eligible
+        """
+
+        self.server.manager(MGR_CMD_SET, NODE,
+                            {'resources_available.ncpus': 2},
+                            id=self.mom.shortname)
+        self.server.manager(MGR_CMD_SET, SCHED, {"scheduling": "false"})
+
+        a = {"max_run_res.ncpus": "[u:PBS_GENERIC=1]"}
+        self.server.manager(MGR_CMD_SET, SERVER, a)
+        jid1 = self.server.submit(Job(attrs={"Resource_List.ncpus": 2}))
+
+        # Check that server sets job's accrue_type to eligible time
+        a = {"accrue_type": self.accrue['eligible']}
+        self.server.expect(JOB, a, id=jid1)
+
+        self.scheduler.run_scheduling_cycle()
+
+        # Check that scheduler corrects the accrue_type to ineligible
+        a = {"accrue_type": self.accrue['ineligible']}
+        self.server.expect(JOB, a, id=jid1)
